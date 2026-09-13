@@ -13,7 +13,7 @@
         "Id": "com.ekmanch.devialetremote",
         "License": "MIT",
         "Name": "Devialet Expert Pro Remote",
-        "Version": "1.0.0",
+        "Version": "1.0.2",
         "Website": "https://github.com/ekmanch/devialet-expert-remote-kde"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
