@@ -1,0 +1,87 @@
+# Maintainer: Christian Ekman <christian dot ekman89 at gmail dot com>
+#
+# AUR package for the Devialet Expert Pro KDE Plasma 6 widget. Installs under
+# /usr on its own (no install.sh, no kpackagetool6): the plasmoid to
+# /usr/share/plasma/plasmoids/<KPlugin.Id>/, the Add Widgets picker icon to
+# hicolor, the three Rust binaries to /usr/bin and the daemon's systemd --user
+# unit to /usr/lib/systemd/user/. The unit is NOT enabled by the package (see
+# the .install message); the user enables it, or the widget's "Launch at
+# login" toggle does.
+
+pkgname=devialet-expert-remote-kde
+pkgver=1.0.1
+pkgrel=1
+pkgdesc="KDE Plasma 6 panel widget, status daemon and CLI for a Devialet Expert Pro amplifier"
+arch=('x86_64')
+url="https://github.com/ekmanch/devialet-expert-remote-kde"
+license=('MIT' 'OFL-1.1')
+depends=(
+  'glibc' 'libgcc'                                  # the three Rust binaries
+  'dbus' 'systemd'                                  # daemon on the session bus; unit + systemctl --user
+  'libplasma' 'plasma5support' 'plasma-workspace'   # QML modules, plasmashell, plasma-workspace.target
+  'kirigami' 'kcmutils' 'kdeclarative' 'qt6-declarative'
+  'hicolor-icon-theme'
+  'libpulse'                                        # paplay/pactl for devialet-chime
+)
+optdepends=('ocean-sound-theme: default volume-change chime sound')
+makedepends=('cargo' 'git')
+install="$pkgname.install"
+# Git tag rather than the GitHub archive URL: GitHub has regenerated release
+# tarballs before, which silently invalidates a pinned checksum. For a #tag=
+# source makepkg checksums `git archive <tag>` (deterministic per commit).
+source=("$pkgname::git+$url.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+# KPlugin.Id from plasmoid/metadata.json: the plasmoid directory name and the
+# picker icon name both derive from it.
+_plasmoid=com.ekmanch.devialetremote
+
+prepare() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release --workspace
+}
+
+check() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --workspace
+}
+
+package() {
+  cd "$pkgname"
+
+  install -Dm0755 -t "$pkgdir/usr/bin/" \
+    target/release/devialet-ctl \
+    target/release/devialet-chime \
+    target/release/devialet-remote-daemon
+
+  # Vendor user unit, not enabled here. ExecStart is a bare command name,
+  # which systemd resolves on its fixed search path, so /usr/bin works.
+  install -Dm0644 -t "$pkgdir/usr/lib/systemd/user/" systemd/devialet-remote-daemon.service
+
+  local _root="$pkgdir/usr/share/plasma/plasmoids/$_plasmoid"
+  install -dm0755 "$_root"
+  cp -r plasmoid/. "$_root/"
+  find "$_root" -type d -exec chmod 755 {} +
+  find "$_root" -type f -exec chmod 644 {} +
+
+  # Add Widgets resolves KPlugin.Icon by theme name (QIcon::fromTheme), so the
+  # picker icon has to be registered in hicolor; a file inside the plasmoid
+  # cannot serve that role.
+  install -Dm0644 "icons/hicolor/scalable/apps/$_plasmoid.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_plasmoid.svg"
+
+  # MIT for the project; SIL OFL 1.1 for the bundled JetBrains Mono and Space
+  # Grotesk fonts under plasmoid/contents/fonts/ (OFL is not a common licence
+  # in Arch's `licenses` package, so its text ships here).
+  install -Dm0644 -t "$pkgdir/usr/share/licenses/$pkgname/" LICENSE design/font/OFL.txt
+  install -Dm0644 -t "$pkgdir/usr/share/doc/$pkgname/" README.md
+}

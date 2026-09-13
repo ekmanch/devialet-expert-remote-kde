@@ -7845,21 +7845,93 @@ architecture decisions; this file is just sequencing and status.
       simple plasmashell --replace & is not enough to update the
       data displayed in the widget.
 
+- [x] **Phase 14.0.0 — AUR packaging (investigation first) (2026-09-13).**
+      `packaging/aur/PKGBUILD` + `devialet-expert-remote-kde.install`
+      + generated `.SRCINFO`, written only after reading real,
+      currently-published precedent (WebFetch was Anubis-blocked;
+      everything came via curl from aur.archlinux.org cgit/RPC, the
+      Arch developer manual and gitlab.archlinux.org):
+  - **Plasma 6 applet layout**: all 60 `plasma6-applets-*` PKGBUILDs
+    swept, six read in full (panel-colorizer 8.0.0, window-title,
+    plasmusic-toolbar, fokus, ai-usage 2.3.1 of 2026-09-12,
+    plasmavantage). Files go straight to
+    `/usr/share/plasma/plasmoids/<KPlugin.Id>/` via `cp -r`; only 1/60
+    uses `kpackagetool6` in `package()`, none in a hook. ai-usage
+    registers its picker icon in hicolor separately for the same
+    QIcon::fromTheme reason this repo does.
+  - **Unit + binaries**: no AUR plasmoid ships a *user* unit; official
+    `plasma-desktop`/`plasma-workspace` ship plasmoids + binaries +
+    `/usr/lib/systemd/user/*.service` with no `.install` at all, and
+    the one AUR plasmoid shipping a unit (plasmavantage) only *prints*
+    the `systemctl enable` line in `post_install`. So the hook is
+    message-only - never enables. pacman's own
+    `30-systemd-daemon-reload-user.hook` / `gtk-update-icon-cache.hook`
+    cover reload and icon cache.
+  - **Rust**: Arch Rust guidelines + ripgrep/cargo-pkgbuild/fsrx:
+    `makedepends=(cargo)`, `cargo fetch --locked` in prepare(),
+    `cargo build --frozen --release --workspace`, `cargo test --frozen
+    --workspace` in check(), `install -Dm0755 -t "$pkgdir/usr/bin/"`;
+    `cargo install` is the documented fallback only. Runtime deps
+    measured with ldd: `glibc`, `libgcc`. QML/exec deps by
+    `pacman -Qo`: libplasma, plasma5support, plasma-workspace,
+    kirigami, kcmutils, kdeclarative, qt6-declarative,
+    hicolor-icon-theme, libpulse (paplay/pactl), dbus, systemd;
+    optdepends ocean-sound-theme.
+  - **Source (owner decision)**: `git+$url.git#tag=v$pkgver`, not the
+    GitHub archive tarball - GitHub has regenerated those before,
+    silently breaking pinned checksums; same trust root either way.
+    Real checksum, not SKIP: makepkg 7.1 hashes `git archive <tag>`
+    for `#tag=` sources (`/usr/share/makepkg/source/git.sh`,
+    `calc_checksum_git`), so `makepkg -g` gives a deterministic value.
+    Plain package, no `-git` suffix (stable tagged releases).
+  - **License**: `('MIT' 'OFL-1.1')` - the seven `.ttf` under
+    `plasmoid/contents/fonts/` are genuinely shipped and loaded by
+    `Theme.qml`'s FontLoaders (byte-identical to `design/font/`).
+    OFL-1.1 is not in Arch's common `licenses` package, so
+    `design/font/OFL.txt` (added by the owner, with a pointer in
+    LICENSE) is installed next to LICENSE. **pkgver=1.0.1**: those
+    files postdate tag v1.0.0, and a tag-pinned source can only ship
+    what the tag contains.
+  - **Verified (v1.0.0 pre-tag build, scratch PKGBUILD without the
+    OFL line)**: `makepkg -si` in a vanilla `archlinux:base-devel`
+    Docker container with nothing from install.sh present - exit 0,
+    114 tests pass, package contents exactly: 3 binaries in
+    `/usr/bin`, unit in `/usr/lib/systemd/user/`, 46 plasmoid files,
+    hicolor icon, LICENSE, README; nothing under `/usr/local`;
+    `kiconfinder6` resolves the icon; no `.wants` symlink anywhere;
+    namcap clean apart from the expected missing OFL text (the
+    "may not be needed" warnings on dbus/systemd/libpulse are
+    exec-time deps namcap cannot see). Gotcha: `kpackagetool6 --list`
+    only lists user-scope packages - system-wide ones need `--list
+    --global` (confirmed against panel-colorizer). Live on the dev
+    machine after `./uninstall.sh` (the `~/.local`/`~/.config`/
+    `/usr/local/bin` copies all shadow the packaged paths) +
+    `shelly install standard <pkg>`: `is-enabled` = disabled/inactive
+    after install (genuinely not auto-enabled), hook message printed,
+    `enable --now` ran the daemon from `/usr/bin/devialet-remote-daemon`
+    (`/proc/<pid>/exe`), amp reported over D-Bus within seconds,
+    plasmashell loaded the packaged plasmoid (its fonts mapped from
+    `/usr/share/plasma/plasmoids/...`, copper icon on the panel),
+    scripted `/usr/bin/devialet-ctl` volume round trip -25 -> -26 ->
+    -25 confirmed via D-Bus, then owner soak: flyout, volume ramps,
+    mute on/off, source 2 and back - 130 widget commands, 0 non-zero
+    exits, 0 command-not-found. Dev machine restored to the install.sh
+    layout afterwards (owner decision).
+  - **Remaining once the owner pushes tag v1.0.1** (after committing
+    OFL.txt, LICENSE, packaging/aur/, .gitignore, TODO/CLAUDE): run
+    `makepkg -g` in `packaging/aur/`, replace `sha256sums=('SKIP')`
+    with the value, regenerate `.SRCINFO`, re-run the container build
+    and confirm `/usr/share/licenses/devialet-expert-remote-kde/OFL.txt`
+    lands. Then Phase 14.1.0 pushes PKGBUILD + .SRCINFO + .install to
+    `ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`.
+  - Follow-ups noted, not done: `ConfigGeneral.qml:286` hardcodes
+    `~/.config/systemd/user/` in its not-found message (wrong wording
+    for a packaged unit; never triggers when the unit is packaged);
+    crate versions are 0.1.0 vs release 1.0.x; README has no AUR
+    install section yet (14.1.0).
+
 ## Up next
     
-- [ ] **Phase 14.0.0 — AUR packaging (investigation first).** Separate
-      effort from install.sh, not a reuse of it — Arch packaging
-      conventions differ meaningfully: no auto-enabling systemd user
-      services from a postinst hook, and Plasma applet packages
-      typically place files directly under
-      `/usr/share/plasma/plasmoids/<id>/` in `package()` rather than
-      shelling out to `kpackagetool6` (a user-session tool, not a
-      packaging one). Investigate real precedent — other Plasma
-      applet PKGBUILDs already on the AUR — before writing one from
-      scratch.
-  - Verify: `makepkg -si` succeeds in a clean environment/container;
-    widget + daemon + CLI all functional afterward, no leftover
-    manual steps.
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),
       add PKGBUILD + a generated `.SRCINFO`, commit, push.

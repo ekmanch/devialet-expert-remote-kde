@@ -918,6 +918,11 @@ devialet-expert-remote-kde/
 │   └── devialet-remote-daemon.service   # user unit (Restart=on-failure) for
 │                                    #   `systemctl --user enable`, per the settled
 │                                    #   decision to use systemd over XDG autostart
+├── packaging/
+│   └── aur/                        # PKGBUILD + .SRCINFO + .install for the AUR
+│                                    #   (Phase 14.0.0). Installs under /usr on its
+│                                    #   own - never calls install.sh or the
+│                                    #   scripts/ helpers, never enables the unit.
 └── docs/
     ├── protocol.md
     ├── known-gotchas.md
@@ -932,6 +937,27 @@ Notes:
 - `plasmoid/` and `systemd/` are shaped by their respective tools
   (`kpackagetool6`, `systemctl --user`), not by project convention — resist
   restructuring them without checking what each tool expects first.
+- `packaging/aur/` is the Arch package, a separate install path from
+  `install.sh` (Phase 14.0.0, settled after reading real Plasma 6 applet
+  PKGBUILDs): `package()` copies the plasmoid to
+  `/usr/share/plasma/plasmoids/<KPlugin.Id>/` itself (no `kpackagetool6`),
+  the picker icon to `/usr/share/icons/hicolor/scalable/apps/`, the three
+  binaries to `/usr/bin` (`cargo build --frozen --release` +
+  `install -Dm0755`, per the Arch Rust guidelines - `cargo install` is
+  their documented fallback only) and the unit to
+  `/usr/lib/systemd/user/`. The `.install` hook only prints the
+  `systemctl --user enable --now` line - it never enables the unit, the
+  convention for application-level packages (the one AUR plasmoid shipping
+  a unit, plasma6-applets-plasmavantage, does the same; `plasma-desktop`/
+  `plasma-workspace` ship user units with no hook at all). `source=` is the
+  git tag (`git+$url.git#tag=v$pkgver`) with a real `makepkg -g` checksum
+  of `git archive <tag>`, not the GitHub tarball URL - GitHub has
+  regenerated those archives before, silently breaking pinned checksums.
+  Consequence: a tag-pinned source only ships what the tag contains, so
+  anything `package()` references must be committed before the tag is cut.
+  Testing the package on the dev machine requires `./uninstall.sh` first:
+  the `~/.local`/`~/.config`/`/usr/local/bin` copies all precede the
+  packaged paths and would silently shadow them.
 
 ## Related repos
 

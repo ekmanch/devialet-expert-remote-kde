@@ -1,0 +1,17 @@
+post_install() {
+  cat <<'MSG'
+==> The Devialet status daemon is installed but not enabled (packages do not
+    enable user services). Enable it for your session, then add
+    "Devialet Expert Pro Remote" to a panel via Add Widgets:
+        systemctl --user enable --now devialet-remote-daemon.service
+    The widget's Settings page ("Launch at login") toggles the same unit.
+    If the widget is missing from Add Widgets:  plasmashell --replace &
+MSG
+}
+
+post_upgrade() {
+  cat <<'MSG'
+==> Restart the shell so it loads the new widget:  plasmashell --replace &
+    If the daemon is running:  systemctl --user restart devialet-remote-daemon.service
+MSG
+}
