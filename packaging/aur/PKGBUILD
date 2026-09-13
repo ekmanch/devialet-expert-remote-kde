@@ -9,7 +9,7 @@
 # login" toggle does.
 
 pkgname=devialet-expert-remote-kde
-pkgver=1.0.1
+pkgver=1.0.2
 pkgrel=1
 pkgdesc="KDE Plasma 6 panel widget, status daemon and CLI for a Devialet Expert Pro amplifier"
 arch=('x86_64')
@@ -30,7 +30,7 @@ install="$pkgname.install"
 # tarballs before, which silently invalidates a pinned checksum. For a #tag=
 # source makepkg checksums `git archive <tag>` (deterministic per commit).
 source=("$pkgname::git+$url.git#tag=v$pkgver")
-sha256sums=('73f774ee7cbafe6d71d8715a03c5f9b4243deaad89ff015aef9e830a88bd34ca')
+sha256sums=('e4537f86016b3470bc06ec0d0e52102359e2e058c9ce19caaccd3be9c68e1666')
 
 # KPlugin.Id from plasmoid/metadata.json: the plasmoid directory name and the
 # picker icon name both derive from it.
