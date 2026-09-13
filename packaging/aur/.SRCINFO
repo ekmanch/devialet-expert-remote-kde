@@ -24,6 +24,6 @@ pkgbase = devialet-expert-remote-kde
 	depends = libpulse
 	optdepends = ocean-sound-theme: default volume-change chime sound
 	source = devialet-expert-remote-kde::git+https://github.com/ekmanch/devialet-expert-remote-kde.git#tag=v1.0.1
-	sha256sums = SKIP
+	sha256sums = 73f774ee7cbafe6d71d8715a03c5f9b4243deaad89ff015aef9e830a88bd34ca
 
 pkgname = devialet-expert-remote-kde

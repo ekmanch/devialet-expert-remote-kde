@@ -30,7 +30,7 @@ install="$pkgname.install"
 # tarballs before, which silently invalidates a pinned checksum. For a #tag=
 # source makepkg checksums `git archive <tag>` (deterministic per commit).
 source=("$pkgname::git+$url.git#tag=v$pkgver")
-sha256sums=('SKIP')
+sha256sums=('73f774ee7cbafe6d71d8715a03c5f9b4243deaad89ff015aef9e830a88bd34ca')
 
 # KPlugin.Id from plasmoid/metadata.json: the plasmoid directory name and the
 # picker icon name both derive from it.

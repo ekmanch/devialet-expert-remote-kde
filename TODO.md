@@ -7917,13 +7917,19 @@ architecture decisions; this file is just sequencing and status.
     mute on/off, source 2 and back - 130 widget commands, 0 non-zero
     exits, 0 command-not-found. Dev machine restored to the install.sh
     layout afterwards (owner decision).
-  - **Remaining once the owner pushes tag v1.0.1** (after committing
-    OFL.txt, LICENSE, packaging/aur/, .gitignore, TODO/CLAUDE): run
-    `makepkg -g` in `packaging/aur/`, replace `sha256sums=('SKIP')`
-    with the value, regenerate `.SRCINFO`, re-run the container build
-    and confirm `/usr/share/licenses/devialet-expert-remote-kde/OFL.txt`
-    lands. Then Phase 14.1.0 pushes PKGBUILD + .SRCINFO + .install to
-    `ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`.
+  - **Final v1.0.1 pass (2026-09-13, after the owner pushed the tag)**:
+    `makepkg -g` against GitHub gave
+    `73f774ee7cbafe6d71d8715a03c5f9b4243deaad89ff015aef9e830a88bd34ca`,
+    identical to a local `git -c core.abbrev=no archive --format tar
+    v1.0.1 | sha256sum` - patched into `sha256sums=()`, `.SRCINFO`
+    regenerated (byte-identical to the one the container produced).
+    Second vanilla-container run on the real PKGBUILD: source
+    validation "Passed", exit 0, all tests green, and
+    `/usr/share/licenses/devialet-expert-remote-kde/OFL.txt` now in
+    the package; `kpackagetool6 --list --global` lists the id; namcap
+    has no errors left, only the ld-linux/"may not be needed" warnings
+    explained above. Phase 14.1.0 pushes PKGBUILD + .SRCINFO +
+    .install to `ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`.
   - Follow-ups noted, not done: `ConfigGeneral.qml:286` hardcodes
     `~/.config/systemd/user/` in its not-found message (wrong wording
     for a packaged unit; never triggers when the unit is packaged);
