@@ -377,8 +377,9 @@ without it - a KDE Store "Get New Widgets" install, which cannot touch
 hicolor - the bundled file is used (measured: green tile after hiding the
 hicolor SVG and restarting the shell). The hicolor step in
 `scripts/install-plasmoid.sh`/the PKGBUILD is therefore no longer
-load-bearing for the picker or the About page; it is kept for now (its
-own header comment still states the old, wrong claim - follow-up).
+load-bearing for the picker or the About page; it is kept because the
+theme icon still takes priority when present (its comment block now
+describes both mechanisms).
 
 ## `target/` can go missing out from under a running daemon — every widget command then silently no-ops (found live, post-Phase-7.13.0 investigation)
 

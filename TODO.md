@@ -7973,8 +7973,9 @@ architecture decisions; this file is just sequencing and status.
     `"Icon": "/icons/com.ekmanch.devialetremote.svg"`, the brand SVG is
     copied to `plasmoid/contents/icons/`, Version bumped to 1.0.3 for the
     retag. The hicolor step is no longer load-bearing for picker or About
-    page (kept; `install-plasmoid.sh`'s header comment still states the
-    old claim - follow-up, not touched this phase).
+    page (kept, theme icon still wins when present; the comment block
+    in `install-plasmoid.sh` was updated to describe both mechanisms
+    on 2026-09-14).
   - **Verified**: `dist/com.ekmanch.devialetremote-1.0.3.plasmoid` (48
     entries) installed with `kpackagetool6 --type Plasma/Applet
     --packageroot <scratch> --install`, a path separate from `~/.local`:

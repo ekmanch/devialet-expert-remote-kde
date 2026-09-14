@@ -68,15 +68,25 @@ if ! kpackagetool6 --type "$PACKAGE_TYPE" --list 2>/dev/null | grep -qx -- "$PLU
     die "kpackagetool6 reported success but $PLUGIN_ID is not in --list afterward"
 fi
 
-# --- picker icon (theme icon, not part of the KPackage) ---
-# metadata.json's KPlugin.Icon is resolved by name through QIcon::fromTheme
-# (the widget explorer imports exactly KPluginMetaData::iconName +
-# QIcon::fromTheme, nothing from KPackage), so a bundled contents/icons/
-# file can never be the picker icon. The icon therefore lives in the
-# repo's icons/hicolor/... tree - the same layout a PKGBUILD would install
-# to /usr/share/icons/hicolor/ - and is copied into the user's hicolor
-# theme here, which every icon theme inherits. Idempotent: skipped when
-# the installed copy is byte-identical.
+# --- picker icon (theme icon, installed outside the KPackage) ---
+# The Add Widgets picker resolves the applet icon in this order (read from
+# plasma-workspace's components/shellprivate/plasmaappletitemmodel.cpp and
+# verified live in Phase 15.0.0):
+#   1. a *theme* icon named after the plugin id (QIcon::hasThemeIcon) -
+#      the hicolor copy this step installs; it wins whenever present;
+#   2. otherwise metadata.json's KPlugin.Icon - since v1.0.3 that is
+#      "/icons/<id>.svg", a path resolved inside the package relative to
+#      contents/, i.e. the same SVG bundled at plasmoid/contents/icons/.
+#      This fallback covers installs that never run this script, such as
+#      a KDE Store "Get New Widgets" install of the .plasmoid file; the
+#      shell's About page uses the bundled path in every case.
+# So the hicolor install below is no longer required for the picker to
+# show the brand tile, but it keeps the icon reachable as a real theme
+# icon (kiconfinder6, icon-theme overrides) and takes priority when
+# installed. The SVG lives in the repo's icons/hicolor/... tree - the
+# same layout the PKGBUILD installs to /usr/share/icons/hicolor/ - and is
+# copied into the user's hicolor theme here, which every icon theme
+# inherits. Idempotent: skipped when the installed copy is byte-identical.
 ICON_NAME="$PLUGIN_ID"
 ICON_SOURCE="${SCRIPT_DIR}/../icons/hicolor/scalable/apps/${ICON_NAME}.svg"
 ICON_DEST_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/icons/hicolor/scalable/apps"
