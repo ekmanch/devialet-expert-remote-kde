@@ -39,3 +39,6 @@ packaging/aur/pkg/
 packaging/aur/*.pkg.tar.*
 packaging/aur/*.tar.gz
 packaging/aur/devialet-expert-remote-kde/
+
+# KDE Store upload built by scripts/build-plasmoid.sh
+dist/

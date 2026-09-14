@@ -7936,6 +7936,52 @@ architecture decisions; this file is just sequencing and status.
     crate versions are 0.1.0 vs release 1.0.x; README has no AUR
     install section yet (14.1.0).
 
+- [x] **Phase 15.0.0 packaging step — build the KDE Store `.plasmoid` (2026-09-13).**
+      `scripts/build-plasmoid.sh` -> `dist/<KPlugin.Id>-<KPlugin.Version>.plasmoid`
+      (`dist/` git-ignored). Investigation first, primary sources only:
+  - **Format**: `kpackagetool6` 2.0 (kpackage 6.30) has no create/pack
+    option at all (full `--help` read), so the archive is made with
+    `bsdtar --format zip` (`zip` is not installed; bsdtar/7z/python are).
+    A `.plasmoid` is a plain zip with `metadata.json` + `contents/` at the
+    archive root - four real Plasma 6 store uploads fetched through the
+    store's OCS API all have exactly that layout, and KPackage's own
+    installer (`packagejobthread.cpp`) opens by MIME type (zip or tar),
+    copies the archive root and tolerates one top-level folder. No
+    store-specific wrapping. "Get New Widgets" installs through the same
+    code path (`/usr/share/knsrcfiles/plasmoids.knsrc`:
+    `Uncompress=kpackage`, `KPackageStructure=Plasma/Applet`).
+  - **Store requirements**: KDE wikis are Cloudflare-challenged and the
+    store HTML Anubis-blocked to WebFetch, so the OCS API was used: real
+    uploads follow no filename convention (`<id>-<ver>.plasmoid`,
+    `<id>.plasmoid`, `<name>-<ver>.plasmoid`, even `.zip`), 14-566 KB;
+    ours is ~700 KB (fonts) and no size limit is documented. Category
+    "Plasma 6 Extensions" (705); `X-Plasma-API-Minimum-Version: 6.0`
+    already present.
+  - **Freshness**: `plasmoid/` was `diff -r`-identical to the install.sh
+    copy; 47 tracked files, nothing untracked/ignored; the script packs
+    exactly `metadata.json` + `contents/` and fails if the entry count
+    differs from the directory.
+  - **Picker icon (found, then fixed - corrects CLAUDE.md)**: the
+    explorer (`plasmaappletitemmodel.cpp`, same on Plasma/6.7) tries a
+    theme icon named after the plugin id first, then a `/`-prefixed
+    `KPlugin.Icon` resolved inside the package relative to `contents/`,
+    then a theme name; the About page joins the same path. Verified live
+    both ways with a green-tinted bundled copy: hicolor installed -> copper
+    theme tile (theme wins, so install.sh/AUR behaviour is unchanged);
+    hicolor hidden + shell restart -> green tile (bundled fallback, the
+    store case). Owner decision: bundle it. `metadata.json` now has
+    `"Icon": "/icons/com.ekmanch.devialetremote.svg"`, the brand SVG is
+    copied to `plasmoid/contents/icons/`, Version bumped to 1.0.3 for the
+    retag. The hicolor step is no longer load-bearing for picker or About
+    page (kept; `install-plasmoid.sh`'s header comment still states the
+    old claim - follow-up, not touched this phase).
+  - **Verified**: `dist/com.ekmanch.devialetremote-1.0.3.plasmoid` (48
+    entries) installed with `kpackagetool6 --type Plasma/Applet
+    --packageroot <scratch> --install`, a path separate from `~/.local`:
+    `--list` shows the id, `diff -r` against `plasmoid/` identical, modes
+    644, `--appstream-metainfo` parses it. Live copy re-synced via
+    `--upgrade plasmoid/` + `plasmashell --replace`.
+
 ## Up next
     
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -7946,11 +7992,14 @@ architecture decisions; this file is just sequencing and status.
     separate/clean Arch system.
     
 - [ ] **Phase 15.0.0 — KDE Store submission ("Get New Widgets").**
-      Create a store.kde.org account, package the plasmoid directory
-      as a `.plasmoid` file, upload under Plasma 6 Extensions →
-      Plasma 6 Applets with screenshots + description. Independent of
-      Phase 14 — no packaging tooling involved, just an account and an
-      upload.
+      Create a store.kde.org account and upload
+      `dist/com.ekmanch.devialetremote-<version>.plasmoid` (built by
+      `scripts/build-plasmoid.sh`, see the Phase 15.0.0 packaging entry
+      under Done) under Plasma 6 Extensions (category 705) with
+      screenshots + description; the listing logo is a separate manual
+      image upload. Independent of Phase 14 — just an account and an
+      upload. Retag (v1.0.3) first: the bundled picker icon and the
+      1.0.3 metadata version postdate v1.0.2.
   - Note: real-world reports show newly-published Plasma 6 widgets
     can take time to appear in the in-app "Get New Widgets" search,
     and the store's search only matches 3+ character substrings —
