@@ -357,30 +357,6 @@ just-installed file (bumping the hicolor dir mtime did not help) - and
 reload rule as QML. The same theme icon also feeds the ConfigDialog's
 About page, confirmed live.
 
-**Correction (Phase 15.0.0, 2026-09-13): a bundled file CAN be the
-picker icon, as a fallback.** The claim above that the explorer uses
-only `KPluginMetaData::iconName` + `QIcon::fromTheme` was wrong. Read
-from plasma-workspace's `components/shellprivate/plasmaappletitemmodel.cpp`
-(identical on the Plasma/6.7 branch this machine runs) and verified live
-twice: the explorer first tries a *theme* icon named after the plugin id
-(`QIcon::hasThemeIcon(pluginId)` - this is why the hicolor SVG works even
-though `KPlugin.Icon` never named it), then, if `KPlugin.Icon` starts
-with `/`, resolves it *inside the package* relative to `contents/`
-(`pkg.filePath("", iconName)`), else treats it as a theme name, else
-`application-x-plasma`. The shell's About page (`AboutPlugin.qml`) does
-the same join (`plasma/plasmoids/<id>/contents` + iconName). So
-`metadata.json` now has `"Icon": "/icons/com.ekmanch.devialetremote.svg"`
-with the brand SVG copied to `plasmoid/contents/icons/`: where install.sh
-or the AUR package installed the hicolor icon the theme icon still wins
-(measured: copper tile with a deliberately green bundled copy in place);
-without it - a KDE Store "Get New Widgets" install, which cannot touch
-hicolor - the bundled file is used (measured: green tile after hiding the
-hicolor SVG and restarting the shell). The hicolor step in
-`scripts/install-plasmoid.sh`/the PKGBUILD is therefore no longer
-load-bearing for the picker or the About page; it is kept because the
-theme icon still takes priority when present (its comment block now
-describes both mechanisms).
-
 ## `target/` can go missing out from under a running daemon — every widget command then silently no-ops (found live, post-Phase-7.13.0 investigation)
 
 **Symptom**: every widget control (volume, mute, source, power) appears to
@@ -942,11 +918,6 @@ devialet-expert-remote-kde/
 │   └── devialet-remote-daemon.service   # user unit (Restart=on-failure) for
 │                                    #   `systemctl --user enable`, per the settled
 │                                    #   decision to use systemd over XDG autostart
-├── scripts/
-│   ├── install-*.sh                # the three install.sh steps
-│   └── build-plasmoid.sh           # KDE Store upload: zips plasmoid/ into
-│                                    #   dist/<Id>-<Version>.plasmoid (Phase 15.0.0)
-├── dist/                           # git-ignored build output of build-plasmoid.sh
 ├── packaging/
 │   └── aur/                        # PKGBUILD + .SRCINFO + .install for the AUR
 │                                    #   (Phase 14.0.0). Installs under /usr on its

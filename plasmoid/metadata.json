@@ -9,11 +9,11 @@
         "Category": "System Information",
         "Description": "Control a Devialet Expert Pro amplifier over ethernet",
         "EnabledByDefault": true,
-        "Icon": "/icons/com.ekmanch.devialetremote.svg",
+        "Icon": "com.ekmanch.devialetremote",
         "Id": "com.ekmanch.devialetremote",
         "License": "MIT",
         "Name": "Devialet Expert Pro Remote",
-        "Version": "1.0.3",
+        "Version": "1.0.4",
         "Website": "https://github.com/ekmanch/devialet-expert-remote-kde"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
