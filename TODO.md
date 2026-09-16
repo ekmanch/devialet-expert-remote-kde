@@ -7953,8 +7953,144 @@ architecture decisions; this file is just sequencing and status.
       v1.0.3) is reverted in the same commit as this entry, since it
       existed solely for this now-abandoned channel.
 
+- [x] **Phase 16.0.0 — Daemon signal for PC-originated volume/mute
+      commands, so external tools trigger the widget's OSD.** Done
+      2026-09-16 - code and hands-free verification 2026-09-15, owner's
+      pointer soak 2026-09-16 (recorded below).
+  - **Problem**: `devialet-ctl` is now also driven by the external MPV
+    scroll-to-volume script, which (like the widget) sends the UDP command
+    and then calls the daemon's `NotifyVolumeCommand`/`NotifyMuteCommand`.
+    The amp followed, but `VolumeToast.qml` never showed: it is only shown
+    by `showVolume()`/`showMute()` from `CompactRepresentation.qml`'s own
+    wheel/middle-click handlers, never from daemon state. A watcher on
+    `VolumeDb`/`Muted` can't fix that without also firing for changes the
+    daemon merely observed from the amp (physical remote), which must keep
+    showing nothing.
+  - **Investigation corrections to the brief**: `devialet-ctl` has no D-Bus
+    code at all (no zbus dependency; CLAUDE.md's settled "no daemon
+    involvement"); the Notify methods are called from QML, in exactly one
+    file, `PendingAmpState.qml` (`notifyVolume()`/`notifyMute()` via
+    `Dbus.SessionBus.asyncCall`), by five widget call sites: panel wheel +
+    middle-click (`CompactRepresentation.qml`), flyout step/slider/mute
+    (`FlyoutContent.qml`), and the settings hard-limit clamp
+    (`main.qml applyImmediateClamp`). So the MPV script calls the D-Bus
+    method itself next to `devialet-ctl`.
+  - **Signal shape (settled)**: two signals mirroring the two methods,
+    `VolumeCommandNotified(s ip, d db)` and `MuteCommandNotified(s ip,
+    b muted)`, carrying the value - no `Get` round trip, and they still
+    fire when the pending value equals the current one (no
+    `PropertiesChanged` at all then; KDE's own OSD also shows at max
+    volume). Emitted unconditionally once past the unknown-ip guard, and
+    *after* the method's `emit_all` so the same call's property push lands
+    in QML first. Bodiless `#[zbus(signal)]` declarations in
+    `interface.rs`, emitted as `Self::volume_command_notified(&emitter, ..)`
+    from `notify_volume_command`/`notify_mute_command`. No unit test
+    possible (same live-`SignalEmitter` constraint as the four methods);
+    verified with `busctl monitor`.
+  - **QML mechanism**: `org.kde.plasma.workspace.dbus`'s `SignalWatcher`
+    (plasma-workspace 6.7.5, `components/dbus/dbussignalwatcher.cpp`, read
+    from the Plasma/6.7 source, not assumed): one
+    `QDBusConnection::connect(service, path, iface, "" , ..)` for the whole
+    interface, dispatching each signal to a JS function on the watcher
+    named `"dbus" + <member>` with the arguments positionally - so
+    `function dbusVolumeCommandNotified(ip, db)` /
+    `dbusMuteCommandNotified(ip, muted)`. First use of that type in this
+    plasmoid. Lives in `PendingAmpState.qml` as a named property
+    (`commandSignals`; QtObject has no default property, same as
+    `ampProps`).
+  - **Double-fire (owner decision, asked 2026-09-15): suppress every
+    widget-originated call**, not just the two panel paths - the flyout
+    and the settings clamp never showed the OSD and still don't (matches
+    KDE's audio applet, whose flyout never triggers the OSD), so behaviour
+    is unchanged except for external callers. Mechanism, all in
+    `PendingAmpState.qml` because it is the single funnel every widget
+    Notify* call goes through: `ownInFlight` (`{kind, value}` entries)
+    gets a `rememberOwn()` before each `asyncCall`; the signal handler
+    ignores an `ip` other than `ampIp`, consumes a matching entry silently
+    (`consumeOwn()`), and only an unmatched signal is re-emitted as
+    `externalVolumeCommand(db)`/`externalMuteCommand(muted)`, which
+    `CompactRepresentation.qml`'s new `Connections` turns into
+    `showVolume(tooltipAmpName, activeSourceName, db,
+    volumeSettings.fractionFor(db), pendingAmpState.muted)` /
+    `showMute(.., muted, volumeFraction)`. The reply callbacks `forgetOwn()`
+    an entry no signal matched (unknown-ip no-op, a daemon predating the
+    signal) - the daemon emits inside the method before replying, so the
+    echo normally lands first. Value match is exact (a D-Bus `d` round-
+    trips bit-identical). Rejected: sender-based tagging (QML can't learn
+    plasmashell's unique bus name) and idempotent double-show (would also
+    make the flyout/clamp start showing the OSD). No power gate on the
+    external path; no chime for external commands (`maybeChime` stays a
+    wheel-notch behaviour).
+  - **Hands-free verification, real amp (`192.168.0.22`), 2026-09-15**,
+    against the release daemon run from `target/` in place of the systemd
+    unit (sudo needed a password, so `install-binaries.sh` was left to the
+    owner - see "Owner steps" below), `busctl --user monitor` on the
+    daemon's signals throughout, `debugLogging: true` in
+    `PendingAmpState.qml`, `QT_QPA_PLATFORM=wayland spectacle` captures:
+    - `busctl introspect` lists `.VolumeCommandNotified signal sd` and
+      `.MuteCommandNotified signal sb` next to the four methods.
+    - External volume, value unchanged (`NotifyVolumeCommand .. -39.0`
+      with the amp already at -39, powered off): monitor shows
+      `VolumeCommandNotified("192.168.0.22", -39)` and **no**
+      `PropertiesChanged`; journal `[PendingAmpState] external volume -39`
+      1.3 ms after the call; screenshot shows the toast ("Devialet Expert
+      140 Pro", "-39.0 dB", "Optical 1"). The no-PropertiesChanged case is
+      exactly why the signal carries the value.
+    - Amp powered on via `devialet-ctl power on` (~16 s to On): 13
+      `PropertiesChanged` emissions from the boot's own status broadcasts
+      and still exactly 1 `*CommandNotified` - an amp-observed change never
+      takes the signal path (the same `ingest_status` route the physical
+      remote uses; the owner's soak repeats it with the actual remote).
+    - External mute: `devialet-ctl mute on` + `NotifyMuteCommand .. true` →
+      journal `external mute true`, toast reads "Muted", `Muted` still
+      `true` 2 s later (real confirmation, not the 400 ms mask).
+    - MPV shape, back to back: `mute off` + `NotifyMuteCommand false`,
+      `volume -38` + `NotifyVolumeCommand -38.0` → journal `external mute
+      false` then `external volume -38`, toast ends on "-38.0 dB" (not
+      "Muted"), `Muted=false`, `VolumeDb=-38`, `VolumeRaw=119` (= -38, amp-
+      confirmed) 2 s later.
+    - Rapid fire, 50 `NotifyVolumeCommand` calls at 50 ms (MPV's rate-
+      limited scroll shape): 50 signals on the bus, 50 `external volume`
+      handler runs, daemon RSS 5624 → 5640 kB, nothing on the daemon's
+      stderr, no daemon/plasmoid error or warning in the journal (the only
+      new journal lines were pre-existing `GL_INVALID_VALUE` compositor
+      noise, present before this session started).
+    - Amp restored afterward: -39 dB, unmuted, powered off (its state
+      before the session); systemd unit restarted on the previously
+      installed binary.
+  - **Owner soak, 2026-09-16, after `./install.sh` put this build's daemon
+    in `/usr/local/bin`** (a first soak attempt ran against the previously
+    installed, pre-phase daemon after a reboot: every own call logged
+    `remembered own` then only `forgot unechoed own` - exactly the reply-
+    time cleanup designed for a daemon that emits no signal - and a bus
+    monitor confirmed nothing was emitted; with this build swapped in,
+    the same call produced `VolumeCommandNotified` on the bus and the
+    widget's handler line 1.5 ms later, so the watcher itself was never
+    the problem). With the real daemon installed and `debugLogging: true`,
+    `journalctl --user -f -o cat | grep PendingAmpState` while exercising
+    every widget call site: panel wheel up/down plus one scroll while
+    muted, panel middle-click, flyout ± step buttons, flyout slider drag
+    and release, flyout Mute button, settings hard limit set below the
+    current volume + Apply. Every `remembered own <kind> <value>` was
+    followed by its `own echo consumed <kind> <value>`; not one `external`
+    or `forgot unechoed` line (129 own calls over the session, 123 volume
+    + 6 mute, all consumed, echo 0.8-1.4 ms after the call - which also
+    settles the signal-before-reply ordering the plan flagged as the one
+    live risk). The scroll-while-muted shape shows as `mute false` and
+    `volume` remembered back to back and both consumed. Owner's verdict:
+    "No 'external' or 'forgot unechoed' lines. Everything looks good."
+    Amp-observed changes: the owner changed the volume from the Kotlin
+    Android app (Samsung Galaxy S25), which sends UDP straight to the amp
+    so the daemon only ever sees the resulting broadcast - the same path
+    as the physical remote - and no OSD appeared on the PC. `debugLogging`
+    flipped back to `false` and the plasmoid reinstalled afterward.
+  - **MPV follow-up (outside this repo)**: the scroll-to-volume script
+    already calls `NotifyVolumeCommand`/`NotifyMuteCommand` next to
+    `devialet-ctl`; nothing changes on its side - the daemon signal now
+    turns those calls into the toast.
+
 ## Up next
-    
+
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),
       add PKGBUILD + a generated `.SRCINFO`, commit, push.
@@ -7973,8 +8109,3 @@ architecture decisions; this file is just sequencing and status.
 
 ## Tasks to complete outside repo
 
-- [ ] **Scroll-over-mpv-window volume control.** Separate MPV
-      Lua script to redirect scroll events over active MPV windows to the 
-      amp instead of MPV's own volume. Independent of the plasmoid itself 
-      — not blocked on any of the phases above, can happen in parallel 
-      whenever.

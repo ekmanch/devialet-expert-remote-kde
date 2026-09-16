@@ -809,6 +809,23 @@ re-discovered a fourth time after the rebuild ships.
     `devialet_protocol::parse_model_name` as a hand-rolled char scan, no
     new dependency on the zero-deps protocol crate). Once resolved, never
     re-attempted or cleared.
+  - **PC-originated-command signals (2026-09-15)**: the interface's only
+    custom signals, `VolumeCommandNotified(s ip, d db)` and
+    `MuteCommandNotified(s ip, b muted)`, emitted by `NotifyVolumeCommand`/
+    `NotifyMuteCommand` for every accepted call (unconditionally, after the
+    method's own `PropertiesChanged` burst) so a command from outside the
+    widget - the MPV scroll-to-volume script, any future tool that calls
+    those methods - shows the widget's OSD toast. Changes the daemon only
+    observes from the amp (physical remote) never take this path, which is
+    why it is a signal from those two methods and not a QML watcher on
+    `VolumeDb`/`Muted`. QML side: `org.kde.plasma.workspace.dbus`'s
+    `SignalWatcher` in `PendingAmpState.qml` (handler = a JS function named
+    `dbus` + signal member, plasma-workspace's own convention), which also
+    filters out the widget's own echoes with an in-flight queue - every
+    widget-originated Notify* call funnels through that file's
+    `notifyVolume()`/`notifyMute()`, so the flyout and settings clamp stay
+    OSD-less and the panel wheel/middle-click never double-show. See
+    TODO.md's entry for the full decision record.
 - **`devialet-ctl` on PATH** (needed by every QML button that shells out to
   it, not just the volume one — mute/power/source in Phase 3 all need this
   too, so it's documented once here rather than per-button):

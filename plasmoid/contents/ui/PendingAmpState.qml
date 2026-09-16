@@ -75,6 +75,31 @@
 // volumeDb/muted below are already exactly what the daemon currently
 // reports, whether still pending or already confirmed.
 //
+// PC-originated-command signal (2026-09-15, unnumbered phase). The daemon
+// now emits `VolumeCommandNotified(ip, db)` / `MuteCommandNotified(ip,
+// muted)` from NotifyVolumeCommand/NotifyMuteCommand (interface.rs) so a
+// command sent by anything other than this widget - the MPV scroll-to-
+// volume script, a future tool - can show the widget's OSD toast. Changes
+// the daemon merely observes from the amp (physical remote) never take
+// that path, so they keep showing no OSD - which is why this is a signal
+// from those two methods and not a watcher on VolumeDb/Muted. This file
+// owns the subscription (`commandSignals` below) because it is also the
+// single funnel every widget-originated Notify* call goes through
+// (notifyVolume/notifyMute - panel wheel/middle-click, flyout slider/
+// step/mute, main.qml's settings clamp), which makes it the one place that
+// can tell the daemon's echo of our own call apart from an external one:
+// `ownInFlight` remembers each value we sent, the signal handler consumes
+// a matching entry silently, and only an unmatched signal is re-emitted as
+// `externalVolumeCommand`/`externalMuteCommand` for CompactRepresentation
+// to turn into a toast. Owner decision: every widget-originated call is
+// suppressed (the flyout and the settings clamp never showed the OSD and
+// still don't), so behaviour is unchanged except for external callers.
+// The daemon emits the signal inside the method before replying, so the
+// echo normally consumes the entry before the reply callback runs; the
+// callbacks only forget an entry no signal ever matched (unknown-ip no-op,
+// a daemon predating the signal). A sender-based scheme was not possible:
+// QML has no access to plasmashell's own unique bus name to compare with.
+//
 // Plain QtObject root, not `pragma Singleton` - matches Theme.qml's own
 // precedent (this KPackage has no qmldir/module registration set up for
 // a true singleton). A headless data object; no visual representation
@@ -98,6 +123,43 @@ QtObject {
     property string ampIp: ""
     property var volumeDb: undefined
     property bool muted: false
+
+    // PC-originated commands from a caller other than this widget (see the
+    // header): the daemon's VolumeCommandNotified/MuteCommandNotified
+    // minus our own echoes. CompactRepresentation shows the OSD on these.
+    signal externalVolumeCommand(real db)
+    signal externalMuteCommand(bool muted)
+
+    // Values this widget itself has sent to Notify*Command and not yet
+    // seen echoed back as a signal. Plain JS array of {kind, value}
+    // (kind "volume" | "mute"); nothing binds to it, so in-place mutation
+    // is fine. Matching is exact: a double sent as a D-Bus `d` comes back
+    // bit-identical, a bool trivially.
+    property var ownInFlight: []
+
+    function rememberOwn(kind, value) {
+        root.ownInFlight.push({ kind: kind, value: value });
+        if (root.debugLogging) console.log("[PendingAmpState] remembered own", kind, value);
+    }
+
+    // Removes the oldest matching entry; true if there was one.
+    function consumeOwn(kind, value) {
+        for (let i = 0; i < root.ownInFlight.length; i++) {
+            const entry = root.ownInFlight[i];
+            if (entry.kind === kind && entry.value === value) {
+                root.ownInFlight.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Reply-time cleanup for an entry no signal matched (see the header).
+    function forgetOwn(kind, value) {
+        if (root.consumeOwn(kind, value) && root.debugLogging) {
+            console.log("[PendingAmpState] forgot unechoed own", kind, value);
+        }
+    }
 
     // Phase 8.0.1 post-boot hold state - see the header comment.
     // bootHoldIp "" = not held. bootHoldDb = the value currently asserted
@@ -228,6 +290,7 @@ QtObject {
         if (root.bootHoldIp !== "") root.bootHoldDb = db;
         const previous = root.volumeDb;
         root.volumeDb = db;
+        root.rememberOwn("volume", db);
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -237,12 +300,14 @@ QtObject {
                 arguments: [root.ampIp, db]
             }),
             function (reply) {
+                root.forgetOwn("volume", db);
                 if (reply.isError) {
                     root.volumeDb = previous;
                     console.log("[WARN] NotifyVolumeCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
             },
             function (reply) {
+                root.forgetOwn("volume", db);
                 root.volumeDb = previous;
                 console.log("[WARN] NotifyVolumeCommand call failed:", JSON.stringify(reply.error));
             }
@@ -253,6 +318,7 @@ QtObject {
         if (root.ampIp === "") return;
         const previous = root.muted;
         root.muted = muted;
+        root.rememberOwn("mute", muted);
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -262,12 +328,14 @@ QtObject {
                 arguments: [root.ampIp, muted]
             }),
             function (reply) {
+                root.forgetOwn("mute", muted);
                 if (reply.isError) {
                     root.muted = previous;
                     console.log("[WARN] NotifyMuteCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
             },
             function (reply) {
+                root.forgetOwn("mute", muted);
                 root.muted = previous;
                 console.log("[WARN] NotifyMuteCommand call failed:", JSON.stringify(reply.error));
             }
@@ -316,5 +384,42 @@ QtObject {
                 console.log("[PendingAmpState] onPropertiesChanged", root.ampIp, root.volumeDb, root.muted);
             }
         }
+    }
+
+    // Subscription to the daemon's two custom signals (see the header).
+    // Plasma's SignalWatcher (org.kde.plasma.workspace.dbus, plasma-
+    // workspace components/dbus/dbussignalwatcher.cpp) connects to every
+    // member of `iface` and dispatches each received signal to a JS
+    // function on this object named "dbus" + <member>, arguments
+    // positionally - so the two function names below are the D-Bus signal
+    // names, not free choices. Named property, not a bare child, for the
+    // same QtObject-has-no-default-property reason as ampProps above.
+    readonly property Dbus.SignalWatcher commandSignals: Dbus.SignalWatcher {
+        busType: Dbus.BusType.Session
+        service: root.serviceName
+        path: root.objectPath
+        iface: root.interfaceName
+
+        function dbusVolumeCommandNotified(ip, db) {
+            root.handleCommandSignal("volume", root.unwrap(ip, ""), root.unwrap(db, undefined));
+        }
+
+        function dbusMuteCommandNotified(ip, muted) {
+            root.handleCommandSignal("mute", root.unwrap(ip, ""), root.unwrap(muted, undefined));
+        }
+    }
+
+    // A command aimed at another amp than the one this widget shows is
+    // ignored outright; our own echo is consumed silently; anything else
+    // is a genuinely external command.
+    function handleCommandSignal(kind, ip, value) {
+        if (value === undefined || ip !== root.ampIp) return;
+        if (root.consumeOwn(kind, value)) {
+            if (root.debugLogging) console.log("[PendingAmpState] own echo consumed", kind, value);
+            return;
+        }
+        if (root.debugLogging) console.log("[PendingAmpState] external", kind, value);
+        if (kind === "volume") root.externalVolumeCommand(value);
+        else root.externalMuteCommand(value);
     }
 }

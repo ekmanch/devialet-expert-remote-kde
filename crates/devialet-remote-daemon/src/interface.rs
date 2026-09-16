@@ -374,6 +374,24 @@ impl AmpState {
     /// sequence of commands (e.g. fast scrolling) onto whichever one was
     /// sent most recently, rather than getting stuck reporting the first
     /// of several superseded values.
+    ///
+    /// PC-originated-command signal (2026-09-15, unnumbered phase): once
+    /// past the unknown-ip guard this also emits `VolumeCommandNotified(ip,
+    /// db)` - unconditionally, NOT gated on `states_equal` like the
+    /// `PropertiesChanged` burst above it, and after that burst so a client
+    /// handling the signal already sees the same call's property values.
+    /// Purpose: the widget's OSD toast is shown by the widget's own input
+    /// handlers only, so a command from any other caller of this method
+    /// (the MPV scroll-to-volume script, a future tool) changed the amp
+    /// without any on-screen feedback. Watching `VolumeDb` on the client
+    /// can't fix that - it fires just the same for changes the daemon
+    /// merely observed from the amp (physical remote), which must keep
+    /// showing nothing. A signal fired from this method alone is exactly
+    /// the "a PC command was sent" event, and it carries the value so the
+    /// client needs no `Get` round trip and still fires when the pending
+    /// value equals the current one (no `PropertiesChanged` at all then).
+    /// The widget filters out its own echoes client-side
+    /// (`PendingAmpState.qml`'s in-flight queue).
     #[zbus(name = "NotifyVolumeCommand")]
     async fn notify_volume_command(
         &mut self,
@@ -392,12 +410,17 @@ impl AmpState {
                 .await
                 .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         }
+        Self::volume_command_notified(&emitter, &ip, db)
+            .await
+            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(())
     }
 
     /// Phase 5.0.0: `NotifyVolumeCommand`'s equivalent for mute - see its
     /// doc comment for the full reasoning, identical here with `Muted`/
-    /// `pending_muted` in place of `VolumeDb`/`pending_volume_db`.
+    /// `pending_muted` in place of `VolumeDb`/`pending_volume_db` - and,
+    /// since 2026-09-15, `MuteCommandNotified(ip, muted)` in place of
+    /// `VolumeCommandNotified(ip, db)`, emitted under the same rules.
     #[zbus(name = "NotifyMuteCommand")]
     async fn notify_mute_command(
         &mut self,
@@ -416,8 +439,32 @@ impl AmpState {
                 .await
                 .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         }
+        Self::mute_command_notified(&emitter, &ip, muted)
+            .await
+            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(())
     }
+
+    /// `VolumeCommandNotified(s ip, d db)`: emitted by `NotifyVolumeCommand`
+    /// for every accepted call (see its doc). The only custom signals on
+    /// this interface; everything else is `PropertiesChanged`. Bodiless
+    /// declaration per zbus 5's `#[zbus(signal)]` form - the macro
+    /// generates the associated fn the method above calls.
+    #[zbus(signal, name = "VolumeCommandNotified")]
+    async fn volume_command_notified(
+        emitter: &zbus::object_server::SignalEmitter<'_>,
+        ip: &str,
+        db: f64,
+    ) -> zbus::Result<()>;
+
+    /// `MuteCommandNotified(s ip, b muted)`: `NotifyMuteCommand`'s
+    /// counterpart of `VolumeCommandNotified` above.
+    #[zbus(signal, name = "MuteCommandNotified")]
+    async fn mute_command_notified(
+        emitter: &zbus::object_server::SignalEmitter<'_>,
+        ip: &str,
+        muted: bool,
+    ) -> zbus::Result<()>;
 }
 
 impl AmpState {
@@ -1202,6 +1249,11 @@ mod tests {
     // private field, matching what the real method would have set" pattern
     // already used for `boot_deadline` above) to cover the actual
     // resolution mechanics in `resolve_pending_commands`/`recompute`.
+    // The same constraint covers the `VolumeCommandNotified`/
+    // `MuteCommandNotified` signals those two methods emit (2026-09-15):
+    // emission needs a live `SignalEmitter`, so it is verified with
+    // `busctl monitor` against the real daemon instead - see that
+    // phase's TODO.md entry.
 
     #[test]
     fn pending_volume_is_reported_instead_of_the_amps_last_real_value_while_live() {

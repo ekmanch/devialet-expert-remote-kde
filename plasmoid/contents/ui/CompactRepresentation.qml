@@ -400,6 +400,29 @@ MouseArea {
         id: volumeToast
     }
 
+    // PC-originated commands from outside this widget (the MPV scroll-to-
+    // volume script, any future tool) - PendingAmpState re-emits the
+    // daemon's VolumeCommandNotified/MuteCommandNotified minus this
+    // widget's own echoes (see its header), so nothing here can double-
+    // show for stepVolume()/toggleMute() above, and the flyout/settings
+    // clamp paths stay OSD-less as before. Same argument sources as those
+    // two functions; the fraction is computed from the signal's own dB
+    // rather than volumeFraction, which tracks pendingAmpState.volumeDb
+    // (already equal by the time the signal lands, since the daemon emits
+    // it after the same call's PropertiesChanged, but the explicit form
+    // doesn't depend on that ordering). No chime: maybeChime() is a
+    // wheel-notch behaviour, deliberately not extended to external calls.
+    Connections {
+        target: root.pendingAmpState
+        function onExternalVolumeCommand(db) {
+            volumeToast.showVolume(root.tooltipAmpName, root.activeSourceName, db,
+                root.volumeSettings.fractionFor(db), root.pendingAmpState.muted);
+        }
+        function onExternalMuteCommand(muted) {
+            volumeToast.showMute(root.tooltipAmpName, root.activeSourceName, muted, root.volumeFraction);
+        }
+    }
+
     // Fires devialet-ctl once per connectSource() call, then disconnects
     // itself - same pattern as FullRepresentation.qml's own `exec`
     // (confirmed pattern from Phase 2 (luisbocanegra.panel.colorizer's
