@@ -1,5 +1,5 @@
 // Phase 10.1.1: the mockup's `.file-picker-btn` (v16 mockup:
-// design/mockups/settings_window/devialet_config_dialog_mockup_v16_chime_source.html,
+// design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html,
 // CSS lines 230-237) - a 28x28 icon button used four times in the Volume
 // Feedback section: three Preview (play) buttons, one per chime-source
 // variant, plus the Browse (folder) button in the custom-file variant.

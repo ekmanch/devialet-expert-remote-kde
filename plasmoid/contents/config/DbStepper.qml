@@ -1,6 +1,6 @@
 // Phase 8.0.0: numeric dB +/- stepper for the Volume Limits / startup-volume
 // settings rows, matching the mockup's .db-stepper (v13 mockup:
-// design/mockups/settings_window/devialet_config_dialog_mockup_v13_single_tab.html).
+// design/mockups/configDialog/devialet_config_dialog_mockup_v13_single_tab.html).
 //
 // Hold-to-repeat reuses QtQuick.Controls.Button's own `autoRepeat` (delay/
 // interval below) rather than reimplementing hold-to-repeat with JS

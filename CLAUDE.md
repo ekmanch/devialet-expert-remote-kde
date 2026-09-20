@@ -354,7 +354,7 @@ nothing from KPackage), so a file bundled under `contents/icons/` can
 never be the picker icon - that is why the panel icon (`Plasmoid.icon`
 overridden in `main.qml` to the bundled glow-dot SVG) and the picker icon
 are two different mechanisms. The picker icon lives in the repo at
-`icons/hicolor/scalable/apps/com.ekmanch.devialetremote.svg` (the brand
+`assets/icons/hicolor/scalable/apps/com.ekmanch.devialetremote.svg` (the brand
 mark tile from the settings mockup, same copper tokens) and
 `scripts/install-plasmoid.sh` copies it into
 `~/.local/share/icons/hicolor/scalable/apps/` (every icon theme inherits
@@ -936,11 +936,22 @@ devialet-expert-remote-kde/
 │                                    #   ConfigCategory.source path-resolution
 │                                    #   gotcha this layout runs into (fixed
 │                                    #   with a "../config/" source prefix).
-├── icons/
-│   └── hicolor/scalable/apps/      # the Add Widgets picker icon, installed into
-│       └── com.ekmanch.devialetremote.svg   #   the user's hicolor theme by
+├── assets/                         # source-only artwork and fonts, outside the
+│   │                                #   KPackage payload (the plasmoid bundles its
+│   │                                #   own copies under plasmoid/contents/)
+│   ├── fonts/                      # jetBrains-mono/, space-grotesk/ (each with
+│   │                                #   its OFL.txt; PKGBUILD ships both)
+│   └── icons/
+│       ├── glow-dot/               # panel icon artwork (main.qml's Plasmoid.icon)
+│       ├── audio-volume-icons/     # flyout/OSD volume glyphs
+│       ├── configDialog-general-tab/   # the General page's sidebar icon
+│       └── hicolor/scalable/apps/  # the Add Widgets picker icon, installed into
+│           └── com.ekmanch.devialetremote.svg   #   the user's hicolor theme by
 │                                    #   scripts/install-plasmoid.sh (KPlugin.Icon
 │                                    #   is a theme name; see "Reloading changes")
+├── design/
+│   └── mockups/                    # HTML mockups: configDialog/, flyout/, OSD/,
+│                                    #   tooltip/ - the reference the UI is built to
 ├── systemd/
 │   └── devialet-remote-daemon.service   # user unit (Restart=on-failure) for
 │                                    #   `systemctl --user enable`, per the settled

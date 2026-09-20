@@ -7,7 +7,7 @@
 // FullRepresentation.qml is all that's needed (only one representation is
 // ever shown at a time for this plasmoid's popup).
 //
-// Font loading: font files live at contents/fonts/ (NOT design/font/,
+// Font loading: font files live at contents/fonts/ (NOT assets/fonts/,
 // which is a source/reference-only location outside the KPackage payload -
 // kpackagetool6 installs only what's under plasmoid/, confirmed via
 // CLAUDE.md's Repository Layout and by finding real precedent, not
@@ -136,10 +136,10 @@ QtObject {
     // sense that any future consumer should reuse these thresholds
     // rather than re-deriving them.
     readonly property var volumeIconSources: ({
-        high: Qt.resolvedUrl("../icons/audio_volume_icons/volume-high.svg"),
-        medium: Qt.resolvedUrl("../icons/audio_volume_icons/volume-medium.svg"),
-        low: Qt.resolvedUrl("../icons/audio_volume_icons/volume-low.svg"),
-        mute: Qt.resolvedUrl("../icons/audio_volume_icons/volume-mute.svg")
+        high: Qt.resolvedUrl("../icons/audio-volume-icons/volume-high.svg"),
+        medium: Qt.resolvedUrl("../icons/audio-volume-icons/volume-medium.svg"),
+        low: Qt.resolvedUrl("../icons/audio-volume-icons/volume-low.svg"),
+        mute: Qt.resolvedUrl("../icons/audio-volume-icons/volume-mute.svg")
     })
     function volumeIconKindForFraction(fraction) {
         const percent = fraction * 100;
@@ -173,7 +173,7 @@ QtObject {
 
     // The mockup's --font-body (Inter, via Google Fonts) has no bundled
     // font file in this repo (only Space Grotesk/JetBrains Mono are
-    // shipped at design/font/) - deliberately not fetched here (the task
+    // shipped at assets/fonts/) - deliberately not fetched here (the task
     // was to use the files already in the repo, not source new ones).
     // Body text that the mockup styles with --font-body falls back to
     // Plasma's own system UI font instead (leaving font.family unset).

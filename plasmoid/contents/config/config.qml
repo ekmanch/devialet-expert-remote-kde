@@ -67,7 +67,7 @@ import org.kde.plasma.configuration
 // (devialet_icon_glow_dot.svg); per the settings-window mockup's own
 // dedicated sidebar icon, now uses a separate asset instead
 // (devialet_config_general_icon_white.svg, copied from
-// design/icons/ConfigDialog_tab_general/ into contents/icons/ - design/
+// assets/icons/configDialog-general-tab/ into contents/icons/ - design/
 // itself is a source-only location outside the KPackage payload, same
 // convention as this project's bundled fonts).
 //

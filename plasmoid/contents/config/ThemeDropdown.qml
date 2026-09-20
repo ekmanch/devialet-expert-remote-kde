@@ -1,5 +1,5 @@
 // Phase 10.1.1: the mockup's `.theme-dropdown` (v16 mockup:
-// design/mockups/settings_window/devialet_config_dialog_mockup_v16_chime_source.html,
+// design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html,
 // DOM lines 509-520, CSS lines 259-283) - the "Choose theme" variant's
 // picker of installed sound themes.
 //

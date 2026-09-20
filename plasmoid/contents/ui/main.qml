@@ -46,7 +46,7 @@ PlasmoidItem {
     // the "Add Widgets" entry stays a valid, if generic, icon rather than
     // silently breaking.
     // Phase 4.2.5: switched to the "Glow Dot" variant
-    // (design/icon/A - Glow Dot/devialet_icon_A_filled.svg). Its artwork's
+    // (assets/icons/glow-dot/devialet_icon_A_filled.svg). Its artwork's
     // own bounding box (outer ring at r=11, stroke-width=2, centered in a
     // 34x34 viewBox) sits 5 units in from each edge - a 14.7% inset,
     // matching the Breeze symbolic-icon convention (~13-14%) measured
@@ -200,7 +200,7 @@ PlasmoidItem {
         //
         // Floor gets the more negative (quieter) of the pair, hard limit
         // the less negative one - matching every other floor/hardLimit
-        // pair in this codebase (shipped defaults: floor -45.0 < hardLimit
+        // pair in this codebase (shipped defaults: floor -50.0 < hardLimit
         // -10.0).
         Component.onCompleted: {
             if (Plasmoid.configuration.volumeFloorDb >= Plasmoid.configuration.hardLimitDb) {

@@ -23,4 +23,5 @@ SOFTWARE.
 ---
 
 This project bundles JetBrains Mono and Space Grotesk (SIL Open Font
-License 1.1). See design/font/OFL.txt for the full license text.
+License 1.1). See assets/fonts/jetBrains-mono/OFL.txt and
+assets/fonts/space-grotesk/OFL.txt for the full license text.

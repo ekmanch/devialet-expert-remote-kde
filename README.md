@@ -92,7 +92,7 @@ Two things are deliberately left in place, and named when the script finishes: t
 
 ## Try before installing
 
-Design mockups for every UI surface live under [`design/mockups/`](design/mockups/) as standalone HTML files — the [flyout](design/mockups/flyout/), the [settings window](design/mockups/settings_window/), the [panel tooltip](design/mockups/tooltip/) and the [volume OSD](design/mockups/OSD/). Open any of them directly in a browser to click through the interactions before installing anything. They are the reference the widget is built to match.
+Design mockups for every UI surface live under [`design/mockups/`](design/mockups/) as standalone HTML files — the [flyout](design/mockups/flyout/), the [settings window](design/mockups/configDialog/), the [panel tooltip](design/mockups/tooltip/) and the [volume OSD](design/mockups/OSD/). Open any of them directly in a browser to click through the interactions before installing anything. They are the reference the widget is built to match.
 
 ## Architecture
 

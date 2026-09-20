@@ -73,12 +73,12 @@ fi
 # (the widget explorer imports exactly KPluginMetaData::iconName +
 # QIcon::fromTheme, nothing from KPackage), so a bundled contents/icons/
 # file can never be the picker icon. The icon therefore lives in the
-# repo's icons/hicolor/... tree - the same layout a PKGBUILD would install
+# repo's assets/icons/hicolor/... tree - the same layout a PKGBUILD would install
 # to /usr/share/icons/hicolor/ - and is copied into the user's hicolor
 # theme here, which every icon theme inherits. Idempotent: skipped when
 # the installed copy is byte-identical.
 ICON_NAME="$PLUGIN_ID"
-ICON_SOURCE="${SCRIPT_DIR}/../icons/hicolor/scalable/apps/${ICON_NAME}.svg"
+ICON_SOURCE="${SCRIPT_DIR}/../assets/icons/hicolor/scalable/apps/${ICON_NAME}.svg"
 ICON_DEST_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/icons/hicolor/scalable/apps"
 ICON_DEST="${ICON_DEST_DIR}/${ICON_NAME}.svg"
 [ -f "$ICON_SOURCE" ] || die "picker icon not found in the repo: $ICON_SOURCE"

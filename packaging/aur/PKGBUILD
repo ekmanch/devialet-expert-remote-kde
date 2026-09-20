@@ -76,12 +76,17 @@ package() {
   # Add Widgets resolves KPlugin.Icon by theme name (QIcon::fromTheme), so the
   # picker icon has to be registered in hicolor; a file inside the plasmoid
   # cannot serve that role.
-  install -Dm0644 "icons/hicolor/scalable/apps/$_plasmoid.svg" \
+  install -Dm0644 "assets/icons/hicolor/scalable/apps/$_plasmoid.svg" \
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_plasmoid.svg"
 
   # MIT for the project; SIL OFL 1.1 for the bundled JetBrains Mono and Space
   # Grotesk fonts under plasmoid/contents/fonts/ (OFL is not a common licence
-  # in Arch's `licenses` package, so its text ships here).
-  install -Dm0644 -t "$pkgdir/usr/share/licenses/$pkgname/" LICENSE design/font/OFL.txt
+  # in Arch's `licenses` package, so its text ships here - one copy per font
+  # family, from each family's own folder under assets/fonts/).
+  install -Dm0644 -t "$pkgdir/usr/share/licenses/$pkgname/" LICENSE
+  install -Dm0644 assets/fonts/jetBrains-mono/OFL.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/OFL-JetBrainsMono.txt"
+  install -Dm0644 assets/fonts/space-grotesk/OFL.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/OFL-SpaceGrotesk.txt"
   install -Dm0644 -t "$pkgdir/usr/share/doc/$pkgname/" README.md
 }
