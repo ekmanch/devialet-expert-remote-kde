@@ -8089,6 +8089,81 @@ architecture decisions; this file is just sequencing and status.
     `devialet-ctl`; nothing changes on its side - the daemon signal now
     turns those calls into the toast.
 
+- [x] **Bug fix — Post-boot hold released by the stale first packet
+  (intermittent "-42.0 then -40.0" flicker on power-on) (2026-09-20).**
+  Owner report: 2-3 times in 1-2 weeks the flyout briefly showed -42.0
+  after a power-on, then -40.0. Investigation first (no code), then fix.
+  - **Root cause (confirmed live, not just from code):** the Phase 8.0.1
+    hold released on *any* VolumeRaw push decoding to `bootHoldDb`
+    (`PendingAmpState.qml` `noteVolumeRaw`). The first power-on packet
+    carries the pre-shutdown byte (gotcha #8), and the daemon re-emits
+    all 13 properties as separate PropertiesChanged messages in
+    `emit_all()` order (interface.rs) - PowerState before VolumeRaw - so
+    FlyoutContent's "On" arms the hold *before* this object sees that
+    same packet's VolumeRaw (plasma-workspace 6.7 `dbusproperties.cpp`
+    delivers each message synchronously, in order, no dedupe of unchanged
+    values). Whenever the amp had been powered off at exactly the startup
+    target, the stale byte released the hold ~0 ms after arming; the -42
+    misreport ~200 ms later was applied and shown until the 500 ms send.
+    Why rare: needs pre-shutdown volume == -40.0 exactly - routine after a
+    source switch (which sends `--startup-volume-db -40`) with no later
+    volume change; the journal showed exactly that before the 2026-09-19
+    23:21 power-off. Why never caught: every real boot in the 8.0.1
+    measurement restored -25 first, the fake-amp runs used -33 vs raw 111,
+    and the driver asserted "target == misreport confirms immediately".
+    Secondary hypothesis (late confirmation past the 1500 ms timer, which
+    ran from "On" so only 1000 ms remained after the send) not observed
+    but closed by the same change.
+  - **Fix (`PendingAmpState.qml`):** `bootHoldSent` - a VolumeRaw match
+    releases the hold only after a volume command went out while held
+    (`notifyVolume`: the startup send or a user re-target, which already
+    re-targeted the hold), and `notifyVolume` while held restarts
+    `bootHoldTimer`, so the 1500 ms fallback is measured from the send
+    (from arming until then, so a hold whose send never happens still
+    can't stick). Hold-scoped `console.log` lines (armed / matched-before-
+    send-ignored / sent / released / timed out) are always on - a handful
+    per boot - so the journal names the release path next time. No
+    daemon or FlyoutContent change.
+  - **Tests (new, first QML unit tests in the repo):** `tests/qml/
+    tst_PendingAmpState.qml` + `scripts/test-qml.sh` - QtTest via
+    `/usr/lib/qt6/bin/qmltestrunner` on a private `dbus-run-session` bus
+    with `tools/flyout-harness/fakeamp.py` as the Notify*Command sink
+    (nothing real is stopped or touched); pushes are emitted through
+    `ampProps.propertiesChanged()` one property per call in emit_all()
+    order. 10 cases: the stale-first-packet regression, target ==
+    misreport waits for the send, user re-target counts as the send,
+    re-arm clears the flag, pushes apply after release, fallback from
+    arming with no send, fallback restarted from the send, no fallback
+    after a confirmation, AmpIp change vs unchanged re-emit. Run against
+    the pre-fix file: 5 failures, the regression case at the "matching
+    byte before any send" assertion; fixed file: 11/11.
+  - **Live verification, real amp (192.168.0.22), 2026-09-20, three
+    boots, hands-free:** a Harness-only D-Bus service (owning only the
+    Harness name, so the probe applies `UiState` onto FlyoutContent
+    against the *real* daemon) preset `pendingStartupVolumeIp`, then
+    `BeginPowerOnBoot` + `devialet-ctl power on` mimicked the click.
+    Precondition each time: `source 0 --startup-volume-db -40` (raw
+    115), `power off`. `debugLogging: true` in the installed copy only.
+    - Pre-fix (installed HEAD): On at +16.8 s → `boot hold confirmed by
+      VolumeRaw 115` in the same ms → `volumeDb -42` at +199 ms → send
+      at +502 ms → -40. The reported flicker, ~300 ms of -42, reproduced
+      on the first try.
+    - Fixed: `armed at -40` → `VolumeRaw 115 matches the target before
+      any send - ignored` → the +199 ms -42 packet left volumeDb at -40
+      → `volume -40 sent while held` at +502 ms → `released: VolumeRaw
+      115 confirmed -40` at +600 ms. Never showed -42.
+    - Fallback (`~/.local/bin/devialet-ctl` wrapper dropping `volume`,
+      removed right after): armed, stale byte ignored, send "succeeds"
+      (dropped), `timed out unconfirmed (sent: true); falling back to
+      -42` at exactly +1500 ms after the send (+2000 ms after On), amp
+      at raw 111 - then resynced with a real `volume -40`.
+    - Amp restored to its pre-test state (On, -25 dB, Optical 1,
+      unmuted); plasmoid reinstalled from the repo with `debugLogging`
+      false; no file left in `~/.local/bin`.
+  - **Docs:** CLAUDE.md Testing (QML tests), known-gotchas.md #8 "Watch
+    out #2" (do not treat a matching status as confirmation before the
+    set is sent).
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo

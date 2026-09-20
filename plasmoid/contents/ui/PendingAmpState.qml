@@ -69,6 +69,29 @@
 // window nothing here changes; the daemon's own pending mask keeps
 // working underneath.
 //
+// 2026-09-20 fix - the release needs a send first (`bootHoldSent`). The
+// hold used to release on ANY VolumeRaw push decoding to bootHoldDb.
+// But the first power-on broadcast carries the amp's pre-shutdown byte
+// (gotcha #8), and the daemon re-emits every property on each change,
+// as separate PropertiesChanged messages in emit_all() order:
+// PowerState (arms the hold via FlyoutContent) is delivered before that
+// same packet's VolumeRaw reaches this object. So whenever the amp had
+// been powered off at exactly the startup target (common after a source
+// switch, which itself sets the startup volume), the stale byte released
+// the hold ~0 ms after it was armed, and the -42 misreport ~200 ms later
+// was shown until the send landed - the intermittent "-42.0 then -40.0"
+// flicker. Now a raw match only releases once a volume command has
+// actually gone out while held (`notifyVolume`, i.e. the startup send or
+// a user re-target - the only paths that make a matching byte a real
+// confirmation), and the fallback timer is restarted at that send, so
+// the 1500 ms allowance is measured from the send rather than from "On"
+// (before, only 1000 ms of it remained after the 500 ms send delay).
+// Before a send the fallback still runs from arming, so an armed hold
+// whose send never happens can't stick. The hold-scoped console.log
+// lines below (arm/sent/release/timeout, a handful per boot) are always
+// on, so the journal shows which path released it the next time
+// anything looks off - see TODO.md's entry for the investigation.
+//
 // Thin consumer only: the confirmed-vs-expired resolution logic stays
 // entirely in the daemon (Phase 5.0.0's resolve_pending_commands). This
 // file never tracks a deadline or compares against one itself -
@@ -170,6 +193,10 @@ QtObject {
     // to re-read the live value with, hence tracked here.
     property string bootHoldIp: ""
     property var bootHoldDb: undefined
+    // True once a volume command has been sent while held (notifyVolume);
+    // a VolumeRaw match releases the hold only after that - see the
+    // 2026-09-20 paragraph in the header.
+    property bool bootHoldSent: false
     property var lastRealVolumeDb: undefined
     // Chime spike: (VolumeRaw - 195) / 2, the amp's real last-broadcast
     // dB - deliberately NOT volumeDb (optimistic, then daemon-masked for
@@ -185,9 +212,7 @@ QtObject {
         repeat: false
         onTriggered: {
             if (root.bootHoldIp === "") return;
-            if (root.debugLogging) {
-                console.log("[PendingAmpState] boot hold timed out unconfirmed; falling back to", root.lastRealVolumeDb);
-            }
+            console.log("[PendingAmpState] boot hold timed out unconfirmed (sent:", root.bootHoldSent + "); falling back to", root.lastRealVolumeDb);
             const fallback = root.lastRealVolumeDb;
             root.endBootHold();
             if (fallback !== undefined) root.volumeDb = fallback;
@@ -195,21 +220,26 @@ QtObject {
     }
 
     // Arm the hold: show `db` immediately and keep showing it until the
-    // amp's broadcast confirms it (VolumeRaw), the user re-targets it
-    // (notifyVolume), or bootHoldTimeoutMs elapses. Re-arming while held
-    // just re-targets.
+    // amp's broadcast confirms it (a VolumeRaw match after a send), or
+    // bootHoldTimeoutMs elapses - measured from arming until a send
+    // happens, then from the latest send. A user re-target (notifyVolume)
+    // keeps the hold and counts as the send. Re-arming while held just
+    // re-targets and clears the sent flag.
     function beginBootHold(ip, db) {
         if (ip === "" || db === undefined) return;
         root.bootHoldIp = ip;
         root.bootHoldDb = db;
+        root.bootHoldSent = false;
         root.volumeDb = db;
         root.bootHoldTimer.restart();
+        console.log("[PendingAmpState] boot hold armed for", ip, "at", db);
     }
 
     function endBootHold() {
         root.bootHoldTimer.stop();
         root.bootHoldIp = "";
         root.bootHoldDb = undefined;
+        root.bootHoldSent = false;
     }
 
     // Confirmation check for the hold - the daemon's VolumeRaw is the
@@ -225,12 +255,16 @@ QtObject {
         // onRefreshed and onPropertiesChanged below).
         root.confirmedVolumeDb = (raw === undefined || root.ampIp === "") ? undefined : (raw - 195) / 2;
         if (root.bootHoldIp === "" || raw === undefined) return;
-        if ((raw - 195) / 2 === root.bootHoldDb) {
-            if (root.debugLogging) {
-                console.log("[PendingAmpState] boot hold confirmed by VolumeRaw", raw);
-            }
-            root.endBootHold();
+        if ((raw - 195) / 2 !== root.bootHoldDb) return;
+        // A matching byte before any send is the amp's pre-shutdown or
+        // own-startup value, not a confirmation of ours (2026-09-20 fix,
+        // see header) - keep holding; the fallback timer still bounds it.
+        if (!root.bootHoldSent) {
+            console.log("[PendingAmpState] boot hold: VolumeRaw", raw, "matches the target before any send - ignored");
+            return;
         }
+        console.log("[PendingAmpState] boot hold released: VolumeRaw", raw, "confirmed", root.bootHoldDb);
+        root.endBootHold();
     }
 
     // VolumeDb push from the daemon: always remembered, applied only when
@@ -287,7 +321,16 @@ QtObject {
         // Phase 8.0.1: a user change inside the post-boot window re-targets
         // the hold, so it is shown at once (below) and FlyoutContent's
         // deferred startup send carries it instead of the configured value.
-        if (root.bootHoldIp !== "") root.bootHoldDb = db;
+        // 2026-09-20: every notifyVolume while held is a real command going
+        // out (the startup send, or the user's own), so it is what makes a
+        // later matching VolumeRaw a confirmation - and the fallback
+        // allowance restarts from it (see header).
+        if (root.bootHoldIp !== "") {
+            root.bootHoldDb = db;
+            root.bootHoldSent = true;
+            root.bootHoldTimer.restart();
+            console.log("[PendingAmpState] boot hold: volume", db, "sent while held; confirmation now accepted");
+        }
         const previous = root.volumeDb;
         root.volumeDb = db;
         root.rememberOwn("volume", db);

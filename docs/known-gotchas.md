@@ -184,6 +184,16 @@ against a physical amp.
   value. If the app needs a trustworthy post-boot volume, it has to set
   one (and see #9 for when that set is honored). Don't conflate this
   with #9: same amp-side event, two distinct consequences.
+- **Watch out #2 (KDE widget bug, found and fixed 2026-09-20):** if the
+  client masks the post-boot value until its own set is confirmed, do
+  not treat "status now equals the value I intend to set" as that
+  confirmation. The *first* power-on packet carries the pre-shutdown
+  byte, so whenever the amp was powered off at exactly the startup
+  volume (routine after a source switch, which sets it) the very first
+  packet already matches, the mask is released before the misreport
+  arrives, and -42 shows for the ~300 ms until the set lands. Reproduced
+  and fixed on the real amp (`PendingAmpState.qml`'s `bootHoldSent`):
+  a match counts only after the set has actually been sent.
 
 ## 9. Volume commands that reach the amp before its own post-boot startup-volume application are dropped — [Control]
 

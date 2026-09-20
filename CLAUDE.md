@@ -261,6 +261,16 @@ for what's confirmed out of scope.
   with hardcoded expected output bytes, guarding against reintroducing
   known-gotchas.md bug #3 — source index treated as command value).
 - No network or hardware required for protocol crate tests.
+- QML: `scripts/test-qml.sh` runs `tests/qml/tst_*.qml` (QtTest, Qt 6's
+  `/usr/lib/qt6/bin/qmltestrunner`) against the real plasmoid QML on a
+  private session bus (`dbus-run-session`) with
+  `tools/flyout-harness/fakeamp.py` inside it as the Notify*Command
+  sink - the real daemon and amp are never touched, nothing needs
+  stopping. Tests drive daemon pushes by emitting
+  `ampProps.propertiesChanged()` one property per call in `emit_all()`
+  order, the real message shape. `tst_PendingAmpState.qml` guards the
+  post-boot hold (2026-09-20 regression: a VolumeRaw match must not
+  release the hold before a send) - it fails on the pre-fix file.
 
 ## Working style
 
