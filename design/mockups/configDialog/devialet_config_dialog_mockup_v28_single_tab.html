@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Devialet ConfigDialog — Mockup v25 (single tab)</title>
+<title>Devialet ConfigDialog — Mockup v28 (single tab)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -352,7 +352,7 @@
 </head>
 <body>
 
-<div class="mockup-tag">MOCKUP · CONFIGDIALOG v25 — SINGLE TAB, segmented hover is text-color only</div>
+<div class="mockup-tag">MOCKUP · CONFIGDIALOG v28 — SINGLE TAB, Title Case names + updated descriptions</div>
 
 <div style="display:flex; flex-direction:column; align-items:center;">
   <div class="kcm-window">
@@ -416,16 +416,16 @@
           </div>
           <div class="kcm-sub-row" id="transSub">
             <div class="kcm-slider-row">
-              <input type="range" class="kcm-slider" min="0" max="100" value="72" style="--fill:72%" oninput="onTransInput(this.value)">
-              <span class="kcm-slider-value" id="transValue">72%</span>
+              <input type="range" class="kcm-slider" min="0" max="100" value="90" style="--fill:90%" oninput="onTransInput(this.value)">
+              <span class="kcm-slider-value" id="transValue">90%</span>
             </div>
           </div>
 
           <p class="kcm-section-label">Volume</p>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Volume step size</span>
-              <span class="kcm-row-desc">Applies to scroll-over-icon and +/- buttons</span>
+              <span class="kcm-row-name">Volume Step Size</span>
+              <span class="kcm-row-desc">Change how large one increment change in volume is</span>
             </div>
             <div class="kcm-segmented">
               <div class="kcm-seg-btn" onclick="setStep(this)">0.5 dB</div>
@@ -435,8 +435,8 @@
           </div>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Startup / source-switch volume</span>
-              <span class="kcm-row-desc">Set automatically when the daemon starts, or whenever the source changes</span>
+              <span class="kcm-row-name">Startup / Source-Switch Volume</span>
+              <span class="kcm-row-desc">Default volume at startup and when source is changed</span>
             </div>
             <div class="db-stepper">
               <div class="db-stepper-btn" onmousedown="startRepeat('startup',-1)" onmouseup="stopRepeat()" onmouseleave="stopRepeat()">−</div>
@@ -448,19 +448,19 @@
           <p class="kcm-section-label">Volume Limits</p>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Volume floor</span>
-              <span class="kcm-row-desc">Slider floor — hides the unused low end so real-world volumes are easier to select</span>
+              <span class="kcm-row-name">Volume Floor</span>
+              <span class="kcm-row-desc">Lowest volume possible to set</span>
             </div>
             <div class="db-stepper">
               <div class="db-stepper-btn" onmousedown="startRepeat('min',-1)" onmouseup="stopRepeat()" onmouseleave="stopRepeat()">−</div>
-              <div class="db-stepper-value" id="minVolumeValue">−45 dB</div>
+              <div class="db-stepper-value" id="minVolumeValue">−50 dB</div>
               <div class="db-stepper-btn" onmousedown="startRepeat('min',1)" onmouseup="stopRepeat()" onmouseleave="stopRepeat()">+</div>
             </div>
           </div>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Volume ceiling</span>
-              <span class="kcm-row-desc">Absolute ceiling — the amp is never sent a volume above this</span>
+              <span class="kcm-row-name">Volume Ceiling</span>
+              <span class="kcm-row-desc">Highest volume possible to set</span>
             </div>
             <div class="db-stepper">
               <div class="db-stepper-btn" onmousedown="startRepeat('hard',-1)" onmouseup="stopRepeat()" onmouseleave="stopRepeat()">−</div>
@@ -481,7 +481,7 @@
           <div class="kcm-sub-row" id="chimeSub">
             <div class="kcm-row" style="border-bottom:none; padding-top:0;">
               <div class="kcm-row-text">
-                <span class="kcm-row-name">Chime sound</span>
+                <span class="kcm-row-name">Chime Sound</span>
                 <span class="kcm-row-desc">Which sound plays on each tick</span>
               </div>
               <div class="kcm-segmented">
@@ -544,17 +544,17 @@
           <p class="kcm-section-label">Startup</p>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Launch at login</span>
-              <span class="kcm-row-desc">Starts the background daemon via systemd --user</span>
+              <span class="kcm-row-name">Launch at Login</span>
+              <span class="kcm-row-desc">Automatically start the daemon used for UDP communication to amplifier</span>
             </div>
-            <div class="kcm-switch" id="loginSwitch" onclick="toggleSwitch(this)"></div>
+            <div class="kcm-switch on" id="loginSwitch" onclick="toggleSwitch(this)"></div>
           </div>
 
           <p class="kcm-section-label">Reset</p>
           <div class="kcm-row">
             <div class="kcm-row-text">
-              <span class="kcm-row-name">Restore defaults</span>
-              <span class="kcm-row-desc">Resets every setting on this page back to its shipped values</span>
+              <span class="kcm-row-name">Restore Defaults</span>
+              <span class="kcm-row-desc">Resets every setting on this page back to its default values</span>
             </div>
             <div class="neutral-btn" id="defaultsBtn" onclick="handleDefaults()">Defaults</div>
           </div>
@@ -658,7 +658,7 @@
 
   // Volume limits — real amp range per Expert Pro line spec.
   const LIMIT_MIN = -96, LIMIT_MAX = 0;
-  const LIMIT_DEFAULTS = { min: -45, hard: -10, startup: -40 };
+  const LIMIT_DEFAULTS = { min: -50, hard: -10, startup: -40 };
   let limits = { ...LIMIT_DEFAULTS };
   function stepLimit(which, delta){
     limits[which] = Math.max(LIMIT_MIN, Math.min(LIMIT_MAX, limits[which] + delta));
@@ -701,11 +701,11 @@
     document.getElementById('transSwitch').classList.add('on');
     document.getElementById('transSub').classList.remove('disabled');
     const slider = document.querySelector('#transSub .kcm-slider');
-    slider.value = 50;
-    onTransInput(50);
+    slider.value = 90;
+    onTransInput(90);
     document.querySelectorAll('.kcm-segmented .kcm-seg-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.kcm-segmented .kcm-seg-btn')[1].classList.add('active'); // 1 dB
-    document.getElementById('loginSwitch').classList.remove('on');
+    document.getElementById('loginSwitch').classList.add('on');
     limits = { ...LIMIT_DEFAULTS };
     renderLimits();
     document.getElementById('chimeSwitch').classList.add('on');
