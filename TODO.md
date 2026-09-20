@@ -8164,6 +8164,92 @@ architecture decisions; this file is just sequencing and status.
     out #2" (do not treat a matching status as confirmation before the
     set is sent).
 
+- [x] **Shipped defaults review (2026-09-20).** Owner-specified fresh-
+  install defaults: transparency on at 90 % (was 88), scroll step 1 dB,
+  startup / source-switch volume -40 dB, floor -50 dB (was -45), hard
+  limit -10 dB, chime on, chime sound = follow the system theme. Only
+  the two changed values needed edits, in every place a default is
+  entered: `main.xml` `<default>`s, `ConfigGeneral.qml`'s `cfg_*`
+  fallbacks and its `shippedDefaults` table (the Defaults button and the
+  `cfg_*Default` properties), plus the floor/hard-limit comments in
+  `ConfigGeneral.qml` and `main.qml`. Cross-checked all three sources
+  agree for every entry. Existing installs keep their stored values
+  (KConfig only falls back to a default for a key not on disk); the
+  Defaults button now resets to the new pair. "Launch at login" is not a
+  kcfg default: `install.sh` (via `scripts/install-daemon-unit.sh`)
+  already enables the unit, and the AUR package deliberately does not
+  (Phase 14.0.0, packages never enable user units) - unchanged.
+
+- [x] **ConfigDialog page text per mockup v28 - Title Case setting
+  names and new descriptions - plus the repo's asset/mockup
+  reorganisation (2026-09-20).** Together with the "Shipped defaults
+  review" entry above, this is the day's widget-facing change set:
+  default values, setting names, setting descriptions, and the folder
+  structure for icons, fonts and design mockups. Owner moved `design/icons/` and `design/font/` into `assets/icons/`
+  (`glow-dot/`, `audio-volume-icons/`, `configDialog-general-tab/`,
+  `hicolor/scalable/apps/` - the picker icon, previously top-level
+  `icons/`) and `assets/fonts/` (`jetBrains-mono/`, `space-grotesk/`,
+  each with its own identical OFL.txt), deleted the unused
+  `original_version/`/`updated_arrow/` icon sets, and renamed
+  `design/mockups/settings_window/` to `design/mockups/configDialog/`
+  (v28 replaces v25). Nothing at runtime ever read `design/` - the
+  KPackage bundles its own copies under `plasmoid/contents/` - so the
+  functional changes are `scripts/install-plasmoid.sh`'s picker-icon
+  source path and the PKGBUILD's icon + OFL install lines (one OFL copy
+  per family, `OFL-JetBrainsMono.txt`/`OFL-SpaceGrotesk.txt`; takes
+  effect at the next tag). Comment/doc references updated in
+  `config.qml`, `main.qml`, `Theme.qml`, `main.xml`, `ChimeIconButton/
+  DbStepper/ThemeDropdown/ConfigGeneral.qml`, `README.md`, `LICENSE` and
+  CLAUDE.md's Repository Layout (now shows `assets/` and `design/`).
+  Historical references inside this file are left as written.
+  - **Page text per v28 (verbatim, 7 names + 6 descriptions):** Volume
+    Step Size / "Change how large one increment change in volume is";
+    Startup / Source-Switch Volume / "Default volume at startup and when
+    source is changed"; Volume Floor / "Lowest volume possible to set";
+    Volume Ceiling / "Highest volume possible to set"; Chime Sound;
+    Launch at Login / "Automatically start the daemon used for UDP
+    communication to amplifier"; Restore Defaults / "Resets every setting
+    on this page back to its default values". Transparency and Volume
+    Feedback Chime were already as in v28. v28 also shows the defaults
+    set earlier today (90 %, -50 dB). Not implemented, as before: the
+    mockup's inline "Volume floor should stay below the volume ceiling."
+    line, which its own legend calls a placeholder - the page self-heals
+    the pair instead (Phase 8.x).
+  - **Verified:** `git grep` finds no old path outside this file;
+    `scripts/install-plasmoid.sh` reinstalled the package and resolved
+    the moved picker icon (byte-identical to the installed copy);
+    `plasmashell --replace`; installed `ConfigGeneral.qml` carries the
+    new strings; `scripts/test-qml.sh` 11/11; `cargo test --workspace`
+    all green; Qt 6 qmllint clean on the touched QML; `bash -n` on the
+    PKGBUILD and install script; `main.xml` well-formed.
+  - **Bundled copy renamed too (owner request, same day):** the
+    KPackage's own `plasmoid/contents/icons/audio_volume_icons/` is now
+    `audio-volume-icons/`, matching the source folder; `Theme.qml`'s four
+    `Qt.resolvedUrl` paths follow. Plain `mv`, not `git mv` (the owner
+    stages). Reinstalled, shell restarted, journal clean of QML
+    file-not-found warnings, `scripts/test-qml.sh` 11/11.
+
+- [x] **Restore Defaults now also resets Launch at Login to on
+  (2026-09-20, owner report).** With the toggle off, the Defaults button
+  left it off: Phase 11.0.0 had excluded it on the grounds that it is
+  systemd state, not a kcfg default - but it is still the page's shipped
+  default (install.sh enables the unit), and the row's own description
+  promises "every setting on this page". Fix in `ConfigGeneral.qml`:
+  `shippedDefaults.launchAtLogin: true` (documented as the one entry
+  with no main.xml counterpart) and the click handler sets
+  `launchDesired` from it - the same pending value a click on the switch
+  produces, so `unsavedChanges` lights Apply, `saveConfig()` runs
+  `systemctl --user enable` on Apply/OK, and Cancel/Discard drops it -
+  guarded by `toggleable && !writing` so a not-found/masked/error state
+  keeps its note instead of a value nothing could apply. Verified with a
+  standalone qml6 driver on the real page (see the Phase 11.0.0 driver
+  notes): unit disabled first → page shows off / no unsaved changes;
+  TestEvent click on Defaults → `launchDesired true`, `unsavedChanges
+  true`, a deliberately changed `cfg_transparencyPercent` back to 90;
+  `page.saveConfig()` → daemon re-queried `enabled`, no write failure,
+  `unsavedChanges false`; `systemctl --user is-enabled` back to
+  `enabled`, unit active throughout. Reinstalled and shell restarted.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo

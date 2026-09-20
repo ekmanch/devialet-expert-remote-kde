@@ -90,7 +90,7 @@ KCM.SimpleKCM {
     // Appearance section - wired for real in Phase 9.1.0 (see main.xml's
     // own comment on these two entries and TransparencySettings.qml).
     property bool cfg_transparencyEnabled: true
-    property int cfg_transparencyPercent: 88
+    property int cfg_transparencyPercent: 90
     readonly property bool cfg_transparencyEnabledDefault: root.shippedDefaults.transparencyEnabled
     readonly property int cfg_transparencyPercentDefault: root.shippedDefaults.transparencyPercent
 
@@ -98,7 +98,7 @@ KCM.SimpleKCM {
     // hardLimitDb/startupVolumeDb) - same cfg_<entryName> convention as
     // cfg_volumeStepDb above. Real Expert Pro line range for every
     // DbStepper below (CLAUDE.md/mockup: -96..0 dB).
-    property real cfg_volumeFloorDb: -45.0
+    property real cfg_volumeFloorDb: -50.0
     property real cfg_hardLimitDb: -10.0
     property real cfg_startupVolumeDb: -40.0
     readonly property real cfg_volumeFloorDbDefault: root.shippedDefaults.volumeFloorDb
@@ -146,7 +146,7 @@ KCM.SimpleKCM {
     // defending against maliciously") - not worth it. Floor gets the more
     // negative (quieter) of the pair, hard limit the less negative one,
     // matching every other floor/hardLimit pair in this file (shipped
-    // defaults: floor -45.0 < hardLimit -10.0).
+    // defaults: floor -50.0 < hardLimit -10.0).
     function healLimitOrdering() {
         if (root.cfg_volumeFloorDb >= root.cfg_hardLimitDb) {
             console.log("[ConfigGeneral] floor/hardLimit invalid (" + root.cfg_volumeFloorDb +
@@ -169,15 +169,21 @@ KCM.SimpleKCM {
     // default ever changes.
     readonly property var shippedDefaults: ({
         transparencyEnabled: true,
-        transparencyPercent: 88,
+        transparencyPercent: 90,
         volumeStepDb: 1.0,
         startupVolumeDb: -40.0,
-        volumeFloorDb: -45.0,
+        volumeFloorDb: -50.0,
         hardLimitDb: -10.0,
         chimeEnabled: true,
         chimeSourceMode: "follow",
         chimePinnedTheme: "ocean",
-        chimeSoundFile: ""
+        chimeSoundFile: "",
+        // Not a main.xml entry (systemd's enablement is the storage, see
+        // the daemonAutostart block above) but still this page's shipped
+        // default: install.sh enables the unit, so a fresh install shows
+        // the toggle on. The Defaults button resets it through the same
+        // pending-then-Apply/OK path a click on the switch uses.
+        launchAtLogin: true
     })
 
     // ---- Phase 10.1.2: the master chime toggle, wired for real ----
@@ -590,8 +596,8 @@ KCM.SimpleKCM {
         SectionLabel { text: "Volume" }
 
         SettingsRow {
-            name: "Volume step size"
-            desc: "Applies to scroll-over-icon and +/- buttons"
+            name: "Volume Step Size"
+            desc: "Change how large one increment change in volume is"
 
             Rectangle {
                 id: stepSegmented
@@ -651,8 +657,8 @@ KCM.SimpleKCM {
         }
 
         SettingsRow {
-            name: "Startup / source-switch volume"
-            desc: "Applied after a widget-initiated power-on, and on every source switch"
+            name: "Startup / Source-Switch Volume"
+            desc: "Default volume at startup and when source is changed"
 
             DbStepper {
                 value: root.cfg_startupVolumeDb
@@ -663,7 +669,7 @@ KCM.SimpleKCM {
         }
 
         // ---- Volume Limits ----
-        // Mockup note (see design/mockups/settings_window/
+        // Mockup note (see design/mockups/configDialog/
         // devialet_config_dialog_mockup_v13_single_tab.html's own legend):
         // +/- steppers rather than a slider, since two interdependent
         // thresholds sharing one slider track is cramped and easy to
@@ -673,8 +679,8 @@ KCM.SimpleKCM {
         SectionLabel { text: "Volume Limits" }
 
         SettingsRow {
-            name: "Volume floor"
-            desc: "Slider floor — hides the unused low end so real-world volumes are easier to select"
+            name: "Volume Floor"
+            desc: "Lowest volume possible to set"
 
             DbStepper {
                 value: root.cfg_volumeFloorDb
@@ -691,8 +697,8 @@ KCM.SimpleKCM {
         }
 
         SettingsRow {
-            name: "Volume ceiling"
-            desc: "Absolute ceiling — the amp is never sent a volume above this"
+            name: "Volume Ceiling"
+            desc: "Highest volume possible to set"
             showDivider: false
 
             DbStepper {
@@ -745,7 +751,7 @@ KCM.SimpleKCM {
             // Mockup line 481: .kcm-row with border-bottom:none and
             // padding-top:0.
             SettingsRow {
-                name: "Chime sound"
+                name: "Chime Sound"
                 desc: "Which sound plays on each tick"
                 showDivider: false
                 topPadding: 0
@@ -994,8 +1000,8 @@ KCM.SimpleKCM {
         SectionLabel { text: "Startup" }
 
         SettingsRow {
-            name: "Launch at login"
-            desc: "Starts the background daemon via systemd --user"
+            name: "Launch at Login"
+            desc: "Automatically start the daemon used for UDP communication to amplifier"
             // Phase 11.0.0: wired for real - see the daemonAutostart block
             // at the top of this file. The switch shows launchDesired
             // (systemd's answer, or the user's not-yet-applied click) and
@@ -1025,8 +1031,8 @@ KCM.SimpleKCM {
         SectionLabel { text: "Reset" }
 
         SettingsRow {
-            name: "Restore defaults"
-            desc: "Resets every setting on this page back to its shipped values"
+            name: "Restore Defaults"
+            desc: "Resets every setting on this page back to its default values"
             showDivider: false
 
             Rectangle {
@@ -1078,11 +1084,11 @@ KCM.SimpleKCM {
                         // partway through and self-heals over one of these
                         // three intended values. Without this widen step, a
                         // prior pair near the opposite extreme (e.g. floor
-                        // -90/hardLimit -89) sets floorDb -45 first, which
+                        // -90/hardLimit -89) sets floorDb -50 first, which
                         // is >= the still-stale hardLimit -89, triggers a
                         // self-heal to -40/-39 mid-click, and the final
                         // hardLimitDb write below then leaves floorDb at
-                        // -40 instead of the intended -45 - caught by
+                        // -40 instead of the intended -50 - caught by
                         // tracing exactly this sequence, not observed live.
                         root.cfg_hardLimitDb = root.dbRangeMax;
                         root.cfg_volumeFloorDb = root.shippedDefaults.volumeFloorDb;
@@ -1101,9 +1107,21 @@ KCM.SimpleKCM {
                         root.cfg_chimeSourceMode = root.shippedDefaults.chimeSourceMode;
                         root.cfg_chimePinnedTheme = root.shippedDefaults.chimePinnedTheme;
                         root.cfg_chimeSoundFile = root.shippedDefaults.chimeSoundFile;
-                        // Phase 11.0.0: Launch at login is deliberately
-                        // NOT reset here - it is systemd's enablement
-                        // state, not a shipped default of this page.
+                        // Launch at Login (2026-09-20, owner report: the
+                        // button left an off toggle off): reset exactly as
+                        // a click on its switch would - a pending
+                        // launchDesired that saveConfig() applies with
+                        // `systemctl --user enable` on Apply/OK, and that
+                        // Cancel/Discard drops. Only while the switch is
+                        // clickable at all (systemd reports enabled/
+                        // disabled, no write in flight) - the non-
+                        // toggleable states keep showing their note, never
+                        // a value nothing can apply. Phase 11.0.0 had left
+                        // it out on the grounds that it is not a kcfg
+                        // default; it is still the page's shipped default.
+                        if (root.daemonAutostart.toggleable && !root.daemonAutostart.writing) {
+                            root.launchDesired = root.shippedDefaults.launchAtLogin;
+                        }
                         themeDropdown.close();
                     }
                 }
