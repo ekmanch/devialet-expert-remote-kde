@@ -21,16 +21,16 @@
   <kcfgfile name="" />
   <group name="General">
     <!-- Appearance section, per
-         design/mockups/settings_window/devialet_config_dialog_mockup_v14_single_tab.html.
+         design/mockups/configDialog/devialet_config_dialog_mockup_v14_single_tab.html.
          Wired for real in Phase 9.1.0: transparencyEnabled/
          transparencyPercent drive the flyout's live panel-tint alpha via
          TransparencySettings.qml (percent is OPACITY, not transparency -
          alpha = percent/100). osdGradientTop/Bottom (the OSD toast/hover
          tooltip) are still on their own hardcoded alpha - Phase 9.2.0
          unifies those onto the same mechanism, not this entry's job.
-         88 is the current default (owner's chosen 85-90 range, midpoint -
-         adjustable, not a hard requirement); see TODO.md's Phase 9.0.0
-         entry for the sweep this is based on.
+         90 is the default since 2026-09-20 (owner decision; 88 before
+         that, the midpoint of the 85-90 range from TODO.md's Phase 9.0.0
+         sweep).
 
          transparencyPercent deliberately does NOT reuse the name
          "transparencyLevel" - a stale orphaned key of exactly that name
@@ -46,7 +46,7 @@
       <default>true</default>
     </entry>
     <entry name="transparencyPercent" type="Int">
-      <default>88</default>
+      <default>90</default>
     </entry>
 
     <!-- Phase 4.4.2: volume step size used by the main view's +/- buttons
@@ -58,12 +58,12 @@
     </entry>
 
     <!-- Phase 8.0.0: volume-limit settings, per
-         design/mockups/settings_window/devialet_config_dialog_mockup_v13_single_tab.html
+         design/mockups/configDialog/devialet_config_dialog_mockup_v13_single_tab.html
          (Volume Limits section + the Volume section's "Startup /
-         source-switch volume" row). Defaults are the mockup's own
-         LIMIT_DEFAULTS (min: -45, hard: -10, startup: -40), confirmed
-         directly in that file's JS rather than assumed to carry over from
-         an earlier draft. Range for all three is the real Expert Pro line
+         source-switch volume" row). hard -10 and startup -40 are the
+         mockup's own LIMIT_DEFAULTS (confirmed directly in that file's
+         JS); the floor was the mockup's -45 until 2026-09-20, when the
+         owner set the shipped default to -50. Range for all three is the real Expert Pro line
          spec, -96..0 dB (enforced by ConfigGeneral.qml's DbStepper, not
          re-declared here - kcfg <min>/<max> would only guard a value typed
          directly into a config file, not the stepper UI itself).
@@ -73,7 +73,7 @@
          Rust hard-limit clamp (Phase 8.1.0), only hardLimitDb does. Don't
          conflate the two. -->
     <entry name="volumeFloorDb" type="Double">
-      <default>-45.0</default>
+      <default>-50.0</default>
     </entry>
     <entry name="hardLimitDb" type="Double">
       <default>-10.0</default>
@@ -85,7 +85,7 @@
     <!-- Phase 10.1.2: master on/off for the volume-feedback chime (Phase
          10.1.0's devialet-chime on every scroll tick while Optical 1 is
          the amp's source), per the Volume Feedback section of
-         design/mockups/settings_window/devialet_config_dialog_mockup_v16_chime_source.html.
+         design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html.
          Default true: the chime IS the shipped, owner-soaked 10.1.0
          behavior, so existing installs must not silently lose it when
          this entry first appears. Consumed by both maybeChime()s
