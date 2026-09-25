@@ -103,8 +103,11 @@ QtObject {
     // cards would be a design-language inconsistency with no offsetting
     // visual benefit, since flat bought nothing perceptible in the
     // comparison that justified it.
-    readonly property color panelTintTop: "#181818"
-    readonly property color panelTintBottom: "#121212"
+    // readonly property color panelTintTop: "#0E0E10"
+    // readonly property color panelTintBottom: "#0E0E10"
+
+    readonly property color panelTintTop: "#131313"
+    readonly property color panelTintBottom: "#131313"
 
     // Phase 4.5.0/4.5.3: translucent graphite gradient shared by the OSD
     // toast (VolumeToast.qml) and the hover tooltip (VolumeHoverTooltip.
