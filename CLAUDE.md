@@ -1145,3 +1145,30 @@ closed-vs-open capture: blend error 0.35 at α 0.82 vs 7.08 for opaque
 paint; wallpaper visible through the panel). So the "infeasible" verdict
 above stands only for the shell-managed popup class; this widget's own
 flyout window is no longer in that class.
+***  compositor force-blur gives the flyout an acrylic look (user-side setting, not a widget feature) ***
+
+Settings-only finding from the Better Blur DX investigation (2026-09-25),
+no code changed. Adding window class `org.kde.plasmashell` to Better Blur
+DX's force-blur list gives the flyout a real frosted-glass look at zero
+cost to this repo - no code, no C++ shim. Confirmed live on the owner's
+desktop (screenshot on file).
+
+Why only the flyout: per Better Blur DX's source/docs, force-blur applies
+only to windows that (a) don't self-report a blur region and (b) are
+actually rendered transparent. The flyout's `NoBackground` Dialog
+qualifies (`NoBackground` calls `enableBlurBehind(false)`). The OSD toast
+and hover tooltip were unaffected in the live test - consistent with,
+not confirmed as, them self-reporting blur via the themed Dialog
+background, which Better Blur DX's docs say makes force-blur ignored.
+
+This is a per-user compositor setting the widget neither ships, controls,
+nor can guarantee (needs Better Blur DX or stock KWin blur, configured
+for that class). Treat it as a bonus, not a feature: the ConfigDialog's
+Transparency setting is the only thing we control, so no "Blur" toggle
+implying the widget manages blur - at most a short note pointing at this
+compositor option. A self-reported blur region would need
+`KWindowEffects::enableBlurBehind`, which has no QML binding (C++ only).
+
+**Unverified**: force-blur blurs the whole window rectangle, not a
+self-reported region, so blur may poke out past the flyout's rounded
+(16px) corners. Not checked yet.
