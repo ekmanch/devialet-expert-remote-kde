@@ -1169,6 +1169,28 @@ implying the widget manages blur - at most a short note pointing at this
 compositor option. A self-reported blur region would need
 `KWindowEffects::enableBlurBehind`, which has no QML binding (C++ only).
 
-**Unverified**: force-blur blurs the whole window rectangle, not a
-self-reported region, so blur may poke out past the flyout's rounded
-(16px) corners. Not checked yet.
+**Corners (measured 2026-09-25)**: force-blur covers the whole window
+rectangle, not a self-reported region, so it does show past the flyout's
+rounded (16px) corners - the ~55 logical px per corner between the arc and
+the square corner, at most ~6.6px deep along the diagonal. Measured by
+aligning the owner's screenshot against the wallpaper file itself (mean
+error 0.1-17 on plain wallpaper outside the flyout). In the bottom
+corners, where the wallpaper has detail, the corner pixels are far off the
+sharp wallpaper (error 72 bottom-left, 21 bottom-right) and closer to a
+blurred copy of it (48, 9). At 6x zoom a blurred square shows there
+plainly (pinkish-brown over the yellow window, smeared flowers). Over flat
+sky (top corners) blurred and sharp look nearly identical, so those
+numbers can't tell them apart, but a faint square edge still shows at 6x.
+That's why it's hard to see by eye. Can't be fixed from QML: a rounded blur region
+needs `enableBlurBehind` (C++, see above). Better Blur DX's own
+General -> "Corner Radius" (logical px, default 0) is the user-side fix. It
+rounds all four corners of a force-blurred window that has no decoration
+and reports no radius of its own (`window.cpp` `getEffectiveBorderRadius()`),
+which is the flyout's case. It's one global value, though, shared with every
+other force-blurred window that reports no radius (Darkly windows are 8px,
+the flyout is 16px), so matching one exactly means a mismatch on the other.
+Owner's choice is **16** (flyout-exact). Measured on 2026-09-25: the flyout's
+corner pixels then match the sharp wallpaper (bottom-left error 72 -> 0.7).
+On System Settings the blur arc falls just inside Darkly's smaller corner,
+leaving a thin unblurred sliver visible only at 10x with contrast boosted.
+12 would bring back ~45% of the flyout's leak to shrink that sliver.
