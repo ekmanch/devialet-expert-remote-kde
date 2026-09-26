@@ -8432,6 +8432,31 @@ architecture decisions; this file is just sequencing and status.
     scroll (more than ~3 amps, cap 230 px) would get the same covered
     right edge. Not reachable with today's one or two amps; parked below.
 
+- [x] **AIR source name shown as the acronym (2026-09-26, on
+      `feature/light-theme`; small fix outside the Phase 17 arc).** The
+      amp reports its AIR input as "Air" (the owner's 140 Pro, slot 14);
+      Devialet's docs use both "Air" and "AIR", and it is an acronym
+      (Asynchronous Intelligent Route), so it is displayed as "AIR" - the
+      rule the Flutter app already applies.
+  - Done in the protocol crate, where slot names are decoded
+    (`crates/protocol/src/status.rs`, `parse_status` →
+    `display_source_name`): a whole-name, ASCII-case-insensitive match on
+    "air" becomes "AIR"; "AirPlay", "Air 2" and every other name pass
+    through. So the daemon's `Sources` and `ActiveSourceName` carry
+    "AIR", and every surface (source list, source row, volume chip, OSD,
+    tooltip) shows it with no QML change. `Theme.sourceGlyph()` was
+    already case-insensitive and tests "airplay" before "air"
+    (`Theme.qml:221-223`), so the glyph is unchanged.
+  - Tests: three new protocol-crate tests (any case → "AIR"; only the
+    whole name; `current_source_name()` returns the display form). 42/42
+    pass; clippy quiet; release daemon builds.
+  - Installed by the owner with `./install.sh` (sudo for
+    `/usr/local/bin`; daemon restarted). Verified: installed daemon is
+    byte-identical to the fresh release build; daemon active on it with
+    `SelectedAmpIp` 192.168.0.22; `ActiveSourceIndex` 14,
+    `ActiveSourceName` "AIR", `Sources` lists "AirPlay" and "AIR"; the
+    owner's screenshot shows "AIR" in the source row and the volume chip.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
