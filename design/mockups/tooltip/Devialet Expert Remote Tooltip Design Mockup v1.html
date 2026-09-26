@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Devialet Panel Tooltip — Mockup v5 (dark + light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); }
+  html{ scroll-padding-top:env(safe-area-inset-top, 0px); }
+  :root{
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+    --font-body:'Inter',sans-serif;
+    --desk-bg:
+      radial-gradient(1200px 600px at 85% -10%, rgba(193,127,78,0.06), transparent 60%),
+      repeating-linear-gradient(90deg, #0a0a0c 0 40px, #0b0b0d 40px 80px), #0a0a0c;
+    --desk-text:#6a6a70; --desk-strong:#c9c7c2; --desk-tag-bg:rgba(0,0,0,0.5);
+    --desk-card:rgba(22,22,25,0.92); --desk-card-border:rgba(255,255,255,0.09);
+    --desk-seg:#1c1c1f; --desk-seg-active:#2e2e33;
+  }
+  body[data-wall="colour"]{
+    --desk-bg:
+      radial-gradient(circle at 78% 30%, #f47a42 0 300px, transparent 301px),
+      radial-gradient(circle at 30% 95%, #7a5cff 0 260px, transparent 261px),
+      radial-gradient(circle at 95% 85%, #1fb5a0 0 240px, transparent 241px),
+      repeating-linear-gradient(-28deg, transparent 0 46px, rgba(255,255,255,0.8) 46px 58px, transparent 58px 150px),
+      linear-gradient(180deg,#151731 0%,#1d2150 100%);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{ font-family:var(--font-body); background:var(--desk-bg); min-height:100vh; }
+
+  .mockup-tag{
+    position:fixed; top:44px; left:50%; transform:translateX(-50%); z-index:60;
+    font-family:var(--font-mono); font-size:10px; letter-spacing:0.06em;
+    color:var(--desk-text); background:var(--desk-tag-bg); padding:3px 7px; border-radius:6px;
+    border:1px solid var(--desk-card-border); pointer-events:none; white-space:nowrap;
+  }
+  .desktop-panel{
+    position:fixed; top:0; left:0; right:0; height:34px;
+    background:rgba(20,20,22,0.92); border-bottom:1px solid rgba(255,255,255,0.08);
+    display:flex; align-items:center; justify-content:flex-end; padding:0 14px; gap:14px; z-index:5;
+  }
+  .panel-icon{width:16px; height:16px; border-radius:4px; opacity:0.55; background:#5c5c60;}
+  .panel-icon.devialet{ background:transparent; opacity:1; display:flex; align-items:center; justify-content:center; color:#e3a06a; font-size:13px; }
+  .panel-clock{font-family:var(--font-mono); font-size:11.5px; color:#9a9a9f; letter-spacing:0.02em;}
+
+  .preview-switcher{
+    position:fixed; top:52px; left:20px; z-index:70; width:260px;
+    background:var(--desk-card); border:1px solid var(--desk-card-border);
+    border-radius:12px; padding:14px 14px 12px;
+    font-family:var(--font-mono); color:var(--desk-text);
+    box-shadow:0 16px 40px -16px rgba(0,0,0,0.35);
+  }
+  .ps-title{ font-family:var(--font-display); font-weight:600; font-size:13px; color:var(--desk-strong); margin:0 0 2px; }
+  .ps-sub{ font-size:10px; margin:0 0 12px; line-height:1.5; }
+  .ps-group{ margin-bottom:11px; }
+  .ps-label{ font-size:10px; margin:0 0 5px; display:flex; justify-content:space-between; }
+  .ps-seg{ display:flex; background:var(--desk-seg); border:1px solid var(--desk-card-border); border-radius:8px; padding:2px; gap:2px; }
+  .ps-seg button{
+    flex:1; border:0; background:transparent; cursor:pointer;
+    font-family:var(--font-mono); font-size:10.5px; color:var(--desk-text); padding:5px 4px; border-radius:6px;
+  }
+  .ps-seg button:hover{ color:var(--desk-strong); }
+  .ps-seg button.active{ background:var(--desk-seg-active); color:var(--desk-strong); box-shadow:0 1px 2px rgba(0,0,0,0.12); }
+  .ps-seg button:focus-visible{ outline:2px solid #3daee9; outline-offset:1px; }
+  .ps-note{ font-size:10px; line-height:1.55; margin:2px 0 0; padding-top:10px; border-top:1px dashed var(--desk-card-border); }
+  .ps-note b{ color:var(--desk-strong); font-weight:600; }
+
+  /* ================= THEME TOKENS (same names/values as flyout v20) ================= */
+  /* dark = the flyout's live-sampled palette (flat #121212, #252525
+     hairlines, #1e1e1e track, no glows), so all four surfaces match */
+  :root, body[data-theme="dark"]{
+    --text:#f2f0ec; --text-dim:#9a9a9f; --text-faint:#5c5c60;
+    --divider:#252525;
+    --surface:#121212; --surface-3:#1e1e1e;
+    --copper:#c17f4e; --copper-bright:#e3a06a; --copper-dim:#8a5c39;
+    /* copper sweep: dark at rest, bright toward the value end */
+    --accent-fill:linear-gradient(90deg,#9a5a2c 0%,#c17f4e 50%,#e8a974 100%);
+    --value-color:#e3a06a;
+    --dot-bg:#e3a06a; --dot-shadow:none;
+    --pop-bg-top:18,18,18; --pop-bg-bot:18,18,18;
+    --pop-shadow:0 18px 40px -12px rgba(0,0,0,0.6);
+    --key-bg:transparent; --key-border:#252525; --key-shadow:none;
+    --muted-fill:#5c5c60;
+  }
+  body[data-theme="light"]{
+    --text:#1c1a17; --text-dim:#6e6a64; --text-faint:#a29d95;
+    --divider:rgba(28,24,18,0.09);
+    --surface:#ffffff; --surface-3:#ece9e4;
+    --copper:#c39443; --copper-bright:#9c6d20; --copper-dim:#e2c88f;
+    /* same gold sweep as the flyout, with a touch more range so it
+       still reads as a gradient on these thinner bars */
+    --accent-fill:linear-gradient(90deg,#9e6b1e 0%,#d9a64e 60%,#f2cd80 100%);
+    --value-color:#1c1a17;
+    --dot-bg:radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%);
+    --dot-shadow:0 1px 2px rgba(110,72,10,0.35);
+    --pop-bg-top:255,255,255; --pop-bg-bot:255,255,255;
+    --pop-shadow:0 22px 50px -16px rgba(20,16,10,0.34), 0 3px 10px -3px rgba(20,16,10,0.12);
+    --key-bg:#ffffff; --key-border:rgba(28,24,18,0.10);
+    --key-shadow:0 2px 8px -3px rgba(20,16,10,0.12), 0 1px 2px rgba(20,16,10,0.06);
+    --muted-fill:#d8d3cb;
+    --gold-text:linear-gradient(90deg,#a8710b 0%,#d99a1f 55%,#efc36a 100%);
+  }
+  /* same hover-free gradient-text helper as the ConfigDialog headings */
+  body[data-theme="light"] .gold-text{
+    background:var(--gold-text); -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  .legend{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); max-width:700px;
+    font-family:var(--font-mono); font-size:10px; color:var(--desk-text); line-height:1.7; text-align:center;
+  }
+  .legend b{ color:#e3a06a; font-weight:600; }
+
+  .cursor-hint{ position:fixed; top:38px; right:66px; z-index:4; font-size:16px; color:#9a9a9f; pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.6); }
+
+  .tooltip{
+    width:172px;
+    background:linear-gradient(180deg, rgb(var(--pop-bg-top)) 0%, rgb(var(--pop-bg-bot)) 100%);
+    border:0; /* no outer border — matches the flyout */
+    border-radius:8px;
+    box-shadow:var(--pop-shadow);
+    padding:9px 10px 9px;
+    animation:pop .12s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes pop{from{opacity:0; transform:translateY(-3px) scale(0.98);} to{opacity:1; transform:translateY(0) scale(1);}}
+
+  .tt-name-row{ display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+  /* status dot: flat copper in dark, glyphGold sphere in light — same
+     treatment as the flyout's amp dot, scaled to tooltip size */
+  .tt-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--dot-bg); box-shadow:var(--dot-shadow); }
+  .tt-name{
+    font-family:var(--font-display); font-weight:600; font-size:11px; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .tt-stat-row{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .tt-source{ font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); letter-spacing:0.02em; }
+  .tt-value{
+    font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--value-color);
+    font-variant-numeric:tabular-nums;
+  }
+  .tt-value .unit{ font-size:9px; color:var(--text-dim); font-weight:400; margin-left:1px; -webkit-text-fill-color:var(--text-dim); }
+  body[data-theme="light"] .tt-value{
+    background:linear-gradient(90deg,#dca136 0%,#f3cf7c 100%); -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    text-shadow:0 0 7px rgba(199,154,46,0.35);
+  }
+  body[data-theme="light"] .tt-value .unit{ text-shadow:none; }
+  .tt-bar-track{ height:2.5px; border-radius:999px; background:var(--surface-3); margin-bottom:7px; overflow:hidden; }
+  .tt-bar-fill{
+    height:100%; width:100%; border-radius:999px;
+    background-image:var(--accent-fill); background-size:77.8% 100%; background-repeat:no-repeat;
+  }
+  .tt-hints{ display:flex; flex-direction:column; gap:2px; }
+  .tt-hint{ font-family:var(--font-mono); font-size:9px; color:var(--text-faint); line-height:1.4; }
+  .tt-hint b{ color:var(--text-dim); font-weight:500; }
+</style>
+</head>
+<body data-theme="light" data-wall="plain">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><radialGradient id="glyphGold" gradientUnits="userSpaceOnUse" cx="6.4" cy="5.6" r="15.5"><stop offset="0%" stop-color="#fcecc0"/><stop offset="38%" stop-color="#f0a623"/><stop offset="100%" stop-color="#a8710b"/></radialGradient></defs></svg>
+
+<div class="preview-switcher">
+  <p class="ps-title">Theme preview</p>
+  <p class="ps-sub">Mockup control, not part of the widget. Follows the same Dark / Light / Follow system setting as the flyout.</p>
+  <div class="ps-group">
+    <p class="ps-label"><span>Widget theme</span></p>
+    <div class="ps-seg" id="segTheme">
+      <button data-v="dark" onclick="setTheme('dark')">Dark</button>
+      <button data-v="light" onclick="setTheme('light')">Light</button>
+    </div>
+  </div>
+  <div class="ps-group">
+    <p class="ps-label"><span>Wallpaper</span></p>
+    <div class="ps-seg" id="segWall">
+      <button data-v="plain" onclick="setWall('plain')">Plain</button>
+      <button data-v="colour" onclick="setWall('colour')">Colourful</button>
+    </div>
+  </div>
+  <p class="ps-note" id="psNote"></p>
+</div>
+
+
+<div class="mockup-tag">MOCKUP · PANEL ICON HOVER TOOLTIP — V5 · DARK + LIGHT</div>
+
+<div class="desktop-panel">
+  <div class="panel-icon"></div>
+  <div class="panel-icon"></div>
+  <div class="panel-icon devialet">◉</div>
+  <div class="panel-icon"></div>
+  <div class="panel-clock">15:58</div>
+</div>
+<div class="cursor-hint">▲</div>
+
+<div style="position:fixed; top:60px; right:20px; z-index:10;">
+  <div class="tooltip">
+    <div class="tt-name-row">
+      <div class="tt-dot"></div>
+      <div class="tt-name">Expert 140 Pro</div>
+    </div>
+    <div class="tt-stat-row">
+      <span class="tt-source">Optical 1</span>
+      <span class="tt-value">−25.0<span class="unit">dB</span></span>
+    </div>
+    <div class="tt-bar-track"><div class="tt-bar-fill"></div></div>
+    <div class="tt-hints">
+      <div class="tt-hint"><b>Scroll</b> to adjust</div>
+      <div class="tt-hint"><b>Middle-click</b> to mute</div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  v4 layout, unchanged. <b>Dark</b> uses the flyout's live-sampled palette (flat #121212, no glows, dot 5 → 7px to match the flyout's larger dot). <b>Light</b> is the flyout's light theme: white, near-black value, gold-sphere dot, one-sweep gold bar. No outer border in either theme.
+</div>
+
+<script>
+  const NOTES = {
+    dark:'<b>Dark</b> — flyout v20\'s live-matched palette.',
+    light:'<b>Light</b> — flyout v20\'s light theme: white, near-black value, gold-sphere dot, one-sweep gold bar.'
+  };
+  let theme='light', wall='plain';
+  function apply(){
+    document.body.dataset.theme=theme; document.body.dataset.wall=wall;
+    document.getElementById('psNote').innerHTML = NOTES[theme];
+    [['segTheme',theme],['segWall',wall]].forEach(([id,v])=>document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('active',b.dataset.v===v)));
+  }
+  function setTheme(v){ theme=v; apply(); }
+  function setWall(v){ wall=v; apply(); }
+
+  apply();
+</script>
+</body>
+</html>

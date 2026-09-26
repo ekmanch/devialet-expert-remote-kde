@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Devialet Flyout Mockup v20 — dark matched to live, light theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); }
+  html{ scroll-padding-top:env(safe-area-inset-top, 0px); }
+  /* =====================================================================
+     THEME TOKENS
+     Every theme defines the SAME token names — Theme.qml can swap a
+     palette object rather than branch per-component. Dark values are
+     sampled from the live flyout. Tokens that can hold a gradient (--accent-fill,
+     --thumb-bg, --dot-bg, --btn-bg, --popup-bg) are plain colors in
+     dark, so dark needs nothing beyond solid fills.
+     ===================================================================== */
+  :root, body[data-theme="dark"]{
+    /* sampled from the live flyout: flat #121212, #252525 hairlines,
+       #1e1e1e track + icon well, no glows anywhere */
+    --fly-top-rgb:18,18,18; --fly-bot-rgb:18,18,18;
+    --fly-texture:none;
+    --fly-border:rgba(255,255,255,0.10);
+    --fly-shadow:0 18px 40px -12px rgba(0,0,0,0.6);
+    --nub-bg:linear-gradient(135deg,#18181a,#141416);
+
+    --surface:#121212; --surface-2:#1e1e1e; --surface-3:#1e1e1e;
+    --copper:#c17f4e; --copper-bright:#e3a06a; --copper-dim:#8a5c39;
+    --accent-rgb:227,160,106;
+    --accent-fill:linear-gradient(#c17f4e,#c17f4e);
+    --thumb-bg:#e3a06a;
+    --thumb-shadow:none;
+    --dot-bg:#e3a06a; --dot-glow:none;
+    --readout-color:#e3a06a; --readout-shadow:none;
+
+    --text:#f2f0ec; --text-dim:#9a9a9f; --text-faint:#5c5c60;
+    --divider:#252525;
+
+    --btn-bg:transparent; --btn-border:#252525; --btn-shadow:none;
+    --chip-bg:transparent; --icon-well:#1e1e1e;
+    --active-bg:rgba(193,127,78,0.14);
+    --header-hover:rgba(255,255,255,0.02);
+    --row-hover:#222225;
+    --popup-bg:linear-gradient(180deg,#1e1e21 0%,#19191c 100%);
+    --popup-border:rgba(255,255,255,0.1);
+    --popup-shadow:0 18px 44px -10px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.4);
+
+    --danger:#a83a30;
+    --success:#5fa374; --success-bright:#7bc796;
+    --warning:#a3813a; --warning-bright:#e0b563; --warning-rgb:224,181,99;
+  }
+
+  /* =====================================================================
+     LIGHT THEMES — pure white. Background, buttons, chip and popups are
+     all #ffffff; they carry --panel-alpha so Transparency (+ Better Blur
+     DX) turns the whole flyout into frosted porcelain, not just the
+     backdrop behind opaque white blocks.
+     ===================================================================== */
+  body[data-mode="light"]{
+    --fly-top-rgb:255,255,255; --fly-bot-rgb:255,255,255;
+    --fly-texture:none;
+    --fly-border:rgba(28,24,18,0.09);
+    --fly-shadow:0 26px 56px -18px rgba(20,16,10,0.32), 0 3px 10px -3px rgba(20,16,10,0.10);
+    --nub-bg:rgba(255,255,255,var(--panel-alpha,1));
+    --glass:calc(0.35 + 0.65 * var(--panel-alpha,1));
+    --surface:#ffffff; --surface-2:#ffffff;
+    --text:#1c1a17; --text-dim:#6e6a64; --text-faint:#a29d95;
+    --divider:rgba(28,24,18,0.09);
+    --card-shadow:0 2px 8px -3px rgba(20,16,10,0.10), 0 1px 2px rgba(20,16,10,0.05);
+    --btn-bg:rgba(255,255,255,var(--glass)); --btn-border:rgba(28,24,18,0.10); --btn-shadow:var(--card-shadow);
+    --chip-bg:rgba(255,255,255,var(--glass)); --icon-well:transparent;
+    --header-hover:rgba(28,24,18,0.025); --row-hover:rgba(28,24,18,0.045);
+    --popup-bg:#ffffff; --popup-border:rgba(28,24,18,0.09);
+    --popup-shadow:0 22px 48px -14px rgba(20,16,10,0.26), 0 2px 6px rgba(20,16,10,0.06);
+    --readout-color:#1c1a17; --readout-shadow:none;
+    --danger:#b23b30; --success:#3d8a57; --success-bright:#2f7a48;
+    --warning:#e2bf6a; --warning-bright:#b8862e; --warning-rgb:226,191,106;
+  }
+
+  /* alpha-dependent tokens must be declared where --panel-alpha lives
+     (custom properties resolve var() where they're declared) */
+  body[data-mode="light"] .flyout-wrap{
+    --glass:calc(0.35 + 0.65 * var(--panel-alpha));
+    --nub-bg:rgba(255,255,255,var(--panel-alpha));
+    --btn-bg:rgba(255,255,255,var(--glass));
+    --chip-bg:rgba(255,255,255,var(--glass));
+  }
+
+  /* ---- Light accent: restrained gold. Gold as trim: slider, thumb, status dot,
+     wordmark, glyphs. ONE sweep per element — dark at rest, lighter
+     toward the lit end — never a repeating metallic band. ---- */
+  body[data-theme="gold"]{
+    --surface-3:#ece9e4;
+    --copper:#c39443; --copper-bright:#9c6d20; --copper-dim:#e2c88f; --accent-rgb:184,134,46;
+    --accent-fill:linear-gradient(90deg,#b07a27 0%,#e8bb62 100%);
+    --thumb-bg:radial-gradient(circle at 36% 30%, #fbe9bd 0%, #e2ae55 42%, #a8731f 100%);
+    --thumb-shadow:0 1px 3px rgba(110,72,10,0.35), 0 0 0 3px rgba(226,174,85,0.14);
+    --dot-bg:radial-gradient(circle at 36% 30%, #fbe9bd 0%, #e2ae55 45%, #a8731f 100%);
+    --dot-glow:0 1px 2px rgba(110,72,10,0.30);
+    --eyebrow:linear-gradient(90deg,#97691f 0%,#cf9c45 100%);
+    --glyph:#b07d2a;
+    --active-bg:rgba(195,148,67,0.10); --active-border:#e2c88f; --active-color:#9c6d20;
+  }
+
+  /* volume readout: the Flutter app's dial value — gold gradient text
+     (#dca136 -> #f3cf7c) with its soft gold glow, scaled to size */
+  body[data-mode="light"] .vol-readout{
+    display:inline-block;
+    background:linear-gradient(90deg,#dca136 0%,#f3cf7c 100%); -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    text-shadow:0 0 14px rgba(199,154,46,0.35);
+  }
+  body[data-mode="light"] .header-eyebrow{
+    width:fit-content; font-weight:600; letter-spacing:0.22em;
+    background:var(--eyebrow); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  /* Source glyphs. Dark keeps the live widget's text glyphs (.gch).
+     Light uses the Flutter app's painted glyphs (.g): same 20-unit
+     shapes, stroked/filled with its glyphGold radial gradient plus a
+     warm drop shadow, and no chip behind them. */
+  /* Source glyphs: the Flutter app's painted 20-unit glyphs in BOTH
+     themes, same size, no chip behind them. Dark = flat copper (as in
+     the app's dark theme); light = glyphGold gradient + warm shadow. */
+  .g{ display:block; overflow:visible; width:20px; height:20px; }
+  .g .s{ fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .g .s.h{ stroke-width:1.1; }
+  .g .f{ fill:currentColor; }
+  .source-icon-sm{ background:transparent !important; width:26px !important; height:26px !important; }
+  .source-option .source-icon-sm{ width:22px !important; height:22px !important; }
+  .source-option .g{ width:17px; height:17px; }
+  body[data-mode="light"] .g{ filter:drop-shadow(0 2px 2.5px rgba(160,110,10,0.35)); }
+  body[data-mode="light"] .g .s{ stroke:url(#glyphGold); }
+  body[data-mode="light"] .g .f{ fill:url(#glyphGold); }
+
+  /* Amp status dot: sized up (7 -> 12px) and given the same treatment as
+     the glyphs — flat copper in dark, glyphGold sphere + shadow in light */
+  .amp-header .amp-dot{ width:12px; height:12px; }
+  .amp-option-dot{ width:10px !important; height:10px !important; }
+  body[data-mode="light"] .amp-header .amp-dot:not(.booting),
+  body[data-mode="light"] .amp-option.connected .amp-option-dot{
+    background:radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%);
+    box-shadow:none; filter:drop-shadow(0 2px 2.5px rgba(160,110,10,0.35));
+  }
+  body[data-mode="light"] .action-btn.active{
+    background:var(--active-bg); border-color:var(--active-border); color:var(--active-color); box-shadow:none;
+  }
+  body[data-mode="light"] .vol-source-chip{ box-shadow:var(--card-shadow); }
+
+  /* colourful wallpaper, to judge transparency + blur */
+  body[data-wall="colour"]{
+    --desk-bg:
+      radial-gradient(circle at 1120px 330px, #f47a42 0 330px, transparent 331px),
+      radial-gradient(circle at 760px 860px, #7a5cff 0 250px, transparent 251px),
+      radial-gradient(circle at 1310px 720px, #1fb5a0 0 260px, transparent 261px),
+      repeating-linear-gradient(-28deg, transparent 0 46px, rgba(255,255,255,0.8) 46px 58px, transparent 58px 150px),
+      linear-gradient(180deg,#151731 0%,#1d2150 100%) !important;
+  }
+
+  /* =====================================================================
+     DESKTOP (panel + wallpaper) — independent of the widget theme, since
+     your real case is a light widget on a dark Plasma panel
+     ===================================================================== */
+  :root, body[data-desktop="dark"]{
+    --desk-bg:
+      radial-gradient(1200px 600px at 85% -10%, rgba(193,127,78,0.06), transparent 60%),
+      repeating-linear-gradient(90deg, #0a0a0c 0 40px, #0b0b0d 40px 80px), #0a0a0c;
+    --panel-bg:rgba(20,20,22,0.92); --panel-border:rgba(255,255,255,0.08);
+    --panel-icon:#5c5c60; --panel-clock:#9a9a9f; --panel-accent:#e3a06a;
+    --desk-text:#6a6a70; --desk-strong:#c9c7c2; --desk-tag-bg:rgba(0,0,0,0.5);
+    --desk-card:rgba(22,22,25,0.92); --desk-card-border:rgba(255,255,255,0.09);
+    --desk-seg:#1c1c1f; --desk-seg-active:#2e2e33;
+  }
+  body[data-desktop="light"]{
+    --desk-bg:
+      radial-gradient(1100px 700px at 80% -10%, rgba(61,174,233,0.12), transparent 60%),
+      radial-gradient(900px 600px at 0% 110%, rgba(193,127,78,0.08), transparent 60%),
+      linear-gradient(160deg,#e9ecef 0%,#d8dde2 100%);
+    --panel-bg:rgba(239,240,241,0.94); --panel-border:rgba(0,0,0,0.10);
+    --panel-icon:#a4aab0; --panel-clock:#31363b; --panel-accent:#a9622d;
+    --desk-text:#6b7178; --desk-strong:#23272b; --desk-tag-bg:rgba(255,255,255,0.65);
+    --desk-card:rgba(252,252,252,0.94); --desk-card-border:rgba(0,0,0,0.10);
+    --desk-seg:#eceef0; --desk-seg-active:#ffffff;
+  }
+
+  :root{
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+    --font-body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font-body);
+    color:var(--text);
+    background:var(--desk-bg);
+    min-height:100vh;
+    display:flex;
+    justify-content:flex-end;
+    align-items:flex-start;
+    padding:36px 23px 0 0;
+    transition:background .3s ease;
+  }
+
+  .desktop-panel{
+    position:fixed; top:0; left:0; right:0; height:34px;
+    background:var(--panel-bg);
+    border-bottom:1px solid var(--panel-border);
+    display:flex; align-items:center; justify-content:flex-end;
+    padding:0 14px; gap:14px;
+    backdrop-filter:blur(6px);
+    z-index:5;
+  }
+  .panel-icon{width:16px; height:16px; border-radius:4px; opacity:0.55; background:var(--panel-icon);}
+  /* compact representation lives IN the panel, so it follows the panel,
+     not the popup theme */
+  .panel-icon.devialet{
+    background:transparent; opacity:1;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--panel-accent); font-size:13px; cursor:pointer;
+  }
+  .panel-clock{font-family:var(--font-mono); font-size:11.5px; color:var(--panel-clock); letter-spacing:0.02em;}
+  .mockup-tag{
+    position:fixed; top:44px; left:50%; transform:translateX(-50%); z-index:60;
+    font-family:var(--font-mono); font-size:9.5px; letter-spacing:0.06em;
+    color:var(--desk-text); background:var(--desk-tag-bg); padding:3px 7px; border-radius:6px;
+    border:1px solid var(--desk-card-border); pointer-events:none;
+  }
+
+  /* =====================================================================
+     PREVIEW SWITCHER — mockup chrome, not part of the widget
+     ===================================================================== */
+  .preview-switcher{
+    position:fixed; top:52px; left:20px; z-index:70; width:292px;
+    background:var(--desk-card); border:1px solid var(--desk-card-border);
+    border-radius:12px; padding:14px 14px 12px;
+    font-family:var(--font-mono); color:var(--desk-text);
+    box-shadow:0 16px 40px -16px rgba(0,0,0,0.35);
+    backdrop-filter:blur(10px);
+  }
+  .ps-title{ font-family:var(--font-display); font-weight:600; font-size:13px; color:var(--desk-strong); margin:0 0 2px; }
+  .ps-sub{ font-size:10px; margin:0 0 12px; line-height:1.5; }
+  .ps-group{ margin-bottom:11px; }
+  .ps-label{ font-size:10px; margin:0 0 5px; display:flex; justify-content:space-between; }
+  .ps-seg{ display:flex; background:var(--desk-seg); border:1px solid var(--desk-card-border); border-radius:8px; padding:2px; gap:2px; }
+  .ps-seg button{
+    flex:1; border:0; background:transparent; cursor:pointer;
+    font-family:var(--font-mono); font-size:10.5px; color:var(--desk-text);
+    padding:5px 4px; border-radius:6px;
+  }
+  .ps-seg button:hover{ color:var(--desk-strong); }
+  .ps-seg button.active{ background:var(--desk-seg-active); color:var(--desk-strong); box-shadow:0 1px 2px rgba(0,0,0,0.12); }
+  .ps-seg button:focus-visible{ outline:2px solid #3daee9; outline-offset:1px; }
+  .ps-group.disabled{ opacity:0.4; pointer-events:none; }
+  .ps-note{
+    font-size:10px; line-height:1.55; margin:2px 0 0; padding-top:10px;
+    border-top:1px dashed var(--desk-card-border);
+  }
+  .ps-note b{ color:var(--desk-strong); font-weight:600; }
+  .ps-rec{ color:#3daee9; }
+
+  /* =====================================================================
+     FLYOUT (v14 structure, now fully tokenised)
+     ===================================================================== */
+  .flyout-wrap{ position:relative; margin-top:0; --panel-alpha:1; }
+  .nub{ display:none; } /* the real popup has no arrow */
+  .nub-unused{
+    position:absolute; top:-7px; right:22px; width:14px; height:14px;
+    background:var(--nub-bg);
+    border-left:1px solid var(--fly-border); border-top:1px solid var(--fly-border);
+    transform:rotate(45deg); border-radius:3px 0 0 0; z-index:2;
+  }
+  .flyout{
+    width:298px; position:relative;
+    background:
+      var(--fly-texture),
+      linear-gradient(180deg, rgba(var(--fly-top-rgb),var(--panel-alpha)) 0%, rgba(var(--fly-bot-rgb),var(--panel-alpha)) 100%);
+    border:0; /* no outer border in either theme — the shadow alone separates the popup from the desktop */
+    border-radius:12px;
+    box-shadow:var(--fly-shadow);
+    overflow:hidden;
+    animation:pop .16s cubic-bezier(.2,.9,.3,1);
+  }
+  .flyout.blur-enabled{ backdrop-filter:blur(22px) saturate(150%); }
+  @keyframes pop{from{opacity:0; transform:translateY(-4px) scale(0.98);} to{opacity:1; transform:translateY(0) scale(1);}}
+
+  .settings-trigger{
+    position:absolute; top:8px; right:9px; z-index:3;
+    width:24px; height:24px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-faint); cursor:default;
+  }
+  .settings-trigger:hover{background:var(--row-hover); color:var(--copper-bright);}
+
+  .amp-header{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 40px 8px 14px; min-height:70px;
+    border-bottom:1px solid var(--divider);
+    cursor:pointer;
+  }
+  .amp-header:hover{background:var(--header-hover);}
+  .amp-dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--dot-bg); box-shadow:var(--dot-glow);
+    flex-shrink:0;
+  }
+  .amp-dot.booting{
+    background:var(--warning-bright); box-shadow:0 0 7px 2px rgba(var(--warning-rgb),0.5);
+    animation:dotPulse 1.1s ease-in-out infinite;
+  }
+  @keyframes dotPulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .spinner{
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid rgba(var(--warning-rgb),0.25); border-top-color:var(--warning-bright);
+    animation:spin 0.7s linear infinite; flex-shrink:0;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .header-text{flex:1; min-width:0;}
+  .header-eyebrow{
+    font-family:var(--font-mono); font-size:9.5px; letter-spacing:0.2em; text-transform:uppercase;
+    color:var(--text-faint); margin:0 0 5px;
+  }
+  .header-name{
+    font-family:var(--font-display); font-weight:600; font-size:14px; margin:0 0 4px; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .header-sub{
+    font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); margin:0; letter-spacing:0.02em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .header-caret{ color:var(--text-faint); font-size:11px; flex-shrink:0; transition:transform .16s ease; }
+  .header-caret.open{transform:rotate(180deg); color:var(--copper-bright);}
+
+  .overlay-popup{
+    position:absolute; left:16px; right:16px;
+    background:var(--popup-bg);
+    border:1px solid var(--popup-border);
+    border-radius:13px;
+    box-shadow:var(--popup-shadow);
+    z-index:30; display:none; overflow-y:auto; max-height:230px;
+  }
+  .overlay-popup.open{ display:block; animation:popupIn .14s cubic-bezier(.2,.9,.3,1); }
+  @keyframes popupIn{ from{opacity:0; transform:translateY(-6px) scale(0.97);} to{opacity:1; transform:translateY(0) scale(1);} }
+  .amp-list-inner{ padding:8px; }
+  .amp-option{ display:flex; align-items:center; gap:9px; padding:8px 8px; border-radius:9px; cursor:default; }
+  .amp-option:hover{background:var(--row-hover);}
+  .amp-option-dot{ width:7px; height:7px; border-radius:50%; background:var(--text-faint); flex-shrink:0; }
+  .amp-option.connected .amp-option-dot{ background:var(--dot-bg); box-shadow:var(--dot-glow); }
+  .amp-option-info{ flex:1; min-width:0; }
+  .amp-option-name{ font-size:12.5px; font-weight:600; margin:0; color:var(--text-dim); }
+  .amp-option.connected .amp-option-name{ color:var(--copper-bright); }
+  .amp-option-sub{ font-size:10px; color:var(--text-faint); font-family:var(--font-mono); margin:0; }
+  .amp-option-check{ color:var(--copper-bright); opacity:0; display:flex; flex-shrink:0; }
+  .amp-option.connected .amp-option-check{ opacity:1; }
+
+  .vol-block{padding:19px 15px 0 16px;}
+  .vol-readout-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:13px;}
+  .vol-readout{
+    font-family:var(--font-mono); font-size:26px; font-weight:500; color:var(--readout-color);
+    font-variant-numeric:tabular-nums; letter-spacing:0.02em;
+    text-shadow:var(--readout-shadow);
+  }
+  .vol-unit{font-family:var(--font-mono); font-size:12px; color:var(--text-dim); font-weight:400; margin-left:3px;}
+  .vol-source-chip{
+    font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint);
+    background:var(--chip-bg); border:1px solid var(--divider); border-radius:999px;
+    padding:2px 9px; line-height:14px; letter-spacing:0.03em;
+  }
+  .vol-slider-row{display:flex; align-items:center; gap:10px;}
+  .slider-track-wrap{ position:relative; flex:1; display:flex; align-items:center; }
+  input[type="range"].copper-slider{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
+    outline:none; margin:0; cursor:default;
+    --fill:62.5%;
+    background-color:var(--surface-3);
+    background-image:var(--accent-fill);
+    background-size:var(--fill) 100%;
+    background-repeat:no-repeat;
+  }
+  input[type="range"].copper-slider::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--thumb-bg); box-shadow:var(--thumb-shadow);
+    cursor:default; border:0;
+  }
+  input[type="range"].copper-slider::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; border:0;
+    background:var(--thumb-bg); box-shadow:var(--thumb-shadow);
+  }
+
+  .step-btn{
+    width:26px; height:26px; border-radius:8px;
+    background:var(--btn-bg); border:1px solid var(--btn-border); box-shadow:var(--btn-shadow);
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:600;
+    font-size:14px; color:var(--text); cursor:default; flex-shrink:0;
+  }
+  .step-btn:hover{border-color:var(--copper-dim); color:var(--copper-bright);}
+  .scroll-hint{
+    font-family:var(--font-mono); font-size:10px; color:var(--text-faint);
+    margin:18px 0 0; text-align:center; letter-spacing:0.04em; font-size:10.5px;
+  }
+
+  /* fixed columns, never content-sized, so nothing moves when labels
+     change (Mute/Unmute, Power Off/Power On/Powering on…). Power gets
+     the larger share (11:14, ~114px / ~145px) so "Powering on…" plus
+     its spinner has room. */
+  .action-row{display:grid; grid-template-columns:11fr 14fr; gap:8.5px; padding:22px 15px 0;}
+  .action-row .action-btn{min-width:0; white-space:nowrap;}
+  .action-btn{
+    background:var(--btn-bg); border:1px solid var(--btn-border); box-shadow:var(--btn-shadow);
+    border-radius:10px; height:38px; padding:0 14px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-family:var(--font-mono); font-size:12px; font-weight:700; letter-spacing:0.02em; cursor:default; color:var(--text);
+  }
+  .action-btn:hover{border-color:var(--copper-dim);}
+  .action-btn.active{background:var(--active-bg); border-color:var(--copper-dim); color:var(--copper-bright); box-shadow:none;}
+  .action-btn.power-btn.state-on:hover{border-color:var(--danger); color:var(--danger);}
+  .action-btn.power-btn.state-off:hover{border-color:var(--success); color:var(--success-bright);}
+  .action-btn.power-btn.state-booting{
+    border-color:var(--warning); color:var(--warning-bright); pointer-events:none;
+  }
+  .icon{width:13px; height:13px; flex-shrink:0;}
+  #powerIcon{width:13px; height:13px;}
+
+  .source-block{padding:14px 15px 14px;}
+  .source-row{
+    display:flex; align-items:center; gap:10.5px; padding:0 12px 0 9px; height:50px;
+    background:var(--btn-bg); border:1px solid var(--btn-border); box-shadow:var(--btn-shadow);
+    border-radius:11px; cursor:default;
+  }
+  .source-row:hover{border-color:var(--copper-dim);}
+  .source-icon-sm{
+    width:24px; height:24px; border-radius:6px; background:var(--icon-well);
+    display:flex; align-items:center; justify-content:center; color:var(--copper-bright); font-size:10px; flex-shrink:0;
+  }
+  .source-label{flex:1; min-width:0;}
+  .source-eyebrow{font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); margin:0 0 3px; letter-spacing:0.14em; text-transform:uppercase;}
+  .source-name{font-family:var(--font-display); font-size:13.5px; font-weight:600; margin:0; color:var(--text);}
+  .source-caret{color:var(--text-faint); font-size:11px; transition:transform .16s ease;}
+  .source-caret.open{transform:rotate(180deg); color:var(--copper-bright);}
+  .source-list.overlay-popup{ top:auto; bottom:72px; max-height:252px; }
+  .source-option{
+    display:flex; align-items:center; gap:9px; padding:8px 10px; margin:4px;
+    border-radius:9px; font-size:12.5px; cursor:default; color:var(--text-dim);
+  }
+  .source-option:hover{background:var(--row-hover);}
+  .source-option.selected{color:var(--copper-bright);}
+  .source-option .source-icon-sm{width:20px; height:20px; font-size:10px;}
+  .source-check{margin-left:auto; opacity:0; display:flex; flex-shrink:0; color:var(--copper-bright);}
+  /* painted tick, as in the Flutter app: 16px box, 2-unit round stroke */
+  .tick{ width:16px; height:16px; display:block; }
+  .tick path{ fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .source-option.selected .source-check{opacity:1;}
+
+  .flyout-footer{
+    height:34px; padding:0 16px; border-top:1px solid var(--divider);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .footer-status{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); letter-spacing:0.03em;}
+  .footer-status.ok::before{
+    content:''; display:inline-block; width:4px; height:4px; border-radius:50%;
+    background:var(--dot-bg); margin-right:11px; box-shadow:var(--dot-glow);
+    vertical-align:1px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body data-mode="light" data-theme="gold" data-desktop="dark" data-wall="plain">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><radialGradient id="glyphGold" gradientUnits="userSpaceOnUse" cx="6.4" cy="5.6" r="15.5"><stop offset="0%" stop-color="#fcecc0"/><stop offset="38%" stop-color="#f0a623"/><stop offset="100%" stop-color="#a8710b"/></radialGradient></defs></svg>
+
+<div class="desktop-panel">
+  <div class="panel-icon"></div>
+  <div class="panel-icon"></div>
+  <div class="panel-icon devialet" id="trayIcon" onclick="toggleFlyout()">◉</div>
+  <div class="panel-icon"></div>
+  <div class="panel-clock">14:32</div>
+</div>
+<div class="mockup-tag">MOCKUP · FLYOUT V20 · DARK MATCHED TO LIVE</div>
+
+<!-- ============ PREVIEW SWITCHER (mockup-only) ============ -->
+<div class="preview-switcher">
+  <p class="ps-title">Theme preview</p>
+  <p class="ps-sub">Mockup control, not part of the widget. The real setting is one of Dark / Light / Follow system in the ConfigDialog.</p>
+
+  <div class="ps-group">
+    <p class="ps-label"><span>Widget theme</span></p>
+    <div class="ps-seg" id="segMode">
+      <button data-v="dark" onclick="setMode('dark')">Dark</button>
+      <button data-v="light" onclick="setMode('light')">Light</button>
+    </div>
+  </div>
+
+  <div class="ps-group">
+    <p class="ps-label"><span>Transparency</span><span id="alphaVal">0%</span></p>
+    <input type="range" id="alphaSlider" min="0" max="90" value="0" oninput="setAlpha(this.value)" style="width:100%; accent-color:#9a9a9f;">
+  </div>
+
+  <div class="ps-group">
+    <p class="ps-label"><span>Blur (Better Blur DX, approximated)</span></p>
+    <div class="ps-seg" id="segBlur">
+      <button data-v="on" onclick="setBlur('on')">On</button>
+      <button data-v="off" onclick="setBlur('off')">Off</button>
+    </div>
+  </div>
+
+  <div class="ps-group">
+    <p class="ps-label"><span>Wallpaper</span></p>
+    <div class="ps-seg" id="segWall">
+      <button data-v="plain" onclick="setWall('plain')">Plain</button>
+      <button data-v="colour" onclick="setWall('colour')">Colourful</button>
+    </div>
+  </div>
+
+  <p class="ps-note" id="styleNote"></p>
+</div>
+
+<div class="flyout-wrap" id="flyoutWrap">
+  <div class="nub"></div>
+  <div class="flyout" id="flyoutPanel">
+
+    <div class="settings-trigger" id="settingsTrigger" title="Settings">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </div>
+
+    <div class="main-view" id="mainView">
+
+      <div class="amp-header" id="ampHeader" onclick="toggleAmpList()">
+        <div class="amp-dot" id="ampDot"></div>
+        <div class="header-text">
+          <p class="header-eyebrow">Devialet</p>
+          <p class="header-name" id="ampName">Expert 140 Pro</p>
+          <p class="header-sub" id="ampSub">192.168.0.22 · Connected</p>
+        </div>
+        <div class="header-caret" id="ampCaret">⌄</div>
+      </div>
+
+      <div class="overlay-popup" id="ampList" style="top:70px;">
+        <div class="amp-list-inner" id="ampListInner"></div>
+      </div>
+
+      <div class="vol-block">
+        <div class="vol-readout-row">
+          <div><span class="vol-readout" id="volValue">−25.0</span><span class="vol-unit">dB</span></div>
+          <div class="vol-source-chip" id="volSourceChip">Optical 1</div>
+        </div>
+        <div class="vol-slider-row">
+          <div class="step-btn" onclick="stepVol(-0.5)">−</div>
+          <div class="slider-track-wrap">
+            <input type="range" class="copper-slider" id="volSlider" min="-50" max="-10" step="0.5" value="-25" oninput="onVolInput(this.value)">
+          </div>
+          <div class="step-btn" onclick="stepVol(0.5)">+</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <div class="action-btn" id="muteBtn" onclick="toggleMute()">
+          <svg class="icon" id="muteIconOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:12px;height:12px;"><path d="M11 5 6 9H2v6h4l5 4V5Z" fill="currentColor"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+          <svg class="icon" id="muteIconOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none;width:12px;height:12px;"><path d="M11 5 6 9H2v6h4l5 4V5Z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          <span id="muteLabel">Mute</span>
+        </div>
+        <div class="action-btn power-btn state-on" id="powerBtn" onclick="togglePower()">
+          <svg class="icon" id="powerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+          <div class="spinner" id="powerSpinner" style="display:none;"></div>
+          <span id="powerLabel">Power Off</span>
+        </div>
+      </div>
+
+      <div class="source-block">
+        <div class="source-row" onclick="toggleSourceList()">
+          <div class="source-icon-sm" id="sourceRowIcon"></div>
+          <div class="source-label">
+            <p class="source-eyebrow">Source</p>
+            <p class="source-name" id="sourceRowName">Optical 1</p>
+          </div>
+          <div class="source-caret" id="sourceCaret">⌄</div>
+        </div>
+        <div class="overlay-popup source-list" id="sourceList"></div>
+      </div>
+
+      <div class="flyout-footer">
+        <span class="footer-status ok" id="footerStatus">Connected</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ================= theme preview switcher (mockup-only) =================
+  const STYLE_NOTES = {
+    dark: '<b>Dark</b> — matched to your live flyout: colours sampled and sizes measured from the screenshot (2× scale).',
+    gold: '<b>Light.</b> Gold only as trim: slider fill, thumb, status dot, wordmark and source glyphs. Every gradient is a single sweep, dark at rest and lighter toward the lit end. The readout and all text stay near-black.',
+  };
+  let mode = 'light', lightStyle = 'gold', blur = 'on', wall = 'plain';
+  function applyTheme(){
+    document.body.dataset.mode = mode;
+    document.body.dataset.theme = mode === 'dark' ? 'dark' : lightStyle;
+    document.body.dataset.wall = wall;
+    document.getElementById('flyoutPanel').classList.toggle('blur-enabled', blur === 'on');
+    document.getElementById('styleNote').innerHTML = STYLE_NOTES[mode === 'dark' ? 'dark' : lightStyle];
+    [['segMode',mode],['segStyle',lightStyle],['segBlur',blur],['segWall',wall]].forEach(([id,v])=>{
+      document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('active', b.dataset.v===v));
+    });
+  }
+  function setMode(v){ mode = v; applyTheme(); }
+  function setStyle(v){ lightStyle = v; applyTheme(); }
+  function setBlur(v){ blur = v; applyTheme(); }
+  function setWall(v){ wall = v; applyTheme(); }
+  function setAlpha(t){
+    document.getElementById('alphaVal').textContent = t + '%';
+    document.getElementById('flyoutWrap').style.setProperty('--panel-alpha', (1 - t/100).toFixed(2));
+  }
+
+  // ================= widget behavior (v14, unchanged except slider fill) =================
+  const amplifiers = [
+    {udpName:'My Devialet', modelName:'Devialet Expert 140 Pro', ip:'192.168.0.22', connected:true},
+    {udpName:'Living Room Expert', modelName:'Devialet Expert 220 Pro', ip:'192.168.0.31', connected:false},
+    {udpName:'Studio Phantom', modelName:null, ip:'192.168.0.44', connected:false}
+  ];
+  function displayName(a){ return a.modelName || a.udpName; }
+
+  const G = {
+    optical:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="s" cx="10" cy="10" r="7.2"/><circle class="f" cx="10" cy="10" r="3"/></svg>',
+    upnp:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><rect class="s" x="3" y="3" width="14" height="14" rx="1.8"/><line class="s" x1="10" y1="3" x2="10" y2="17"/></svg>',
+    roon:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="s" cx="10" cy="10" r="7.2"/><line class="s h" x1="6.4" y1="5.08" x2="6.4" y2="14.92"/><line class="s h" x1="8.8" y1="4.02" x2="8.8" y2="15.98"/><line class="s h" x1="11.2" y1="4.02" x2="11.2" y2="15.98"/><line class="s h" x1="13.6" y1="5.08" x2="13.6" y2="14.92"/></svg>',
+    airplay:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><path class="s" d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z"/><path class="f" d="M10 6.6 L13.4 10 L10 13.4 L6.6 10 Z"/></svg>',
+    spotify:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="s" cx="10" cy="10" r="7.2"/><path class="f" d="M10 2.8 A7.2 7.2 0 0 0 10 17.2 Z"/></svg>',
+    air:'<svg class="g" viewBox="0 0 20 20" aria-hidden="true"><path class="s" d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z"/></svg>'
+  };
+  const glyph = (ch, key) => G[key];
+  const sources = [
+    {name:'Optical 1', icon:glyph('◉','optical')},
+    {name:'UPnP', icon:glyph('◫','upnp')},
+    {name:'Roon Ready', icon:glyph('◍','roon')},
+    {name:'AirPlay', icon:glyph('◈','airplay')},
+    {name:'Spotify', icon:glyph('◐','spotify')},
+    {name:'AIR', icon:glyph('◇','air')},
+  ];
+
+  let currentSource = 'Optical 1';
+  let sourceListOpen = false, ampListOpen = false;
+  let muted = false, poweredOn = true;
+  let vol = -25.0;
+  const FLOOR_DB = -50, HARD_DB = -10;
+  const MIN_DB = FLOOR_DB, MAX_DB = HARD_DB, RANGE_DB = HARD_DB - FLOOR_DB;
+
+  function onVolInput(v){ vol = Number(v); updateVolDisplay(); }
+  function stepVol(delta){
+    vol = Math.max(MIN_DB, Math.min(MAX_DB, vol + delta));
+    document.getElementById('volSlider').value = vol;
+    updateVolDisplay();
+  }
+  function updateVolDisplay(){
+    const fillPct = ((vol - FLOOR_DB) / RANGE_DB) * 100;
+    document.getElementById('volValue').textContent = (vol < 0 ? '−' : '') + Math.abs(vol).toFixed(1);
+    // fill is now a token (--accent-fill) sized to the value, so a
+    // gradient fill (Aluminium, Champagne) works the same as a solid one
+    document.getElementById('volSlider').style.setProperty('--fill', fillPct + '%');
+  }
+
+  function renderAmpHeader(){
+    const active = amplifiers.find(a=>a.connected);
+    document.getElementById('ampName').textContent = displayName(active);
+    document.getElementById('ampSub').textContent = active.ip + ' · Connected';
+  }
+  function renderAmpList(){
+    const inner = document.getElementById('ampListInner');
+    inner.innerHTML = '';
+    amplifiers.forEach(a=>{
+      const div = document.createElement('div');
+      div.className = 'amp-option' + (a.connected ? ' connected' : '');
+      div.innerHTML = `<div class="amp-option-dot"></div>
+        <div class="amp-option-info">
+          <p class="amp-option-name">${displayName(a)}</p>
+          <p class="amp-option-sub">${a.ip}${a.modelName ? '' : ' · name unresolved'}</p>
+        </div>
+        <span class="amp-option-check"><svg class="tick" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.8 9.4 L7.4 12.9 L14.2 5.4"/></svg></span>`;
+      div.onclick = (e)=>{ e.stopPropagation(); selectAmp(a); };
+      inner.appendChild(div);
+    });
+  }
+  function selectAmp(a){
+    amplifiers.forEach(x=> x.connected = (x===a));
+    renderAmpHeader(); renderAmpList(); toggleAmpList();
+  }
+  function toggleAmpList(){
+    ampListOpen = !ampListOpen;
+    document.getElementById('ampList').classList.toggle('open', ampListOpen);
+    document.getElementById('ampCaret').classList.toggle('open', ampListOpen);
+    if(ampListOpen && sourceListOpen){ toggleSourceList(); }
+  }
+
+  function renderSourceList(){
+    const list = document.getElementById('sourceList');
+    list.innerHTML = '';
+    sources.forEach(s=>{
+      const div = document.createElement('div');
+      div.className = 'source-option' + (s.name===currentSource ? ' selected' : '');
+      div.innerHTML = `<div class="source-icon-sm">${s.icon}</div><span>${s.name}</span><span class="source-check"><svg class="tick" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.8 9.4 L7.4 12.9 L14.2 5.4"/></svg></span>`;
+      div.onclick = (e)=>{ e.stopPropagation(); selectSource(s); };
+      list.appendChild(div);
+    });
+  }
+  function toggleSourceList(){
+    sourceListOpen = !sourceListOpen;
+    document.getElementById('sourceList').classList.toggle('open', sourceListOpen);
+    document.getElementById('sourceCaret').classList.toggle('open', sourceListOpen);
+    if(sourceListOpen && ampListOpen){ toggleAmpList(); }
+  }
+  function selectSource(s){
+    currentSource = s.name;
+    document.getElementById('sourceRowIcon').innerHTML = s.icon;
+    document.getElementById('sourceRowName').textContent = s.name;
+    document.getElementById('volSourceChip').textContent = s.name;
+    renderSourceList(); toggleSourceList();
+  }
+
+  function toggleMute(){
+    muted = !muted;
+    document.getElementById('muteBtn').classList.toggle('active', muted);
+    document.getElementById('muteIconOn').style.display = muted ? 'none' : '';
+    document.getElementById('muteIconOff').style.display = muted ? '' : 'none';
+    document.getElementById('muteLabel').textContent = muted ? 'Unmute' : 'Mute';
+  }
+  const BOOT_DURATION_MS = 3200;
+  function setPowerVisualState(state){
+    const btn = document.getElementById('powerBtn');
+    const dot = document.getElementById('ampDot');
+    const sub = document.getElementById('ampSub');
+    const icon = document.getElementById('powerIcon');
+    const spinner = document.getElementById('powerSpinner');
+    const label = document.getElementById('powerLabel');
+    btn.classList.remove('state-on','state-off','state-booting');
+    dot.classList.remove('booting');
+    dot.style.opacity = '1';
+    if(state === 'on'){
+      btn.classList.add('state-on'); label.textContent = 'Power Off';
+      icon.style.display = ''; spinner.style.display = 'none';
+      sub.textContent = '192.168.0.22 · Connected';
+    } else if(state === 'off'){
+      btn.classList.add('state-off'); label.textContent = 'Power On';
+      icon.style.display = ''; spinner.style.display = 'none';
+      dot.style.opacity = '0.3'; sub.textContent = '192.168.0.22 · Off';
+    } else if(state === 'booting'){
+      btn.classList.add('state-booting'); label.textContent = 'Powering on…';
+      icon.style.display = 'none'; spinner.style.display = '';
+      dot.classList.add('booting'); sub.textContent = 'Booting…';
+    }
+  }
+  function togglePower(){
+    if(poweredOn){ poweredOn = false; setPowerVisualState('off'); }
+    else {
+      setPowerVisualState('booting');
+      setTimeout(()=>{ poweredOn = true; setPowerVisualState('on'); }, BOOT_DURATION_MS);
+    }
+  }
+  function toggleFlyout(){
+    const wrap = document.getElementById('flyoutWrap');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  }
+
+  applyTheme();
+  renderAmpHeader(); renderAmpList(); renderSourceList(); updateVolDisplay();
+  document.getElementById('sourceRowIcon').innerHTML = sources[0].icon;
+
+  document.getElementById('volSlider').addEventListener('wheel', (e)=>{
+    e.preventDefault(); stepVol(e.deltaY < 0 ? 0.5 : -0.5);
+  }, {passive:false});
+
+  document.addEventListener('click', (e)=>{
+    if(ampListOpen && !e.target.closest('#ampList') && !e.target.closest('#ampHeader')) toggleAmpList();
+    if(sourceListOpen && !e.target.closest('#sourceList') && !e.target.closest('.source-row')) toggleSourceList();
+  });
+</script>
+
+</body>
+</html>
+
