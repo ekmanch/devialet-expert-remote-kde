@@ -94,10 +94,11 @@
   body[data-theme="gold"]{
     --surface-3:#ece9e4;
     --copper:#c39443; --copper-bright:#9c6d20; --copper-dim:#e2c88f; --accent-rgb:184,134,46;
-    --accent-fill:linear-gradient(90deg,#b07a27 0%,#e8bb62 100%);
-    --thumb-bg:radial-gradient(circle at 36% 30%, #fbe9bd 0%, #e2ae55 42%, #a8731f 100%);
-    --thumb-shadow:0 1px 3px rgba(110,72,10,0.35), 0 0 0 3px rgba(226,174,85,0.14);
-    --dot-bg:radial-gradient(circle at 36% 30%, #fbe9bd 0%, #e2ae55 45%, #a8731f 100%);
+    /* flat gold fill — the gradient thumb supplies the metal */
+    --accent-fill:linear-gradient(#e2b865,#e2b865);
+    --thumb-bg:radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%);
+    --thumb-shadow:0 1px 3px rgba(110,72,10,0.35), 0 0 0 3px rgba(240,166,35,0.14);
+    --dot-bg:radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%);
     --dot-glow:0 1px 2px rgba(110,72,10,0.30);
     --eyebrow:linear-gradient(90deg,#97691f 0%,#cf9c45 100%);
     --glyph:#b07d2a;
@@ -222,7 +223,7 @@
   }
   .panel-clock{font-family:var(--font-mono); font-size:11.5px; color:var(--panel-clock); letter-spacing:0.02em;}
   .mockup-tag{
-    position:fixed; top:44px; left:50%; transform:translateX(-50%); z-index:60;
+    position:fixed; bottom:16px; left:20px; z-index:60;
     font-family:var(--font-mono); font-size:9.5px; letter-spacing:0.06em;
     color:var(--desk-text); background:var(--desk-tag-bg); padding:3px 7px; border-radius:6px;
     border:1px solid var(--desk-card-border); pointer-events:none;

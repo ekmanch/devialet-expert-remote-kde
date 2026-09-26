@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Devialet Volume OSD — Mockup v4 (dark + light)</title>
+<title>Devialet Panel Tooltip — Mockup v5 (dark + light)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -91,9 +91,8 @@
     --divider:rgba(28,24,18,0.09);
     --surface:#ffffff; --surface-3:#ece9e4;
     --copper:#c39443; --copper-bright:#9c6d20; --copper-dim:#e2c88f;
-    /* same gold sweep as the flyout, with a touch more range so it
-       still reads as a gradient on these thinner bars */
-    --accent-fill:linear-gradient(90deg,#9e6b1e 0%,#d9a64e 60%,#f2cd80 100%);
+    /* flat gold, same as the flyout slider */
+    --accent-fill:linear-gradient(#e2b865,#e2b865);
     --value-color:#1c1a17;
     --dot-bg:radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%);
     --dot-shadow:0 1px 2px rgba(110,72,10,0.35);
@@ -115,75 +114,48 @@
   }
   .legend b{ color:#e3a06a; font-weight:600; }
 
-  body{ display:flex; align-items:center; justify-content:center; }
-  body[data-theme="light"]{ --osd-alpha:1; } /* pure white, like the flyout's opaque default */
+  .cursor-hint{ position:fixed; top:38px; right:66px; z-index:4; font-size:16px; color:#9a9a9f; pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.6); }
 
-  /* ============ the OSD toast ============ */
-  .osd{
-    display:flex; align-items:center; gap:14px;
-    padding:14px 20px 14px 16px;
-    background:linear-gradient(180deg, rgba(var(--pop-bg-top),var(--osd-alpha,0.96)) 0%, rgba(var(--pop-bg-bot),var(--osd-alpha,0.96)) 100%);
-    border:0; /* no outer border — matches the flyout; shadow separates it */
-    border-radius:16px;
+  .tooltip{
+    width:172px;
+    background:linear-gradient(180deg, rgb(var(--pop-bg-top)) 0%, rgb(var(--pop-bg-bot)) 100%);
+    border:0; /* no outer border — matches the flyout */
+    border-radius:8px;
     box-shadow:var(--pop-shadow);
-    backdrop-filter:blur(18px) saturate(140%);
-    animation:pop .16s cubic-bezier(.2,.9,.3,1);
-    min-width:340px;
+    padding:9px 10px 9px;
+    animation:pop .12s cubic-bezier(.2,.9,.3,1);
   }
-  @keyframes pop{from{opacity:0; transform:translateY(6px) scale(0.97);} to{opacity:1; transform:translateY(0) scale(1);}}
+  @keyframes pop{from{opacity:0; transform:translateY(-3px) scale(0.98);} to{opacity:1; transform:translateY(0) scale(1);}}
 
-  /* icon key: unmuted = neutral, like the flyout's resting buttons */
-  .osd-icon{
-    width:34px; height:34px; border-radius:10px; flex-shrink:0;
-    background:var(--key-bg); border:1px solid var(--key-border); box-shadow:var(--key-shadow);
-    display:flex; align-items:center; justify-content:center; color:var(--text);
+  .tt-name-row{ display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+  /* status dot: flat copper in dark, glyphGold sphere in light — same
+     treatment as the flyout's amp dot, scaled to tooltip size */
+  .tt-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--dot-bg); box-shadow:var(--dot-shadow); }
+  .tt-name{
+    font-family:var(--font-display); font-weight:600; font-size:11px; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .osd-icon svg{ width:17px; height:17px; overflow:visible; }
-  .osd-icon svg .fillme{ fill:currentColor; }
-  /* muted: dark = copper border + copper icon (v3). light = the flyout's
-     glyph treatment — gold border, glyphGold icon, warm drop shadow */
-  .osd-icon.muted{ color:var(--copper-bright); border-color:var(--copper-dim); }
-  body[data-theme="light"] .osd-icon.muted svg{ filter:drop-shadow(0 2px 2.5px rgba(160,110,10,0.35)); }
-  body[data-theme="light"] .osd-icon.muted svg path,
-  body[data-theme="light"] .osd-icon.muted svg line{ stroke:url(#glyphGold); }
-  body[data-theme="light"] .osd-icon.muted svg .fillme{ fill:url(#glyphGold); }
-
-  .osd-body{ flex:1; min-width:0; }
-  .osd-top-row{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:7px; }
-  .osd-name{
-    font-family:var(--font-display); font-weight:600; font-size:12.5px; color:var(--text);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;
+  .tt-stat-row{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .tt-source{ font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); letter-spacing:0.02em; }
+  .tt-value{
+    font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--value-color);
+    font-variant-numeric:tabular-nums;
   }
-  .osd-value{
-    font-family:var(--font-mono); font-size:15px; font-weight:500; color:var(--value-color);
-    font-variant-numeric:tabular-nums; flex-shrink:0;
-  }
-  .osd-value .unit{ font-size:10px; color:var(--text-dim); font-weight:400; margin-left:2px; -webkit-text-fill-color:var(--text-dim); }
-  body[data-theme="light"] .osd-value:not(.word){
+  .tt-value .unit{ font-size:9px; color:var(--text-dim); font-weight:400; margin-left:1px; -webkit-text-fill-color:var(--text-dim); }
+  body[data-theme="light"] .tt-value{
     background:linear-gradient(90deg,#dca136 0%,#f3cf7c 100%); -webkit-background-clip:text; background-clip:text;
     -webkit-text-fill-color:transparent; color:transparent;
-    text-shadow:0 0 9px rgba(199,154,46,0.35);
+    text-shadow:0 0 7px rgba(199,154,46,0.35);
   }
-  body[data-theme="light"] .osd-value .unit{ text-shadow:none; }
-  .osd-value.word{ font-size:12px; font-weight:700; letter-spacing:0.01em; color:var(--copper-bright); }
-
-  .osd-track{ height:4px; border-radius:999px; background:var(--surface-3); overflow:hidden; }
-  /* fill is the flyout's slider: one sweep sized to the value */
-  .osd-fill{
-    height:100%; border-radius:999px;
-    background-image:var(--accent-fill); background-size:var(--w) 100%; background-repeat:no-repeat;
-    width:100%;
+  body[data-theme="light"] .tt-value .unit{ text-shadow:none; }
+  .tt-bar-track{ height:2.5px; border-radius:999px; background:var(--surface-3); margin-bottom:7px; overflow:hidden; }
+  .tt-bar-fill{
+    height:100%; width:100%; border-radius:999px;
+    background-image:var(--accent-fill); background-size:77.8% 100%; background-repeat:no-repeat;
   }
-  .osd-fill.muted{ background-image:linear-gradient(var(--muted-fill),var(--muted-fill)); }
-
-  .osd-source{ font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); margin-top:6px; letter-spacing:0.02em; }
-
-  .variant-label{
-    position:absolute; top:-22px; left:0;
-    font-family:var(--font-mono); font-size:9.5px; color:var(--desk-text); letter-spacing:0.06em;
-  }
-  .stack{ display:flex; flex-direction:column; gap:64px; position:relative; }
-  .item{ position:relative; }
+  .tt-hints{ display:flex; flex-direction:column; gap:2px; }
+  .tt-hint{ font-family:var(--font-mono); font-size:9px; color:var(--text-faint); line-height:1.4; }
+  .tt-hint b{ color:var(--text-dim); font-weight:500; }
 </style>
 </head>
 <body data-theme="light" data-wall="plain">
@@ -211,7 +183,7 @@
 </div>
 
 
-<div class="mockup-tag">MOCKUP · CENTER-SCREEN VOLUME OSD — V4 · DARK + LIGHT</div>
+<div class="mockup-tag">MOCKUP · PANEL ICON HOVER TOOLTIP — V5 · DARK + LIGHT</div>
 
 <div class="desktop-panel">
   <div class="panel-icon"></div>
@@ -220,51 +192,34 @@
   <div class="panel-icon"></div>
   <div class="panel-clock">15:58</div>
 </div>
+<div class="cursor-hint">▲</div>
 
-<div class="stack">
-  <div class="item">
-    <div class="variant-label">NORMAL</div>
-    <div class="osd">
-      <div class="osd-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fillme" d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-      </div>
-      <div class="osd-body">
-        <div class="osd-top-row">
-          <span class="osd-name">Expert 140 Pro</span>
-          <span class="osd-value">−22.0<span class="unit">dB</span></span>
-        </div>
-        <div class="osd-track"><div class="osd-fill" style="--w:79.4%"></div></div>
-        <div class="osd-source">Optical 1</div>
-      </div>
+<div style="position:fixed; top:60px; right:20px; z-index:10;">
+  <div class="tooltip">
+    <div class="tt-name-row">
+      <div class="tt-dot"></div>
+      <div class="tt-name">Expert 140 Pro</div>
     </div>
-  </div>
-
-  <div class="item">
-    <div class="variant-label">MUTED</div>
-    <div class="osd">
-      <div class="osd-icon muted">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fillme" d="M11 5 6 9H2v6h4l5 4V5Z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
-      </div>
-      <div class="osd-body">
-        <div class="osd-top-row">
-          <span class="osd-name">Expert 140 Pro</span>
-          <span class="osd-value word gold-text">Muted</span>
-        </div>
-        <div class="osd-track"><div class="osd-fill muted" style="--w:79.4%"></div></div>
-        <div class="osd-source">Optical 1</div>
-      </div>
+    <div class="tt-stat-row">
+      <span class="tt-source">Optical 1</span>
+      <span class="tt-value">−25.0<span class="unit">dB</span></span>
+    </div>
+    <div class="tt-bar-track"><div class="tt-bar-fill"></div></div>
+    <div class="tt-hints">
+      <div class="tt-hint"><b>Scroll</b> to adjust</div>
+      <div class="tt-hint"><b>Middle-click</b> to mute</div>
     </div>
   </div>
 </div>
 
 <div class="legend">
-  Same tokens as flyout v20. <b>Dark</b> uses the flyout's live-sampled palette (flat #121212, #252525 hairlines, no glows). <b>Light</b> is the flyout's light theme: white, near-black readout, one-sweep gold fill, and the muted state borrows the glyph treatment (gold icon, warm shadow) plus a gold-gradient "Muted". No outer border in either theme, as in the flyout.
+  v4 layout, unchanged. <b>Dark</b> uses the flyout's live-sampled palette (flat #121212, no glows, dot 5 → 7px to match the flyout's larger dot). <b>Light</b> is the flyout's light theme: white, near-black value, gold-sphere dot, one-sweep gold bar. No outer border in either theme.
 </div>
 
 <script>
   const NOTES = {
     dark:'<b>Dark</b> — flyout v20\'s live-matched palette.',
-    light:'<b>Light</b> — flyout v20\'s light theme: white, near-black value, one-sweep gold fill; muted gets a gold glyph and a gold-gradient word.'
+    light:'<b>Light</b> — flyout v20\'s light theme: white, near-black value, gold-sphere dot, one-sweep gold bar.'
   };
   let theme='light', wall='plain';
   function apply(){
