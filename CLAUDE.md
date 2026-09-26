@@ -174,7 +174,12 @@ all three.
   out of `Theme.qml` into `TransparencySettings.qml` (root-anchored and
   forwarded exactly like `VolumeSettings.qml`, exposing `alpha` and
   `withAlpha(color)`), while `Theme.qml` keeps only the opaque base tint
-  colours and stays per-file. Not a `required property` on `Theme.qml`:
+  colours and stays per-file. **Correction (Phase 17.0.0, 2026-09-26)**: only
+  the flyout was ever wired to `TransparencySettings`; `VolumeToast.qml` and
+  `VolumeHoverTooltip.qml` still paint `Theme.qml`'s hardcoded 0.94 pair and,
+  per the owner's Phase 17 decision D3, stay hardcoded (mockup values), so
+  "all three surfaces" describes the intent of 9.0.0, not the code.
+  Not a `required property` on `Theme.qml`:
   `Theme {}` is also instantiated by `ConfigGeneral.qml`, a separate
   ConfigDialog QML tree with no path to `main.qml`'s root objects, so a
   required input would break that page and a defaulted one would let
@@ -635,6 +640,21 @@ dialog, and separately reload the widget itself, and confirm the
 control still reflects the value you set — not just that toggling it
 visibly changed something in the moment.
 
+### The About page icon cannot vary by theme (Phase 17.0.0, settled)
+
+Plasma's About page (`/usr/share/plasma/shells/org.kde.plasma.desktop/contents/
+configuration/AboutPlugin.qml:112-131`) renders `Kirigami.Icon { source:
+page.metaData.iconName }` with no `isMask`/`color`; the name is
+`metadata.json`'s `Icon`, resolved through the icon theme and read once per
+plasmashell process. `AppletConfiguration.qml:110-113` `replace`s pages in its
+PageRow (only the first is `push`ed), so our General page and the About page
+never exist at the same time and nothing of ours can touch that icon at
+runtime. KIconThemes' `current-color-scheme` recolouring only substitutes
+eight flat semantic classes (`kiconcolors.h:154-161`), only under icon themes
+with `FollowsColorScheme=true` (hicolor is not one), and cannot express
+gradients. Consequence: one icon for every theme and scheme (owner decision
+D6). Do not plan a light/dark About icon again without a new Plasma API.
+
 ### Non-KConfig controls ride Apply/OK through two undocumented page hooks (Phase 11.0.0)
 
 The shell's `AppletConfiguration.qml` (`/usr/share/plasma/shells/
@@ -1017,7 +1037,9 @@ records that the frame is gone (`NoBackground`), which is also why
 nothing constrains the radius any more. `AmpHeader.qml`'s hover fill
 rounds its top corners to the same value so it can't paint square
 corners over the flyout's. Overlay cards use their own 13px
-(`theme.radiusOverlay`).
+(`theme.radiusOverlay`). The v2 light-theme mockups (2026-09-26) draw the
+flyout at 12px; the owner kept 16 (Phase 17 decision D4: 7.14.0 precedent,
+Better Blur DX `CornerRadius=16`, Darkly).
 
 The flyout's corner radius used `Kirigami.Units.cornerRadius` (matches
 Darkly's real Dialog/window corner size, e.g. 5 on this system) rather

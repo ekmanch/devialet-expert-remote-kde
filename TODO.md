@@ -8250,6 +8250,44 @@ architecture decisions; this file is just sequencing and status.
   `unsavedChanges false`; `systemctl --user is-enabled` back to
   `enabled`, unit active throughout. Reinstalled and shell restarted.
 
+- [x] **Phase 17.0.0 — Record the arc.** Done 2026-09-26, documentation
+      only.
+  - The header entry above, one entry per phase below, and the saved
+    report `docs/context-on-light-theme-arc-phase-17.md`.
+  - CLAUDE.md corrections: the "Shared cross-view state" bullet now says
+    only the flyout was ever wired to `TransparencySettings` (toast/
+    tooltip stay hardcoded per D3); the corner-radius note records that
+    the v2 mockups draw 12px and the owner kept 16 (D4); a new "The About
+    page icon cannot vary by theme" subsection under the Settings
+    ConfigDialog section records D6 and why.
+  - No code touched in this phase.
+
+- [x] **Phase 17.0.1 — Two-context `Kirigami.Theme` measurement.** Done
+      2026-09-26. Temporary `console.warn` lines (a 3 s `Timer` in
+      `main.qml` plus a temporary `org.kde.kirigami` import, a 0.5 s `Timer`
+      in `ConfigGeneral.qml`), installed copy upgraded, shell restarted
+      13:23:34, owner opened the settings dialog once; both lines read from
+      `journalctl --user`, then both files reverted and the installed copy
+      re-upgraded (the running shell keeps the already-fired lines until
+      its next restart; nothing else differs).
+  - Applet engine, 13:23:39:
+    `[17.0.1 applet] bg #151515 text #eff0f1 brightness dark`
+  - ConfigDialog engine, 13:43:27:
+    `[17.0.1 config] bg #151515 text #eff0f1 brightness dark`
+  - Reading: both contexts report `Darkly_modified`'s window background
+    (21,21,21) and `Kirigami.ColorUtils.brightnessForColor` = Dark. With
+    the Plasma Style (CachyOS-Nord-round) shipping no `colors` file,
+    `Plasma::Theme` and kdeglobals resolve to the same scheme, so the two
+    values agree by construction and do **not** identify which Kirigami
+    platform plugin serves each engine. The edge case the plan named (a
+    Plasma Style with its own `colors` file) stays theoretical; D1
+    (portal) makes both of our contexts follow kdeglobals regardless, and
+    17.15.0's fallback also reads `Kirigami.Theme` in-context, so no
+    further measurement is planned unless a Style with its own colours
+    is ever selected.
+  - Q2 table in `docs/context-on-light-theme-arc-phase-17.md` updated
+    with both values.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8259,6 +8297,301 @@ architecture decisions; this file is just sequencing and status.
     consume the same git repo, nothing helper-specific to do) on a
     separate/clean Arch system.
       
+- [ ] **Phase 17 — Light theme arc (header; branch `feature/light-theme`,
+      plan approved 2026-09-26).** Spec: the four **v2** mockups under
+      `design/mockups/{configDialog,flyout,OSD,tooltip}/` (commit 8526a10).
+      Full investigation report + design:
+      `docs/context-on-light-theme-arc-phase-17.md` (saved from the approved
+      rev 3 plan; same location/naming as the Phase 7 investigation
+      document). One concern per phase, one entry per phase below; each
+      entry moves to "## Done" when its phase completes.
+  - **Investigation findings (2026-09-26)**:
+    - Toast/tooltip never received `TransparencySettings` (CompactRepresentation
+      passes none); they paint Theme.qml's hardcoded 0.94 pair
+      (Theme.qml:117-125 defers to a "Phase 9.2.0" that never existed).
+    - The flyout's grey outer edge is our own 1px `theme.divider` border
+      (FlyoutContent.qml:767-768; same on VolumeToast.qml:155-156 and
+      VolumeHoverTooltip.qml:97-98); all three Dialogs are `NoBackground`, KWin
+      draws no outline and no shadow for them.
+    - The mute/power split has been static since Phase 12.0.0 (108/152 px,
+      TextMetrics worst case); the installed copy equals HEAD. The change is the
+      ratio, not the mechanism.
+    - Kirigami chooses its colour plugin per QQmlEngine (`_kirigamiTheme`
+      engine property, else `QQuickStyle::name()`, filename-substring match);
+      plasmashell has both `KirigamiPlasmaStyle` (Plasma Style colours via
+      `Plasma::Theme`, which falls back to kdeglobals when the Style has no
+      `colors` file) and `org.kde.desktop` loaded; the ConfigView has its own
+      engine. The portal `org.freedesktop.appearance color-scheme` is computed by
+      xdg-desktop-portal-kde from the application palette (`qGray(window) < 192`
+      → 1, else 2; never 0) and tracks kdeglobals. This machine's Plasma Style
+      (CachyOS-Nord-round) ships no `colors` file, so both agree today.
+    - Rendering: `QtQuick.Effects` (MultiEffect mask + shadow) and
+      `QtQuick.Shapes` (fill gradients only, no stroke gradient) are installed
+      and already used; `Qt5Compat.GraphicalEffects` is installed but would add
+      a dependency. Custom shaders need `.qsb`. Screen scale is 2.
+    - About page icon: Plasma's `AboutPlugin.qml` renders `metaData.iconName`
+      via the icon theme; pages are `replace`d in the dialog's PageRow so ours
+      never coexists with it; no runtime swap is possible by any theme.
+  - **Owner decisions**: D1 Follow-system source = portal/application scheme.
+    D2 remove the outer border, screenshot, hairline only if it reads badly.
+    D3 toast/tooltip alpha stays hardcoded per the mockups (dark OSD 0.96,
+    tooltip opaque, light opaque). D4 flyout radius stays 16 (v2 mockups draw
+    12). D5 bundle the speaker SVGs. D6 one About icon, no phase. D7 flyout
+    mute button shows the action, OSD shows the state. D8 one sphere gradient
+    (`#fcecc0 0% / #f0a623 38% / #a8710b 100%`, centre 32% 28%) for thumb and
+    dots; light fills flat `#e2b865`; dark OSD/tooltip bars copper sweep
+    `#9a5a2c → #c17f4e → #e8a974`. D9 the gradient-rendering spike is
+    unnumbered, on `spike/gradient-rendering`, run after 17.0.1.
+  - **Architecture**: `Theme.qml` stays per-file with fonts/radii/sizes only;
+    `Palette.qml` is a typed token base with one `controlColor(ts)` function
+    branching on `isLight`; `DarkPalette.qml`/`LightPalette.qml` are instances;
+    `ThemeSettings.qml` (root-anchored, forwarded like TransparencySettings,
+    plus two new hops to toast/tooltip) exposes `flyoutPalette` and
+    `osdPalette` separately from day one so a per-surface split later is one
+    kcfg key + one binding; `SystemScheme.qml` reads the portal (starts dark,
+    `1`→dark, `2`→light, anything else/error/2 s Timer → Kirigami brightness
+    fallback, `SignalWatcher` on SettingChanged); ConfigGeneral owns a
+    `PageTheme` (`systemDark ? dark : light`) for the page; kcfg `theme`
+    (String, default `system`).
+  - **Verification tooling added in-arc**: `FlyoutContent.themeOverride`
+    UiState key → `ThemeSettings.harnessOverride` + a `theme` harness dim
+    (17.12.0); `fakeamp.py --notify` emitting `VolumeCommandNotified`/
+    `MuteCommandNotified` for hands-free toast captures (17.2.0); a fake
+    `org.freedesktop.portal.Settings` on a private bus for the driver
+    (17.15.0). Tooltip remains an owner hover check.
+
+- [ ] **Spike — Gradient rendering for the light theme (branch
+      `spike/gradient-rendering`).** Not a numbered phase — explicitly
+      throwaway-or-merge, per this project's "risky/uncertain work stays
+      off main" convention, run after 17.0.1 and before any light phase.
+      Gets a real phase number only when merged, and must be merged
+      before 17.19.0 (the first phase that uses its components).
+  - Standalone `/usr/lib/qt6/bin/qml` driver in the scratchpad, no
+    plasmoid change. Questions it must answer at scale 2: does one
+    `MultiEffect` do both the alpha mask (gradient text via `maskSource`
+    = the Label) and the soft gold glow (`shadowEnabled`, zero offset),
+    or are two stages needed (Qt's docs don't state mask-vs-shadow
+    order); does a `QtQuick.Shapes` `RadialGradient` sphere + MultiEffect
+    drop shadow read as the mockups' 12/10/7 px dots and 14 px thumb; can
+    a gradient-*stroked* glyph be produced by masking a radial fill with
+    the Shape (Shapes has no stroke gradient); does a bundled speaker SVG
+    work as a `maskSource` for the light muted OSD icon.
+  - Output: draft `GradientMask.qml`, `GoldSphere.qml`, `GradientText.qml`
+    + 2× captures for the owner to judge, and a go/no-go on
+    `Qt5Compat.GraphicalEffects` (expected: not needed; it would add a
+    runtime dependency).
+  - Decision point: if gradient text or the sphere reads badly at 2×,
+    the light mockups change **before** any plumbing phase is built.
+    Merge and number if the captures pass; discard the branch otherwise.
+
+- [ ] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
+      (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
+      adjust"). Both themes. Mockup: flyout v2 has no `.scroll-hint`
+      element.
+  - Verify (headless): harness smoke; new baseline `expected-17.json`
+    with the item gone and everything below it shifted up by its height,
+    nothing else moved.
+
+- [ ] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
+      Add the two mockup speaker SVGs (speaker+X, speaker+waves; paths
+      flyout v2 :565-566 / OSD v2 :228,:245, filled body + stroked
+      waves/X) under `contents/icons/`; swap the flyout mute icon
+      (`ActionRow.qml:184-208`) and the OSD icon (`VolumeToast.qml:
+      191-219`, `Theme.volumeIconSources`) from theme icon names to the
+      files, rendered `Kirigami.Icon { isMask: true }`, keeping today's
+      state→glyph mapping.
+  - Adds `fakeamp.py --notify volume=<db>|mute=<bool>` emitting
+    `VolumeCommandNotified`/`MuteCommandNotified` (fakeamp only emits
+    `PropertiesChanged` today, `_emit` :247-251) so the toast can be
+    captured hands-free with the white-window recipe.
+  - Verify: `harness run --vary mute` crops; toast capture via
+    `--notify`.
+
+- [ ] **Phase 17.3.0 — Flyout mute button shows the action (D7).**
+      `ActionRow.qml:206,213`: unmuted → speaker+X + "Mute"; muted →
+      speaker+waves + "Unmute" (mockup flyout v2 :565-566, `toggleMute()`).
+      The OSD keeps showing state (unmuted → waves, muted → X).
+  - Verify: `--vary mute` crops on both surfaces.
+
+- [ ] **Phase 17.4.0 — Fixed 11:14 action-button split.** Replace the
+      TextMetrics/equal-margin maths (`ActionRow.qml:107-126`) with
+      `muteButtonWidth = Math.round(buttonsAvailable * 11 / 25)`,
+      `powerButtonWidth = buttonsAvailable - muteButtonWidth` → 114/146 px
+      at the 260 px row (mockup flyout v2 :408 `11fr 14fr`).
+  - Verify: `--vary mute,pow` widths logged before and after; identical
+    in all six states; "Powering on…" margins ≥ 20 px per side.
+
+- [ ] **Phase 17.5.0 — Remove the outer borders (D2).** `border.width`/
+      `border.color` off the flyout (`FlyoutContent.qml:767-768`), toast
+      (`VolumeToast.qml:155-156`) and tooltip (`VolumeHoverTooltip.qml:
+      97-98`) (mockups: flyout v2 :280, OSD v2 :125, tooltip v2 :122).
+  - Verify: edge-pixel crops over dark and light backdrops (white-window
+    recipe) confirming the no-shadow consequence; owner looks. A
+    barely-visible hairline is added only if the owner asks after seeing
+    it.
+
+- [ ] **Phase 17.6.0 — Status dots.** Header 8→12 (`AmpHeader.qml:73-79`;
+      flyout v2 :140), amp list 7→10 (`AmpListOverlay.qml:213-220`; :141),
+      tooltip 5→7 (`VolumeHoverTooltip.qml:134-150`; tooltip v2 :133) and
+      drop the tooltip dot glow (dark = no glows). Footer dot 4 stays.
+  - Verify: harness Δ report (header height must not change); tooltip =
+    owner hover.
+
+- [ ] **Phase 17.7.0 — Painted source glyphs.** New `SourceGlyph.qml`
+      (QtQuick.Shapes, flat colour, `kind` + `size`) from the mockup's `G`
+      paths (flyout v2 :630-636): 20 px in the source row, 17 px in the
+      list (:127-133), strokes 1.6 / 1.1 (:128-129), no box behind them -
+      delete the `surface3` boxes (`SourceSelector.qml:132-145`,
+      `SourceListOverlay.qml:154-167`) and `Theme.sourceGlyph`.
+  - Verify: `--vary src,slist`; 2× crops for stroke weight.
+
+- [ ] **Phase 17.8.0 — Painted ticks.** `Tick.qml`: 16 px box, 2-unit
+      round stroke (flyout v2 :452-453, path `M3.8 9.4 L7.4 12.9 L14.2
+      5.4`), replacing the "✓" labels (`AmpListOverlay.qml:150-156,
+      252-258`, `SourceListOverlay.qml:183-189`).
+  - Verify: `--vary list,slist`.
+
+- [ ] **Phase 17.9.0 — OSD/tooltip dark palette alignment.** Flat
+      `#121212` (OSD at 0.96, tooltip opaque, per D3), `#252525` lines,
+      remove the muted-icon glow (`VolumeToast.qml:200-209`) (OSD v2
+      :77-87, :124; tooltip v2 :121).
+  - Verify: toast capture; tooltip owner hover.
+
+- [ ] **Phase 17.10.0 — Copper gradient bars on dark OSD/tooltip.**
+      `#9a5a2c → #c17f4e → #e8a974` (OSD/tooltip v2 :81); muted bar
+      `#5c5c60` (OSD v2 :87, :176). The flyout slider stays solid copper.
+  - Verify: toast capture; tooltip owner hover.
+
+- [ ] **Phase 17.11.0 — Typed palette, zero visual change.** `Palette.qml`
+      type (every token typed, one `controlColor(ts)` branching on
+      `isLight`) + `DarkPalette.qml` (today's values); `Theme.qml` loses
+      its colours (keeps fonts/radii/sizes/icon map); flyout consumers take
+      `required property Palette palette` (FlyoutContent instantiates
+      `DarkPalette {}` for now); toast/tooltip and the config components
+      instantiate `DarkPalette {}` locally in place of Theme colours.
+  - **qmllint proof**: plant a deliberate `palette.copperBrigth`, run
+    `/usr/lib/qt6/bin/qmllint`, paste the real output here, revert. If
+    `--missing-property` stays silent for a QML-defined type, add the
+    fallback token audit decided then.
+  - Verify: full harness smoke vs `expected-17.json` → zero Δ;
+    `scripts/test-qml.sh`; qmllint clean.
+
+- [ ] **Phase 17.12.0 — ThemeSettings + kcfg + flyout chain.**
+      `ThemeSettings.qml` (mode, `systemDark` placeholder, `resolvedDark`,
+      `flyoutPalette`/`osdPalette`, `harnessOverride`), `main.xml` `theme`
+      (String, default `system`), forwarding through
+      CompactRepresentation → FlyoutPopup → FlyoutContent → children;
+      `FlyoutContent.themeOverride` UiState key; `theme` dimension in
+      `scenarios.py`. **`light` and `system` both resolve to the dark
+      palette until 17.19.0** (no LightPalette yet).
+  - Verify: harness `--vary theme` → zero Δ; reload persistence check.
+
+- [ ] **Phase 17.13.0 — Toast/tooltip hop.** Forward `themeSettings` from
+      CompactRepresentation into VolumeToast and VolumeHoverTooltip
+      (`required property`), bind `osdPalette`; drop their local
+      `DarkPalette {}`.
+  - Verify: toast capture identical; qmllint.
+
+- [ ] **Phase 17.14.0 — ConfigDialog components take a forwarded
+      Palette.** ConfigGeneral owns `PageTheme` (dark for now); SettingsRow,
+      SectionLabel, SettingsSwitch, DbStepper, ThemeDropdown,
+      ChimeIconButton take `required property Palette palette`.
+  - Verify: standalone driver screenshot identical; qmllint.
+
+- [ ] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Per the
+      contract in the saved report: `systemDark` starts `true`;
+      `Dbus.SessionBus.asyncCall(message, resolve, reject)` with
+      `ReadOne("org.freedesktop.appearance", "color-scheme")`; `1`→dark,
+      `2`→light; `0`/other/reject/2 s `Timer` → `Kirigami.ColorUtils.
+      brightnessForColor(Kirigami.Theme.backgroundColor)` fallback, logged
+      once; `Dbus.SignalWatcher` on `SettingChanged` filtered by namespace
+      and key. Used by ThemeSettings (`system` mode) and PageTheme.
+  - Verify: driver with a fake `org.freedesktop.portal.Settings` on a
+    private bus returning 1 / 2 / 0 / error / silence (timer path); live:
+    owner flips the colour scheme, surfaces follow without reload.
+
+- [ ] **Phase 17.16.0 — Extract `SegmentedControl.qml`.** From the two
+      inline copies (`ConfigGeneral.qml:602-656`, :762-813), zero visual
+      change.
+  - Verify: driver screenshot identical; `saveConfig` path unchanged.
+
+- [ ] **Phase 17.17.0 — Theme row.** Dark / Light / Follow system as the
+      first Appearance row, writing `cfg_theme` (copy and IDs: configDialog
+      v2 :574-584). **Picking Light is visually a no-op until 17.19.0.**
+  - Verify: driver TestEvent clicks; close/reopen + widget reload keep the
+    value (CLAUDE.md persistence rule); owner opens the real dialog.
+
+- [ ] **Phase 17.18.0 — Follow-system status line.** "Following your
+      desktop's color scheme — currently <b>Dark/Light</b>" below the row,
+      chime-pattern (`ConfigGeneral.qml:830-872`, `escapeStyledText`),
+      visible only for Follow system (configDialog v2 :585-590).
+  - Verify: driver with fake portal values.
+
+- [ ] **Phase 17.19.0 — LightPalette + light flyout base.**
+      `LightPalette.qml`; white surfaces, text `#1c1a17`/`#6e6a64`/
+      `#a29d95`, divider `rgba(28,24,18,0.09)`, track `#ece9e4`, glass
+      control alpha (`0.35 + 0.65·alpha`, flyout v2 :67/:85) via
+      `controlColor`, card shadows, white overlay cards, flat `#e2b865`
+      slider fill (:98), gold sphere thumb (`GoldSphere` from the merged
+      spike; :99-100). Cites the merged spike.
+  - Verify: `--vary theme` light states; alpha sweep recipe; owner soak
+    with Better Blur DX.
+
+- [ ] **Phase 17.20.0 — Light readout + wordmark.** Gradient digits
+      `#dca136 → #f3cf7c` + glow (flyout v2 :110-115), grey "dB", gold
+      eyebrow `#97691f → #cf9c45` (`AmpHeader.qml:100`; :103, :116-119)
+      (`GradientText` from the merged spike).
+  - Verify: light crops; Δy 0 on the readout row (AlignBaseline house
+    rule).
+
+- [ ] **Phase 17.21.0 — Light gold glyphs, dots, ticks.** `glyphGold`
+      radial + warm drop shadow on source glyphs (flyout v2 :134-136),
+      header/list dots (:101, :141-146) and ticks (`GradientMask` from the
+      merged spike).
+  - Verify: `--vary theme,src,slist,list`.
+
+- [ ] **Phase 17.22.0 — Light OSD.** Opaque white (OSD v2 :118), gradient
+      readout (:161-166), gold muted glyph (:144-148), gold-gradient
+      "Muted" (`.gold-text` :104-110), flat `#e2b865` bar (:95), muted bar
+      `#d8d3cb` (:103).
+  - Verify: toast capture via `--notify`.
+
+- [ ] **Phase 17.23.0 — Light tooltip.** Opaque white (tooltip v2 :121),
+      gold sphere dot (:97, :133), gradient value incl. the "Muted" word
+      (:145-150), flat gold bar (:95).
+  - Verify: owner hover; driver instantiating the tooltip's mainItem for
+    pixel checks.
+
+- [ ] **Phase 17.24.0 — Brand mark.** Ring + disk filling a 37 px tile
+      (`ConfigGeneral.qml:411-429`; configDialog v2 :236-249): dark ring
+      `#654c3a`, disk `#e3a06a`; light ring sweep `#ecd3a0 → #dcb068 →
+      #cfa052`, disk `#efc977 → #e0aa4b → #cf9738`, no sphere (:250-255).
+  - Verify: driver, both schemes.
+
+- [ ] **Phase 17.25.0 — ConfigDialog light page base.** White background,
+      text/divider/control tokens, card shadows (configDialog v2 :71-82,
+      :83-98).
+  - Verify: driver with light kdeglobals (memory recipe).
+
+- [ ] **Phase 17.26.0 — Gradient section headings + status values.**
+      `#a8710b → #d99a1f → #efc36a` clipped per word (`SectionLabel.qml`;
+      configDialog v2 :90, :101-105) and bold gradient resolved values in
+      status lines (:111-114).
+  - Verify: driver crops at 2×.
+
+- [ ] **Phase 17.27.0 — Light switches, steppers, segments.** Gold
+      gradient switch track + sheen, white knob (`SettingsSwitch.qml`;
+      configDialog v2 :93, :76, :97), neutral stepper values (:107),
+      selected segment outlined in text colour (:95, :315).
+  - Verify: driver crops; owner opens the real dialog under a light
+    scheme.
+
+- [ ] **Phase 17.28.0 — Wrap-up.** CLAUDE.md (Theme.qml = fonts/sizes
+      only; typed Palette rule; portal reader contract; harness `theme`
+      dim), README settings section, PKGBUILD dependency check (none
+      added), final `expected-17.json`, owner soak; then ready for the
+      owner's commits/merge.
+  - Verify: full harness + `scripts/test-qml.sh` + owner soak report.
 
 ## Bugs
 
