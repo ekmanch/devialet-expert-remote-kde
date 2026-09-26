@@ -1,5 +1,5 @@
 // Phase 7.4.0 (spike/flyout-appletpopup-rebuild) - the volume block (dB/
-// unit readout, source chip, -/slider/+, scroll hint), extracted from
+// unit readout, source chip, -/slider/+), extracted from
 // FullRepresentation.qml's volume ColumnLayout (~1173-1480) into its own
 // self-contained component for the FlyoutPopup rebuild, following the
 // AmpHeader.qml/AmpListOverlay.qml precedent set in Phase 7.3.0. Replaces
@@ -354,21 +354,5 @@ ColumnLayout {
                 verticalAlignment: Text.AlignVCenter
             }
         }
-    }
-
-    Label {
-        id: scrollHint
-        objectName: "scrollHint"
-        Layout.fillWidth: true
-        Layout.topMargin: 9
-        horizontalAlignment: Text.AlignHCenter
-        // Decorative only - matches FullRepresentation.qml's own text
-        // (scroll-over-icon volume control is Phase 4.4's job, not this
-        // file's).
-        text: "Scroll over the panel icon to adjust"
-        font.family: volumeBlock.theme.fontMono
-        font.pixelSize: 10
-        color: volumeBlock.theme.textFaint
-        wrapMode: Text.NoWrap
     }
 }

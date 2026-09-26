@@ -8420,10 +8420,65 @@ architecture decisions; this file is just sequencing and status.
 - [ ] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
       (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
       adjust"). Both themes. Mockup: flyout v2 has no `.scroll-hint`
-      element.
-  - Verify (headless): harness smoke; new baseline `expected-17.json`
-    with the item gone and everything below it shifted up by its height,
-    nothing else moved.
+      element. **Code done 2026-09-26; stays open until 17.1.1 lands**,
+      because the removal makes the source list scroll (below).
+  - Done: `scrollHint` Label deleted and VolumeBlock's header comment
+    updated (17 lines out); qmllint clean; installed copy upgraded, shell
+    restarted. Slider-row-to-buttons gap is now 20 px (VolumeBlock
+    `bottomMargin` 6 + ActionRow `topMargin` 14) vs the mockup's 22 -
+    owner decision: keep 20, spacing alignment with v2 is its own pass.
+  - Baseline wording corrected: `expected-*.json` files are allowlists
+    of within-run moves, and removing an item adds none, so this phase
+    keeps `expected-7.14.0.json`; the before/after proof is
+    `harness.py compare`.
+  - Harness, before (HEAD 175266d) and after, three runs each: smoke,
+    `--vary amp,list`, `--vary src,slist` (runs `20260926-144114/
+    144138/144216-before-17.1.0-*`, `20260926-144301/144320/
+    144352-after-17.1.0-*`, git-ignored). All six reports exit 0 against
+    `expected-7.14.0.json` (no unexpected within-run moves).
+  - Compare, all 31 common captures: `scrollHint` only in *before*;
+    992 element records below it moved by exactly Δy −33 (spacing 10 +
+    top margin 9 + height 14), nothing else moved dx/dw; window height
+    363 → 330 in every capture; the containers (root, FlyoutContent,
+    its ColumnLayout and background, volumeBlock) shrank by 33. One
+    invisible "✓" label in the no-amp amp-list state moved sideways
+    (hidden in both runs, no visual effect).
+  - Overlay fit (scratchpad checker over the probe dumps): **amp list**
+    fits in every `list=open` state - worst case two amps, card
+    72-245, 118 px below it before, 85 px after. **Source list**
+    (six enabled sources, the real amp's count): before, card 14-258,
+    height 244 = content, room above the row 250 px; after, room above
+    217 px, so the card is capped to 217 (top 8), the list scrolls,
+    and the scroll viewport narrows 260 → 239 px for the scrollbar while
+    the rows stay 260 px wide - the scrollbar covers their right 21 px,
+    **hiding the selected row's tick** (before/after crops compared by
+    eye). Stopped per the plan's rule; owner chose to accept scrolling
+    and fix the overlay in 17.1.1.
+
+- [ ] **Phase 17.1.1 — Source list: scrolling that works.** Owner
+      decision 2026-09-26 (option 1): with 17.1.0's shorter flyout, amps
+      with many sources get a scrolling source list; make that correct
+      rather than squeezing rows. `SourceListOverlay.qml`.
+  - Rows track the scroll viewport's width (today they keep the
+    ScrollView's full 260 px while the viewport narrows to 239 when the
+    scrollbar appears), so no row content - the selection tick in
+    particular - sits under the scrollbar.
+  - **The selected source is visible when the list opens.** With the
+    sixth row selected (the real amp's AIR slot; harness `src=long`,
+    index 14), opening the list must show that row with its tick, not
+    the top five with the selection scrolled out of view. A ComboBox
+    popup would position this itself; this Popup is custom and does
+    not. In the 17.1.0 *after* run the `src=long, slist=open` capture
+    has `sourceOption:14` at wy 212-248 against a card ending at 225 -
+    i.e. the check currently fails.
+  - Verify: harness `--vary src,slist` - every `slist=open` state has
+    the selected `sourceOption:<idx>` fully inside the card (top ≥ card
+    top + padding, bottom ≤ card bottom − padding) and its tick label
+    visible and inside the viewport; rows' width equals the viewport
+    width; the unscrolled/short-list case (fewer sources, no scrollbar)
+    unchanged vs 17.1.0's after run. Owner soak: open the list with the
+    last source selected, scroll with the wheel, pick a source.
+  - Closing 17.1.1 also closes 17.1.0 (both move to "## Done").
 
 - [ ] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
       Add the two mockup speaker SVGs (speaker+X, speaker+waves; paths
