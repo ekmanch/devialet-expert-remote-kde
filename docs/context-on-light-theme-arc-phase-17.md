@@ -388,3 +388,25 @@ the light surfaces. One concern per phase.
 - **Fake portal** (17.15.0): a short python `org.freedesktop.portal.Settings` on a
   private bus for the driver, covering 1 / 2 / 0 / error / silence.
 - **Tooltip** stays an owner hover check (real pointer needed; memory rule).
+
+---
+
+## Spike results — `spike/gradient-rendering` (executed 2026-09-26)
+
+The owner passed the captures the same day; the spike is recorded as Phase
+17.0.2 in TODO.md, with the glow default 0.9/32 (provisional) and live tuning
+deferred to 17.20.0/17.21.0.
+
+Full write-up and captures: `tools/spike-gradient-rendering/README.md`.
+Answers to the four questions raised above (Q3 and the spike entry):
+
+1. Mask + glow: **two stages**. A single `MultiEffect` with mask and shadow
+   misaligns the mask (shadow auto padding stretches the mask texture).
+2. Gradient text renders cleanly at every size the light theme uses
+   (26/15/13/12/11 px); glow strength is an owner pick from four captures.
+3. `QtQuick.Shapes` `RadialGradient` + `CurveRenderer` + MultiEffect shadow
+   gives the sphere at 14/12/10/7/6 px.
+4. Gradient strokes come from masking a radial fill with the stroked Shape.
+5. The bundled speaker SVG works directly as an `Image` mask source at DPR 2.
+6. `Qt5Compat.GraphicalEffects` is not needed; no new dependency.
+

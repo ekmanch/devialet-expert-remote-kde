@@ -8288,6 +8288,44 @@ architecture decisions; this file is just sequencing and status.
   - Q2 table in `docs/context-on-light-theme-arc-phase-17.md` updated
     with both values.
 
+- [x] **Phase 17.0.2 — Gradient rendering spike (branch
+      `spike/gradient-rendering`).** Ran 2026-09-26 as an unnumbered,
+      throwaway-or-merge spike per this project's "risky/uncertain work
+      stays off main" convention; the owner judged the 2× captures good
+      the same day, so it is numbered here. Exact values (glow strength,
+      glyph shadow) are deferred to live tuning in 17.20.0/17.21.0. Its
+      components stay under `tools/spike-gradient-rendering/` until
+      17.19.0-17.21.0 promote the ones they need into `plasmoid/`;
+      17.28.0 removes the directory.
+  - Standalone `/usr/lib/qt6/bin/qml` driver in the scratchpad, no
+    plasmoid change. Questions it must answer at scale 2: does one
+    `MultiEffect` do both the alpha mask (gradient text via `maskSource`
+    = the Label) and the soft gold glow (`shadowEnabled`, zero offset),
+    or are two stages needed (Qt's docs don't state mask-vs-shadow
+    order); does a `QtQuick.Shapes` `RadialGradient` sphere + MultiEffect
+    drop shadow read as the mockups' 12/10/7 px dots and 14 px thumb; can
+    a gradient-*stroked* glyph be produced by masking a radial fill with
+    the Shape (Shapes has no stroke gradient); does a bundled speaker SVG
+    work as a `maskSource` for the light muted OSD icon.
+  - Output: draft `GradientMask.qml`, `GoldSphere.qml`, `GradientText.qml`
+    + 2× captures for the owner to judge, and a go/no-go on
+    `Qt5Compat.GraphicalEffects` (expected: not needed; it would add a
+    runtime dependency).
+  - Decision point (resolved): gradient text and the sphere read well at
+    2×, so the light mockups stand and the branch merges.
+  - **Run 2026-09-26** (`tools/spike-gradient-rendering/`, README has the
+    full findings): (1) one MultiEffect cannot do mask + shadow - its
+    shadow padding stretches the mask; mask first, shadow second works,
+    now `GradientMask`'s default; (2) gradient text is clean at 26/15/13/
+    12/11 px, four glow strengths captured for the owner to pick; (3) the
+    Shape RadialGradient sphere + shadow reads at 14/12/10/7/6 px; (4)
+    gradient strokes via masking work at 20/17 px; (5) a plain `Image` of
+    the speaker SVG works directly as `maskSource`, rasterised at DPR 2;
+    (6) Qt5Compat not needed. Gotchas: offscreen QPA = software scenegraph
+    = blank effects, capture on Wayland; composite RGBA grabs on white
+    before zooming. Captures: `captures/sheet.png`, `zoom-*.png`,
+    `detail-*.png`. Owner verdict 2026-09-26: passes.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8340,8 +8378,9 @@ architecture decisions; this file is just sequencing and status.
     mute button shows the action, OSD shows the state. D8 one sphere gradient
     (`#fcecc0 0% / #f0a623 38% / #a8710b 100%`, centre 32% 28%) for thumb and
     dots; light fills flat `#e2b865`; dark OSD/tooltip bars copper sweep
-    `#9a5a2c → #c17f4e → #e8a974`. D9 the gradient-rendering spike is
-    unnumbered, on `spike/gradient-rendering`, run after 17.0.1.
+    `#9a5a2c → #c17f4e → #e8a974`. D9 the gradient-rendering spike ran
+    unnumbered on `spike/gradient-rendering` after 17.0.1 and became Phase
+    17.0.2 once the owner passed its captures (see "## Done").
   - **Architecture**: `Theme.qml` stays per-file with fonts/radii/sizes only;
     `Palette.qml` is a typed token base with one `controlColor(ts)` function
     branching on `isLight`; `DarkPalette.qml`/`LightPalette.qml` are instances;
@@ -8359,30 +8398,24 @@ architecture decisions; this file is just sequencing and status.
     `MuteCommandNotified` for hands-free toast captures (17.2.0); a fake
     `org.freedesktop.portal.Settings` on a private bus for the driver
     (17.15.0). Tooltip remains an owner hover check.
-
-- [ ] **Spike — Gradient rendering for the light theme (branch
-      `spike/gradient-rendering`).** Not a numbered phase — explicitly
-      throwaway-or-merge, per this project's "risky/uncertain work stays
-      off main" convention, run after 17.0.1 and before any light phase.
-      Gets a real phase number only when merged, and must be merged
-      before 17.19.0 (the first phase that uses its components).
-  - Standalone `/usr/lib/qt6/bin/qml` driver in the scratchpad, no
-    plasmoid change. Questions it must answer at scale 2: does one
-    `MultiEffect` do both the alpha mask (gradient text via `maskSource`
-    = the Label) and the soft gold glow (`shadowEnabled`, zero offset),
-    or are two stages needed (Qt's docs don't state mask-vs-shadow
-    order); does a `QtQuick.Shapes` `RadialGradient` sphere + MultiEffect
-    drop shadow read as the mockups' 12/10/7 px dots and 14 px thumb; can
-    a gradient-*stroked* glyph be produced by masking a radial fill with
-    the Shape (Shapes has no stroke gradient); does a bundled speaker SVG
-    work as a `maskSource` for the light muted OSD icon.
-  - Output: draft `GradientMask.qml`, `GoldSphere.qml`, `GradientText.qml`
-    + 2× captures for the owner to judge, and a go/no-go on
-    `Qt5Compat.GraphicalEffects` (expected: not needed; it would add a
-    runtime dependency).
-  - Decision point: if gradient text or the sphere reads badly at 2×,
-    the light mockups change **before** any plumbing phase is built.
-    Merge and number if the captures pass; discard the branch otherwise.
+  - **Capture rule for every phase in this arc** (from 17.0.2): (a)
+    Qt effects (`MultiEffect`, layers) render **blank** under
+    `QT_QPA_PLATFORM=offscreen` because that platform selects the
+    software scenegraph (`GraphicsInfo.api` = Software), and a blank
+    gold item still "passes" a naive compare - every pixel capture runs
+    on Wayland (`QT_QPA_PLATFORM=wayland`), the real GPU scenegraph; (b)
+    `grabToImage` output is RGBA with junk RGB in near-transparent
+    pixels, so a grab is composited onto a solid backdrop before it is
+    judged or diffed (`tools/spike-gradient-rendering/zoom.py` does
+    this). Audit of existing capture paths (2026-09-26): the harness
+    (`tools/flyout-harness/harness.py:218`) already forces Wayland and
+    captures with `spectacle`, so it is unaffected; `scripts/test-qml.sh`
+    (:28) runs QtTest under offscreen but compares no pixels - keep it
+    that way, never add a rendered-pixel assertion there; the standalone
+    `/usr/lib/qt6/bin/qml` driver recipes for the ConfigDialog page and
+    the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
+    behaviour checks and must switch to Wayland for any light-theme
+    pixel capture (17.23.0-17.27.0).
 
 - [ ] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
       (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
@@ -8536,61 +8569,97 @@ architecture decisions; this file is just sequencing and status.
       spike; :99-100). Cites the merged spike.
   - Verify: `--vary theme` light states; alpha sweep recipe; owner soak
     with Better Blur DX.
-
+  - Promotes `GoldSphere.qml` (and `GradientMask.qml`, which it does not
+    need itself but 17.20.0/17.21.0 do - promote both together so the
+    two land in one place) from `tools/spike-gradient-rendering/` into
+    `plasmoid/contents/ui/`, per Phase 17.0.2. Captures per the arc's
+    capture rule (Wayland, composited).
 - [ ] **Phase 17.20.0 — Light readout + wordmark.** Gradient digits
       `#dca136 → #f3cf7c` + glow (flyout v2 :110-115), grey "dB", gold
       eyebrow `#97691f → #cf9c45` (`AmpHeader.qml:100`; :103, :116-119)
       (`GradientText` from the merged spike).
   - Verify: light crops; Δy 0 on the readout row (AlignBaseline house
     rule).
-
+  - Promotes `GradientText.qml` from `tools/spike-gradient-rendering/`.
+    Readout glow default **0.9 `shadowBlur` / `blurMax` 32**
+    (provisional, owner's pick from the 17.0.2 sheet; the four candidates
+    were 0.35/32, 0.6/32, 0.9/32, 0.6/64). Tune live against the v2
+    mockup's `text-shadow: 0 0 14px rgba(199,154,46,.35)` on the real
+    flyout, not on the driver sheet. Captures per the arc's capture rule.
 - [ ] **Phase 17.21.0 — Light gold glyphs, dots, ticks.** `glyphGold`
       radial + warm drop shadow on source glyphs (flyout v2 :134-136),
       header/list dots (:101, :141-146) and ticks (`GradientMask` from the
       merged spike).
   - Verify: `--vary theme,src,slist,list`.
-
+  - Uses `GradientMask.qml` (promoted in 17.19.0) with the glyph Shapes
+    from 17.7.0 as mask sources. Glyph drop shadow starts at the 17.0.2
+    values (`shadowBlur` 0.3 / `blurMax` 16, opacity 0.35, offset 0/2),
+    which read slightly heavier than the mockup's `drop-shadow(0 2px
+    2.5px rgba(160,110,10,.35))` - tune live against the v2 mockup.
+  - **Layer-count check**: every gold item is two `MultiEffect` stages,
+    i.e. two offscreen buffers each, and the light flyout has many
+    (readout, wordmark, header dot, source-row glyph, 6 list glyphs, 6
+    ticks, list dots, thumb). Verify the flyout still opens with no
+    visible delay with the source list expanded (harness `--vary theme`
+    with `slist=open`, plus the owner's eye on the real panel); if it
+    lags, share one mask stage per glyph list or drop the shadow stage
+    on the smallest items. Captures per the arc's capture rule.
 - [ ] **Phase 17.22.0 — Light OSD.** Opaque white (OSD v2 :118), gradient
       readout (:161-166), gold muted glyph (:144-148), gold-gradient
       "Muted" (`.gold-text` :104-110), flat `#e2b865` bar (:95), muted bar
       `#d8d3cb` (:103).
   - Verify: toast capture via `--notify`.
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.23.0 — Light tooltip.** Opaque white (tooltip v2 :121),
       gold sphere dot (:97, :133), gradient value incl. the "Muted" word
       (:145-150), flat gold bar (:95).
   - Verify: owner hover; driver instantiating the tooltip's mainItem for
     pixel checks.
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.24.0 — Brand mark.** Ring + disk filling a 37 px tile
       (`ConfigGeneral.qml:411-429`; configDialog v2 :236-249): dark ring
       `#654c3a`, disk `#e3a06a`; light ring sweep `#ecd3a0 → #dcb068 →
       #cfa052`, disk `#efc977 → #e0aa4b → #cf9738`, no sphere (:250-255).
   - Verify: driver, both schemes.
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.25.0 — ConfigDialog light page base.** White background,
       text/divider/control tokens, card shadows (configDialog v2 :71-82,
       :83-98).
   - Verify: driver with light kdeglobals (memory recipe).
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.26.0 — Gradient section headings + status values.**
       `#a8710b → #d99a1f → #efc36a` clipped per word (`SectionLabel.qml`;
       configDialog v2 :90, :101-105) and bold gradient resolved values in
       status lines (:111-114).
   - Verify: driver crops at 2×.
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.27.0 — Light switches, steppers, segments.** Gold
       gradient switch track + sheen, white knob (`SettingsSwitch.qml`;
       configDialog v2 :93, :76, :97), neutral stepper values (:107),
       selected segment outlined in text colour (:95, :315).
   - Verify: driver crops; owner opens the real dialog under a light
     scheme.
-
+  - Captures per the arc's capture rule: any standalone driver grab runs
+    on Wayland (not offscreen) and is composited on a solid backdrop
+    before judging.
 - [ ] **Phase 17.28.0 — Wrap-up.** CLAUDE.md (Theme.qml = fonts/sizes
       only; typed Palette rule; portal reader contract; harness `theme`
       dim), README settings section, PKGBUILD dependency check (none
       added), final `expected-17.json`, owner soak; then ready for the
-      owner's commits/merge.
+      owner's commits/merge. Also removes `tools/spike-gradient-rendering/`
+      (its components were promoted in 17.19.0-17.21.0; its README's
+      findings are already recorded in the 17.0.2 entry and the saved
+      report).
   - Verify: full harness + `scripts/test-qml.sh` + owner soak report.
 
 ## Bugs
