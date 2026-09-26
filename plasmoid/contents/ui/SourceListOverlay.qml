@@ -96,13 +96,42 @@ Popup {
 
     background: OverlayCardBackground { theme: overlay.theme; transparencySettings: overlay.transparencySettings }
 
+    // Phase 17.1.1: since 17.1.0's shorter flyout, the real amp's six
+    // sources no longer fit in the room above the row, so the list
+    // scrolls. On open, scroll just far enough that the selected source is
+    // fully visible (a ComboBox popup positions itself; this Popup does
+    // not), and leave the list at the top when it already is.
+    onOpened: overlay.revealCurrent()
+
+    function revealCurrent() {
+        const flick = scrollView.contentItem as Flickable;
+        let row = null;
+        for (let i = 0; i < overlay.enabledSources.length; ++i) {
+            if (overlay.enabledSources[i].index === overlay.activeSourceIndex) {
+                row = rowRepeater.itemAt(i);
+                break;
+            }
+        }
+        if (!flick || !row) return;
+        const maxY = Math.max(0, flick.contentHeight - flick.height);
+        const wanted = Math.max(0, row.y + row.height - flick.height);
+        flick.contentY = Math.min(wanted, maxY);
+    }
+
     contentItem: ScrollView {
+        id: scrollView
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         ColumnLayout {
             id: listColumn
-            width: overlay.availableWidth
+            // Phase 17.1.1: the ScrollView's own availableWidth, not the
+            // Popup's. Under the desktop style the vertical ScrollBar
+            // reserves 21 px (rightPadding) once the list scrolls; binding
+            // to the Popup's width kept rows 260 px wide in a 239 px
+            // viewport, so the bar covered their right edge and the
+            // selection tick (measured on the 17.1.0 harness run).
+            width: scrollView.availableWidth
             spacing: overlay.rowSpacing
 
             // Unreachable through the row (SourceSelector disables it when
@@ -121,6 +150,7 @@ Popup {
             }
 
             Repeater {
+                id: rowRepeater
                 model: overlay.enabledSources
 
                 // `.source-option`: padding 8px 10px, gap 9, radius 9,

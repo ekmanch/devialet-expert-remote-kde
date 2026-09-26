@@ -8326,6 +8326,112 @@ architecture decisions; this file is just sequencing and status.
     before zooming. Captures: `captures/sheet.png`, `zoom-*.png`,
     `detail-*.png`. Owner verdict 2026-09-26: passes.
 
+- [x] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
+      (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
+      adjust"). Both themes. Mockup: flyout v2 has no `.scroll-hint`
+      element. Done 2026-09-26 (code in a0e6718; closed together with
+      17.1.1, which fixed the source list the removal made scroll).
+  - Done: `scrollHint` Label deleted and VolumeBlock's header comment
+    updated (17 lines out); qmllint clean; installed copy upgraded, shell
+    restarted. Slider-row-to-buttons gap is now 20 px (VolumeBlock
+    `bottomMargin` 6 + ActionRow `topMargin` 14) vs the mockup's 22 -
+    owner decision: keep 20, spacing alignment with v2 is its own pass.
+  - Baseline wording corrected: `expected-*.json` files are allowlists
+    of within-run moves, and removing an item adds none, so this phase
+    keeps `expected-7.14.0.json`; the before/after proof is
+    `harness.py compare`.
+  - Harness, before (HEAD 175266d) and after, three runs each: smoke,
+    `--vary amp,list`, `--vary src,slist` (runs `20260926-144114/
+    144138/144216-before-17.1.0-*`, `20260926-144301/144320/
+    144352-after-17.1.0-*`, git-ignored). All six reports exit 0 against
+    `expected-7.14.0.json` (no unexpected within-run moves).
+  - Compare, all 31 common captures: `scrollHint` only in *before*;
+    992 element records below it moved by exactly Δy −33 (spacing 10 +
+    top margin 9 + height 14), nothing else moved dx/dw; window height
+    363 → 330 in every capture; the containers (root, FlyoutContent,
+    its ColumnLayout and background, volumeBlock) shrank by 33. One
+    invisible "✓" label in the no-amp amp-list state moved sideways
+    (hidden in both runs, no visual effect).
+  - Overlay fit (scratchpad checker over the probe dumps): **amp list**
+    fits in every `list=open` state - worst case two amps, card
+    72-245, 118 px below it before, 85 px after. **Source list**
+    (six enabled sources, the real amp's count): before, card 14-258,
+    height 244 = content, room above the row 250 px; after, room above
+    217 px, so the card is capped to 217 (top 8), the list scrolls,
+    and the scroll viewport narrows 260 → 239 px for the scrollbar while
+    the rows stay 260 px wide - the scrollbar covers their right 21 px,
+    **hiding the selected row's tick** (before/after crops compared by
+    eye). Stopped per the plan's rule; owner chose to accept scrolling
+    and fix the overlay in 17.1.1.
+
+- [x] **Phase 17.1.1 — Source list: scrolling that works.** Owner
+      decision 2026-09-26 (option 1): with 17.1.0's shorter flyout, amps
+      with many sources get a scrolling source list; make that correct
+      rather than squeezing rows. `SourceListOverlay.qml`.
+  - Rows track the scroll viewport's width (today they keep the
+    ScrollView's full 260 px while the viewport narrows to 239 when the
+    scrollbar appears), so no row content - the selection tick in
+    particular - sits under the scrollbar.
+  - **The selected source is visible when the list opens.** With the
+    sixth row selected (the real amp's AIR slot; harness `src=long`,
+    index 14), opening the list must show that row with its tick, not
+    the top five with the selection scrolled out of view. A ComboBox
+    popup would position this itself; this Popup is custom and does
+    not. In the 17.1.0 *after* run the `src=long, slist=open` capture
+    has `sourceOption:14` at wy 212-248 against a card ending at 225 -
+    i.e. the check currently fails.
+  - Verify: harness `--vary src,slist` - every `slist=open` state has
+    the selected `sourceOption:<idx>` fully inside the card (top ≥ card
+    top + padding, bottom ≤ card bottom − padding) and its tick label
+    visible and inside the viewport; rows' width equals the viewport
+    width; the unscrolled/short-list case (fewer sources, no scrollbar)
+    unchanged vs 17.1.0's after run. Owner soak: open the list with the
+    last source selected, scroll with the wheel, pick a source.
+  - **Done 2026-09-26.** `SourceListOverlay.qml`: the list column binds
+    to the ScrollView's own `availableWidth` (was the Popup's), and
+    `onOpened` calls `revealCurrent()`, which sets the Flickable's
+    `contentY` to the smallest value that shows the selected row
+    (clamped to the scroll range; 0 when it already fits). qmllint clean
+    (two `missing-property` warnings from a first draft removed by
+    looking the row up by model index and casting the Flickable).
+  - **Unit test** `tests/qml/tst_SourceListOverlay.qml` (geometry only):
+    real overlay under a stand-in row with 217 px above it and the real
+    amp's six sources; for every selected source the row and its tick
+    are fully inside the viewport after `open()`; every row is exactly
+    the viewport width (scrolling and three-source cases); a short list
+    and a first-row selection open unscrolled. Written first: against
+    the unfixed file 7 of its checks failed - AIR's row ended at 236 in
+    a 209 px viewport, every other tick's right edge at 250 past a 239
+    px viewport - and all pass after the fix (suite 24/24, 12 s).
+  - `scripts/test-qml.sh` changes this needed: (1)
+    `QT_QUICK_CONTROLS_STYLE=org.kde.desktop`, the style plasmashell
+    loads - the runner's default style overlays a 10 px ScrollBar
+    without reserving width, so the width bug was invisible to it (probe:
+    viewport 260 vs 239); (2) `dbus-run-session --config-file
+    tests/qml/session-bus.conf`, a bus with no service activation -
+    under the desktop style the first run hung because the style
+    auto-started xdg-desktop-portal-kde on the private bus, which
+    outlived the run and held the output pipe (two orphaned portals on
+    `/tmp/dbus-*` buses found and stopped; the session's own portal was
+    untouched).
+  - Harness on the reinstalled widget (`20260926-152331-after-17.1.1-
+    srclist`, `20260926-152347-after-17.1.1-smoke`): both exit 0
+    against `expected-7.14.0.json`. Every `slist=open` state: rows 239
+    px = viewport; selected row visible - index 0 at 12-48 (list at the
+    top), index 14 (the AIR slot) at 185-221 in the 12-221 viewport
+    (list scrolled 27 px), `none` has no selected row. Compare vs
+    17.1.0's after runs: only the list moved (rows −21 px wide, ticks
+    −21 px x, +27 px scroll with index 14); ActionRow's hidden
+    `powerSpinner` (visible only while Booting) reports stale
+    coordinates in some states - untouched file, harness noise. Crop
+    with index 14 selected checked by eye: row and tick visible left of
+    the scrollbar. Owner hands-on check on the fixed widget (last source
+    selected, open the list, wheel-scroll, pick a source): pending.
+  - Same shape elsewhere: `AmpListOverlay.qml:105` binds its column to
+    the Popup's `availableWidth` too, so an amp list long enough to
+    scroll (more than ~3 amps, cap 230 px) would get the same covered
+    right edge. Not reachable with today's one or two amps; parked below.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8416,69 +8522,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
-      (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
-      adjust"). Both themes. Mockup: flyout v2 has no `.scroll-hint`
-      element. **Code done 2026-09-26; stays open until 17.1.1 lands**,
-      because the removal makes the source list scroll (below).
-  - Done: `scrollHint` Label deleted and VolumeBlock's header comment
-    updated (17 lines out); qmllint clean; installed copy upgraded, shell
-    restarted. Slider-row-to-buttons gap is now 20 px (VolumeBlock
-    `bottomMargin` 6 + ActionRow `topMargin` 14) vs the mockup's 22 -
-    owner decision: keep 20, spacing alignment with v2 is its own pass.
-  - Baseline wording corrected: `expected-*.json` files are allowlists
-    of within-run moves, and removing an item adds none, so this phase
-    keeps `expected-7.14.0.json`; the before/after proof is
-    `harness.py compare`.
-  - Harness, before (HEAD 175266d) and after, three runs each: smoke,
-    `--vary amp,list`, `--vary src,slist` (runs `20260926-144114/
-    144138/144216-before-17.1.0-*`, `20260926-144301/144320/
-    144352-after-17.1.0-*`, git-ignored). All six reports exit 0 against
-    `expected-7.14.0.json` (no unexpected within-run moves).
-  - Compare, all 31 common captures: `scrollHint` only in *before*;
-    992 element records below it moved by exactly Δy −33 (spacing 10 +
-    top margin 9 + height 14), nothing else moved dx/dw; window height
-    363 → 330 in every capture; the containers (root, FlyoutContent,
-    its ColumnLayout and background, volumeBlock) shrank by 33. One
-    invisible "✓" label in the no-amp amp-list state moved sideways
-    (hidden in both runs, no visual effect).
-  - Overlay fit (scratchpad checker over the probe dumps): **amp list**
-    fits in every `list=open` state - worst case two amps, card
-    72-245, 118 px below it before, 85 px after. **Source list**
-    (six enabled sources, the real amp's count): before, card 14-258,
-    height 244 = content, room above the row 250 px; after, room above
-    217 px, so the card is capped to 217 (top 8), the list scrolls,
-    and the scroll viewport narrows 260 → 239 px for the scrollbar while
-    the rows stay 260 px wide - the scrollbar covers their right 21 px,
-    **hiding the selected row's tick** (before/after crops compared by
-    eye). Stopped per the plan's rule; owner chose to accept scrolling
-    and fix the overlay in 17.1.1.
-
-- [ ] **Phase 17.1.1 — Source list: scrolling that works.** Owner
-      decision 2026-09-26 (option 1): with 17.1.0's shorter flyout, amps
-      with many sources get a scrolling source list; make that correct
-      rather than squeezing rows. `SourceListOverlay.qml`.
-  - Rows track the scroll viewport's width (today they keep the
-    ScrollView's full 260 px while the viewport narrows to 239 when the
-    scrollbar appears), so no row content - the selection tick in
-    particular - sits under the scrollbar.
-  - **The selected source is visible when the list opens.** With the
-    sixth row selected (the real amp's AIR slot; harness `src=long`,
-    index 14), opening the list must show that row with its tick, not
-    the top five with the selection scrolled out of view. A ComboBox
-    popup would position this itself; this Popup is custom and does
-    not. In the 17.1.0 *after* run the `src=long, slist=open` capture
-    has `sourceOption:14` at wy 212-248 against a card ending at 225 -
-    i.e. the check currently fails.
-  - Verify: harness `--vary src,slist` - every `slist=open` state has
-    the selected `sourceOption:<idx>` fully inside the card (top ≥ card
-    top + padding, bottom ≤ card bottom − padding) and its tick label
-    visible and inside the viewport; rows' width equals the viewport
-    width; the unscrolled/short-list case (fewer sources, no scrollbar)
-    unchanged vs 17.1.0's after run. Owner soak: open the list with the
-    last source selected, scroll with the wheel, pick a source.
-  - Closing 17.1.1 also closes 17.1.0 (both move to "## Done").
 
 - [ ] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
       Add the two mockup speaker SVGs (speaker+X, speaker+waves; paths
@@ -8719,9 +8762,38 @@ architecture decisions; this file is just sequencing and status.
 
 ## Bugs
 
+- **Harness can leave the real daemon down, and a mid-run restart then
+  kills it for good** (found 2026-09-26 after the Phase 17.1.0/17.1.1
+  runs; the owner's widget showed "No Amplifier" and could not select the
+  amp). Journal: the unit was stopped at 14:42:16, the instant
+  `before-17.1.0-srclist` started, although that run recorded
+  `daemon_was_active=False` and so never stopped or restarted it; every
+  later run saw it inactive and left it down. At 14:43:05, 4 s into
+  `after-17.1.0-smoke` while `fakeamp.py` owned
+  `com.ekmanch.DevialetRemote`, systemd started the unit - requester not
+  in the journal; plausibly the Plasma session target re-pulling it after
+  the `plasmashell --replace` at ~14:42:55 (inference). Five `NameTaken`
+  exits in one second hit `start-limit-hit`, and the unit stayed failed
+  until restored by hand (`systemctl --user reset-failed` + `start`,
+  15:28; amp 192.168.0.22 re-selected from the persisted config).
+  Harness fixes to scope: decide whether to restart from the unit's
+  *enabled* state (or the pre-run state recorded before any shell
+  restart), not a racy `is-active`; after every run assert the daemon
+  is active and owns the name, and fail loudly if not; before a run,
+  refuse to start if a `plasmashell --replace` happened within the last
+  few seconds, or wait for the session target to settle.
+
 
 
 ## Not yet scoped / parked
+
+- **Amp list: rows under the scrollbar once it scrolls** (found in Phase
+  17.1.1, 2026-09-26). `AmpListOverlay.qml:105` binds its column to the
+  Popup's `availableWidth`, not the ScrollView's, so with enough amps to
+  exceed its 230 px cap the desktop style's 21 px scrollbar would cover
+  the rows' right edge (the tick). Same fix and test shape as 17.1.1's
+  `SourceListOverlay.qml`; also scroll the selected amp into view on
+  open. Not reachable with one or two amps.
 
 
 

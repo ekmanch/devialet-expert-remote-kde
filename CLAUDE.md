@@ -276,6 +276,14 @@ for what's confirmed out of scope.
   order, the real message shape. `tst_PendingAmpState.qml` guards the
   post-boot hold (2026-09-20 regression: a VolumeRaw match must not
   release the hold before a send) - it fails on the pre-fix file.
+  The runner uses `QT_QUICK_CONTROLS_STYLE=org.kde.desktop` (the style
+  plasmashell loads; the default style overlays scrollbars without
+  reserving width, which hid a real layout bug) and a private bus from
+  `tests/qml/session-bus.conf` with no service activation (otherwise the
+  desktop style auto-starts xdg-desktop-portal-kde on it, which outlives
+  the run and hangs the script). `tst_SourceListOverlay.qml` (Phase
+  17.1.1) guards the source list's selected-row visibility and row width.
+  Geometry assertions only: offscreen renders effects blank.
 
 ## Working style
 
