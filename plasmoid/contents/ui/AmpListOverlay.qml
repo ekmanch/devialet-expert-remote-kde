@@ -149,10 +149,11 @@ Popup {
                         }
                     }
 
-                    Label {
+                    // Phase 17.8.0: painted 16 px tick (flyout mockup v2
+                    // :452-453) instead of the "✓" character.
+                    Tick {
+                        objectName: "ampNoneTick"
                         Layout.alignment: Qt.AlignVCenter
-                        text: "✓"
-                        font.pixelSize: 11
                         color: overlay.theme.copperBright
                         visible: ampNoneOption.isCurrent
                     }
@@ -253,10 +254,10 @@ Popup {
                             }
                         }
 
-                        Label {
+                        // Phase 17.8.0: painted 16 px tick, as above.
+                        Tick {
+                            objectName: "ampOptionTick:" + ampOption.modelData.ip
                             Layout.alignment: Qt.AlignVCenter
-                            text: "✓"
-                            font.pixelSize: 11
                             color: overlay.theme.copperBright
                             visible: ampOption.isCurrent
                         }

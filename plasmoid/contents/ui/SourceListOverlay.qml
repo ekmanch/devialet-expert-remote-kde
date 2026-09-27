@@ -215,10 +215,11 @@ Popup {
                             elide: Text.ElideRight
                         }
 
-                        Label {
+                        // Phase 17.8.0: painted 16 px tick (flyout mockup v2
+                        // :452-453) instead of the "✓" character.
+                        Tick {
+                            objectName: "sourceOptionTick:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
-                            text: "✓"
-                            font.pixelSize: 11
                             color: overlay.theme.copperBright
                             visible: sourceOption.isCurrent
                         }

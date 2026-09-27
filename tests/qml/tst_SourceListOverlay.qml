@@ -71,17 +71,9 @@ TestCase {
         return null;
     }
 
-    function tickOf(rowItem) {
-        // The tick is the row's only Label whose text is the check mark
-        // (17.8.0 will replace it with a painted Tick; update this then).
-        const stack = [rowItem];
-        while (stack.length) {
-            const it = stack.pop();
-            if (it !== rowItem && it.text === "✓") return it;
-            const kids = it.children || [];
-            for (let i = 0; i < kids.length; ++i) stack.push(kids[i]);
-        }
-        return null;
+    function tickOf(rowItem, sourceIndex) {
+        // Phase 17.8.0: the painted Tick, found by its objectName.
+        return findByName(rowItem, "sourceOptionTick:" + sourceIndex);
     }
 
     function openWith(sources, activeIndex) {
@@ -119,7 +111,7 @@ TestCase {
         const bottom = top + rowItem.height;
         verify(top >= 0, "selected row top " + top + " inside the viewport");
         verify(bottom <= flick.height, "selected row bottom " + bottom + " inside the viewport (" + flick.height + ")");
-        const tick = tickOf(rowItem);
+        const tick = tickOf(rowItem, data.sourceIndex);
         verify(tick && tick.visible, "tick shown on the selected row");
         const tickRight = tick.mapToItem(flick, tick.width, 0).x;
         verify(tickRight <= flick.width, "tick right edge " + tickRight + " inside the viewport width " + flick.width);

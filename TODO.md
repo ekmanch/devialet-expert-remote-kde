@@ -8608,6 +8608,33 @@ architecture decisions; this file is just sequencing and status.
     and list, no boxes; no-amp row shows the optical ring. Daemon active
     with the amp selected afterwards.
 
+- [x] **Phase 17.8.0 — Painted ticks.** Done 2026-09-27. New
+      `plasmoid/contents/ui/Tick.qml`: the mockup's tick (flyout v2
+      :452-453, used :685/:707) - path `M3.8 9.4 L7.4 12.9 L14.2 5.4` on an
+      18-unit grid in a 16 px box, 2-unit round-capped/joined stroke, flat
+      `color`. Replaces the 11 px "✓" labels in `AmpListOverlay.qml` ("None"
+      row + amp rows) and `SourceListOverlay.qml`; ticks carry objectNames
+      (`ampNoneTick`, `ampOptionTick:<ip>`, `sourceOptionTick:<idx>`), and
+      `tst_SourceListOverlay.qml` now finds the tick by objectName instead of
+      the character. `ThemeDropdown.qml`'s "✓" (ConfigDialog sound-theme
+      picker) is out of this flyout phase and unchanged.
+  - First draft had a `Shape` root: it set its own implicit size from the
+    path bounds (measured 14×13) over the declared 16 px; root changed to a
+    16×16 Item with the Shape filling it - now 16×16 in every state.
+  - Visibility semantics kept (`visible: isCurrent`, as before); the
+    mockup uses `opacity:0`, reserving the tick's width in every row. Seen
+    in the crops: a name long enough to fill the row
+    ("Devialet-Expert-Living-Room-ETH") elides only while its row is
+    selected. Pre-existing with the old 7 px "✓", now more visible; left
+    for the owner to decide.
+  - Verified: Tick.qml lint-clean, touched files as HEAD; QML suite 24/24;
+    harness `--vary amp,list` and `--vary src,slist`
+    (`20260927-124649-after-17.8.0b-amplist`, `…-124723-after-17.8.0b-
+    srclist`) exit 0; tick 16×16, inside the viewport in every open state
+    (source list x 233-249 of 259, including the scrolled AIR-slot state;
+    amp list 252-268 of 276); crops show the tick only on the selected row.
+    Daemon active with the amp selected afterwards.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8698,12 +8725,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.8.0 — Painted ticks.** `Tick.qml`: 16 px box, 2-unit
-      round stroke (flyout v2 :452-453, path `M3.8 9.4 L7.4 12.9 L14.2
-      5.4`), replacing the "✓" labels (`AmpListOverlay.qml:150-156,
-      252-258`, `SourceListOverlay.qml:183-189`).
-  - Verify: `--vary list,slist`.
 
 - [ ] **Phase 17.9.0 — OSD/tooltip dark palette alignment.** Flat
       `#121212` (OSD at 0.96, tooltip opaque, per D3), `#252525` lines,
