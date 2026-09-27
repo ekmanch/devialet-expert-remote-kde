@@ -32,8 +32,14 @@ exec dbus-run-session --config-file="$REPO/tests/qml/session-bus.conf" -- bash -
     repo=$1; runner=$2; shift 2
     python3 "$repo/tools/flyout-harness/fakeamp.py" >/dev/null 2>&1 &
     fake=$!
-    trap "kill $fake 2>/dev/null; wait $fake 2>/dev/null" EXIT
+    # Phase 17.15.0: fake XDG settings portal for tst_SystemScheme.qml (it
+    # refuses to start where the real portal name is owned, so it can only
+    # ever run here, on this private bus).
+    python3 "$repo/tests/qml/fakeportal.py" >/dev/null 2>&1 &
+    portal=$!
+    trap "kill $fake $portal 2>/dev/null; wait $fake $portal 2>/dev/null" EXIT
     gdbus wait --session --timeout 10 com.ekmanch.DevialetRemote
+    gdbus wait --session --timeout 10 org.freedesktop.portal.Desktop
     QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen \
     QT_QUICK_CONTROLS_STYLE=org.kde.desktop \
         "$runner" -input "$repo/tests/qml" "$@"

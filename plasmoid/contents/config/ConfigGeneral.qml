@@ -65,10 +65,18 @@ KCM.SimpleKCM {
 
     readonly property Ui.Theme theme: Ui.Theme {}
     // Phase 17.14.0: the page's palette, forwarded to every settings
-    // component below. Dark for now; 17.15.0 resolves it from the desktop's
-    // colour scheme (this page follows its window's scheme, not the widget's
-    // Theme setting - it cannot reach main.qml's ThemeSettings anyway).
+    // component below. This page follows the desktop's colour scheme, not
+    // the widget's Theme setting (and cannot reach main.qml's ThemeSettings
+    // anyway), so it reads the scheme itself through pageScheme. Until
+    // LightPalette.qml exists (17.19.0) both answers paint the dark palette:
+    // 17.19.0 makes this `root.pageScheme.dark ? darkColors : lightColors`.
     readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
+
+    // Phase 17.15.0: the desktop's colour scheme, as seen from this dialog
+    // (also what the Follow-system status line, 17.18.0, will report).
+    readonly property Ui.SystemScheme pageScheme: Ui.SystemScheme {
+        context: "config page"
+    }
 
     // Phase 4.4.2: cfg_<entryName> is the standard Plasma ConfigModule
     // convention - the shell's own AppletConfiguration.qml (open()/

@@ -8818,6 +8818,63 @@ architecture decisions; this file is just sequencing and status.
     other errors (hidden chime variants are created at load too, so a
     missing hand-off would have failed there). Installed; daemon active.
 
+- [x] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Done
+      2026-09-27, including the owner's two desktop checks.
+  - New `SystemScheme.qml` (invisible zero-size Item, so its
+    Kirigami.Theme fallback reads the colours of wherever it is placed):
+    `dark` (starts true), `source` ("start" | "portal" | "fallback"),
+    `timeoutMs` (2000), `fallbackColor` (Kirigami.Theme.backgroundColor)
+    → `fallbackDark` via `Kirigami.ColorUtils.brightnessForColor`, a
+    `context` label for its journal line. One `ReadOne("org.freedesktop.
+    appearance", "color-scheme")` at start via `Dbus.SessionBus.asyncCall`;
+    1 → dark, 2 → light; 0 / any other value / D-Bus error / a QML Timer
+    firing first → fallback; a late 1/2 still wins; a `Dbus.SignalWatcher`
+    applies `SettingChanged` for that namespace + key only (0 there → the
+    fallback, which then follows the desktop colours live). Reply shape
+    measured, not assumed: a probe against the real portal returned
+    `reply.value = {"value": 1}` (unwrapped defensively). No
+    `DBusServiceWatcher` - the portal is activatable.
+  - Wired: `main.qml` has one `SystemScheme { context: "applet" }`;
+    `ThemeSettings.systemDark` binds to its `dark`. `ConfigGeneral.qml` has
+    its own `pageScheme` (the dialog cannot reach main.qml); the page
+    palette stays dark until 17.19.0 (`pageScheme.dark ? darkColors :
+    lightColors` then).
+  - Tests: `tests/qml/fakeportal.py` - a fake `org.freedesktop.portal.
+    Settings` with a control interface (`SetReply(mode, value, delay_ms)`:
+    value / error / silent; `EmitChanged(ns, key, value)`); it refuses to
+    start when the portal name is already owned (confirmed: exit 3 on the
+    real session bus), so it only ever runs on the private test bus.
+    `scripts/test-qml.sh` starts it next to fakeamp and stops both.
+    `tests/qml/tst_SystemScheme.qml`, 12 cases: 1 dark; 2 light; 0 with a
+    light and a dark fallback; unexpected value 7; error; silence (starts
+    dark, still "start" at half the timeout, fallback after it); late 2
+    after a dark fallback wins; live SettingChanged 2 then 1; other keys and
+    namespaces ignored; SettingChanged 0 → fallback; a timeout never
+    overrides a portal answer. Suite 38/38 in 16 s, no fake left running.
+    Mutation check: swapping the 1/2 mapping fails 6 tests, dropping the
+    timeout guard fails exactly the guard test; restored file 38/38.
+  - Verified live: qmllint as HEAD (SystemScheme 0); installed; journal
+    `[SystemScheme] applet: dark true from portal - portal reply
+    (color-scheme 1)` 88 ms after start (the owner's Darkly scheme through
+    the real portal, no fallback). Harness smoke (`20260927-150710-after-
+    17.15.0-smoke`) exit 0; daemon active with the amp selected.
+  - Owner checks (2026-09-27), from the journal: first settings-dialog open
+    `[SystemScheme] config page: dark true from portal - portal reply
+    (color-scheme 1)` (15:09:57) - the dialog context reads the same portal
+    value as the applet. Owner then switched the desktop to a light global
+    theme (Breeze Light): at 15:11:09 both `config page` and `applet` logged
+    `dark false from portal - portal SettingChanged (color-scheme 2)` and
+    ThemeSettings `resolvedDark false`, live, no restart (the dialog was
+    still open, so its page flipped too). The second dialog open logged no
+    new line (value already light).
+  - Owner's screenshot of the dialog under the light scheme: window chrome
+    and page background light, but every colour the page draws still comes
+    from the dark palette (near-white text vanishes, controls are black
+    boxes). Not caused by this arc - the page has painted dark tokens on the
+    window's background since Phase 4.4, so any light scheme showed it.
+    Fixed by 17.19.0 (LightPalette; the page switches palette on
+    `pageScheme.dark`) and 17.25.0-17.27.0 (the light page per the mockup).
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8911,18 +8968,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Per the
-      contract in the saved report: `systemDark` starts `true`;
-      `Dbus.SessionBus.asyncCall(message, resolve, reject)` with
-      `ReadOne("org.freedesktop.appearance", "color-scheme")`; `1`→dark,
-      `2`→light; `0`/other/reject/2 s `Timer` → `Kirigami.ColorUtils.
-      brightnessForColor(Kirigami.Theme.backgroundColor)` fallback, logged
-      once; `Dbus.SignalWatcher` on `SettingChanged` filtered by namespace
-      and key. Used by ThemeSettings (`system` mode) and PageTheme.
-  - Verify: driver with a fake `org.freedesktop.portal.Settings` on a
-    private bus returning 1 / 2 / 0 / error / silence (timer path); live:
-    owner flips the colour scheme, surfaces follow without reload.
 
 - [ ] **Phase 17.16.0 — Extract `SegmentedControl.qml`.** From the two
       inline copies (`ConfigGeneral.qml:602-656`, :762-813), zero visual

@@ -27,8 +27,8 @@ QtObject {
     required property string mode
 
     // What the desktop's colour scheme says when mode is "system". Starts
-    // true (today's look) and changes only when a value arrives - the
-    // portal reader (SystemScheme.qml, 17.15.0) drives it.
+    // true (today's look) and changes only when a value arrives; main.qml
+    // binds it to SystemScheme.dark (the XDG portal reader, 17.15.0).
     property bool systemDark: true
 
     // Harness-only: when non-empty ("dark"/"light"), wins over `mode`, so

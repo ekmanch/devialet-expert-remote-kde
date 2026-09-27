@@ -287,6 +287,10 @@ for what's confirmed out of scope.
   desktop style auto-starts xdg-desktop-portal-kde on it, which outlives
   the run and hangs the script). `tst_SourceListOverlay.qml` (Phase
   17.1.1) guards the source list's selected-row visibility and row width.
+  `tests/qml/fakeportal.py` (Phase 17.15.0) stands in for the XDG settings
+  portal on that private bus (it refuses to start where the real portal's
+  name is owned); `tst_SystemScheme.qml` drives it through its control
+  interface to cover every branch of the Follow-system portal reader.
   Geometry assertions only: offscreen renders effects blank.
 
 ## Working style
