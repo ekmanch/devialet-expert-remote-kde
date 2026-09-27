@@ -61,12 +61,25 @@ QtObject {
     required property color overlayGradientTop
     required property color overlayGradientBottom
     required property color overlayBorder
+    required property color overlayShadow
+
+    // ---- Phase 17.19.0: colours that were hardcoded in the flyout ----
+    // Slider fill (dark: copper; light: flat #e2b865, not light `copper`).
+    required property color accentFill
+    // Amp header hover fill.
+    required property color headerHover
+    // Muted (active) mute-button fill.
+    required property color activeFill
+    // Card shadow under controls (buttons, source row, chip, +/-);
+    // transparent in dark, which has no control shadows.
+    required property color cardShadow
 
     // Background of a control (button, source row, chip, +/- steppers) at
     // the configured transparency. One mechanism for both themes: dark
-    // uses the constant control alpha over `surface`; 17.19.0 adds the
-    // light theme's glass alpha here, branching on isLight.
+    // uses the constant control alpha over `surface`; light uses the
+    // mockup's glass alpha (0.35 + 0.65 x panel alpha) over white, so the
+    // buttons frost together with the panel (flyout mockup v3 :67, :85).
     function controlColor(ts: TransparencySettings): color {
-        return ts.withControlAlpha(cp.surface);
+        return cp.isLight ? ts.withGlassAlpha(cp.surface) : ts.withControlAlpha(cp.surface);
     }
 }

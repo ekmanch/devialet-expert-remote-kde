@@ -8918,6 +8918,75 @@ architecture decisions; this file is just sequencing and status.
     `contentY` 0 in both HEAD and the working tree. Installed; daemon
     active.
 
+- [x] **Phase 17.19.0 — LightPalette + light flyout base.** Done 2026-09-27.
+      `LightPalette.qml` (flyout mockup v3 light + gold blocks, :61-80 and
+      :94-105): white surfaces, text `#1c1a17`/`#6e6a64`/`#a29d95`, divider
+      `rgba(28,24,18,0.09)`, track `#ece9e4`, copper `#c39443`/`#9c6d20`/
+      `#e2c88f`, white overlay cards with the v3 popup shadow. `surface2` is
+      the v3 `--row-hover` (the only thing code uses it for). Five tokens
+      that were hardcoded now live in both palettes: `overlayShadow`,
+      `accentFill` (flat `#e2b865` in light), `headerHover`, `activeFill`,
+      `cardShadow`. Light controls are glass: `TransparencySettings.
+      glassAlpha` = 0.35 + 0.65·alpha via `ColorPalette.controlColor()`;
+      dark keeps `withControlAlpha`. The slider handle is an Item holding
+      the dark disc or the light `GoldSphere` (15 px, 3 px halo). New
+      `CardShadow.qml` (v3 `--card-shadow`) sits under both action buttons
+      (mute only while not muted), the source row, the chip and both
+      steppers. `ThemeSettings.flyoutPalette` now switches to `light`;
+      `osdPalette` stays dark until 17.22.0/17.23.0. `GoldSphere.qml` and
+      `GradientMask.qml` promoted from the spike, headers only changed.
+  - **CardShadow cuts itself out of the control.** CSS `box-shadow` is
+    never painted under its own box, but RectangularShadow is, and it
+    showed through the glass faces. At 50 % opacity over grey the faces
+    read 223-227 against the formula's 232. Hiding the shadows gave 232,
+    which confirmed the cause. Fix: the shadows are drawn into a hidden
+    layer 14 px larger than the control, and a MultiEffect with an
+    inverted mask (the control's rounded rect) removes the control's area.
+    The whole thing sits in a Loader that is active only in light. A first
+    version toggled `layer.enabled` at runtime instead; after a dark ->
+    light flip it kept drawing but stopped cutting (standalone driver:
+    face 184 instead of 192 over grey). Built with its layers on from the
+    start, it cuts in both drivers. Result: faces 231-232 (glass 0.671 vs
+    0.675, 8-bit rounding). With transparency off, the controls' borders
+    now sit on white, not on the shadow (bottom edge 218 -> 234 =
+    divider over white); face interiors are unchanged.
+  - Verified: all touched files lint as at HEAD, the new files lint 0.
+    Dark: `--set smoke` over the grey backdrop (`backdrop.qml`) matches
+    before-17.19.0 within 1-2 levels (anti-aliasing) in every state except
+    Booting, which differs only by its animation. Light: `--vary
+    theme,mute,slist`, `theme,list` and `theme,vol,pow` over grey, with
+    transparency on (50 %) and off. The theme flip moves nothing
+    geometric. Opaque samples vs v3: panel 254-255, dividers 234 (235
+    expected), muted fill 248,243,235 (249,244,236), muted border
+    `#e2c88f` exact, slider fill `#e2b865` exact, track `#ece9e4` exact,
+    chip white (v3 `--chip-bg` is white glass, :73), readout and "Unmute"
+    `#9c6d20`, amp name `#1c1a17`, IP line `#a29d95`. Thumb reads as the
+    radial gold sphere with its halo. Solving the light and dark 50 %
+    captures together gives panel alpha 0.500 over an effective backdrop
+    of 115, not 128: the owner's Better Blur DX force-blur processes the
+    backdrop. Glass is measured relative to the panel, so the blur does
+    not affect it.
+  - Harness: new `tools/flyout-harness/expected-17.json` = the 7.14.0 rules
+    plus three narrow ones: the handle Item subtree (vol, amp), the chip's
+    CardShadow (src, amp) and CardShadow's light-only Loader subtree
+    (theme). Every run reports exit 0 against it. Runs:
+    `20260927-185259-before-17.19.0-grey`, `-190620-after2-17.19.0-grey`,
+    `-190635-17.19.0-light-a-transp-v2`, `-190649-...-light-b-transp-v2`,
+    `-190658-...-light-a-opaque-v2`, plus the pre-fix `-1856*`/`-1857*`
+    light runs.
+  - QML suite 38/38. Installed; daemon active on 192.168.0.22. Settings
+    restored: transparency on, 50 %, theme unset (system).
+  - Open, not in this phase:
+    - The source list's scrollbar handle is the desktop style's, coloured
+      by the (dark) Plasma theme: a dark bar on the white light card. The
+      mockup doesn't style its scrollbar.
+    - v3 buttons use `--btn-border` `rgba(28,24,18,0.10)` (:72); ours use
+      `divider` 0.09, about 2 levels lighter.
+    - v3's gold note (:600) says "the readout and all text stay
+      near-black", but its CSS (:108-115) still paints the gold gradient
+      readout that 17.20.0 plans.
+    - The alpha sweep and the Better Blur DX soak are for the owner.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9036,20 +9105,6 @@ architecture decisions; this file is just sequencing and status.
     close/reopen and shell-reload steps are not visible in the journal and
     were not observed - still to confirm by the owner if wanted.
 
-- [ ] **Phase 17.19.0 — LightPalette + light flyout base.**
-      `LightPalette.qml`; white surfaces, text `#1c1a17`/`#6e6a64`/
-      `#a29d95`, divider `rgba(28,24,18,0.09)`, track `#ece9e4`, glass
-      control alpha (`0.35 + 0.65·alpha`, flyout v2 :67/:85) via
-      `controlColor`, card shadows, white overlay cards, flat `#e2b865`
-      slider fill (:98), gold sphere thumb (`GoldSphere` from the merged
-      spike; :99-100). Cites the merged spike.
-  - Verify: `--vary theme` light states; alpha sweep recipe; owner soak
-    with Better Blur DX.
-  - Promotes `GoldSphere.qml` (and `GradientMask.qml`, which it does not
-    need itself but 17.20.0/17.21.0 do - promote both together so the
-    two land in one place) from `tools/spike-gradient-rendering/` into
-    `plasmoid/contents/ui/`, per Phase 17.0.2. Captures per the arc's
-    capture rule (Wayland, composited).
 - [ ] **Phase 17.20.0 — Light readout + wordmark.** Gradient digits
       `#dca136 → #f3cf7c` + glow (flyout v2 :110-115), grey "dB", gold
       eyebrow `#97691f → #cf9c45` (`AmpHeader.qml:100`; :103, :116-119)

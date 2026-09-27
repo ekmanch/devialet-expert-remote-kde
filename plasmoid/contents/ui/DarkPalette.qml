@@ -114,4 +114,11 @@ ColorPalette {
     overlayGradientTop: "#1e1e21"
     overlayGradientBottom: "#19191c"
     overlayBorder: Qt.rgba(1, 1, 1, 0.10)
+    overlayShadow: Qt.rgba(0, 0, 0, 0.5)
+
+    // ---- Phase 17.19.0: previously hardcoded in the flyout's files ----
+    accentFill: "#c17f4e"                          // = copper (VolumeBlock fill)
+    headerHover: Qt.rgba(1, 1, 1, 0.02)            // AmpHeader hover
+    activeFill: Qt.rgba(193 / 255, 127 / 255, 78 / 255, 0.14)   // copper at 0.14, muted button
+    cardShadow: "transparent"                      // no control shadows in dark
 }

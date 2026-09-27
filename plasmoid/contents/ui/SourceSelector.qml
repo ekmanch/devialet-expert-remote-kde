@@ -117,6 +117,8 @@ ColumnLayout {
         // Phase 9.1.1: tracks panel alpha with a floor - see
         // TransparencySettings.qml's controlAlpha comment.
         color: sourceSelector.colors.controlColor(sourceSelector.transparencySettings)
+        // Phase 17.19.0: light-theme card shadow (hidden in dark).
+        CardShadow { colors: sourceSelector.colors; radius: parent.radius }
         border.width: 1
         border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.divider
 

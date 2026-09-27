@@ -39,7 +39,7 @@ Kirigami.ShadowedRectangle {
     shadow.size: 24
     shadow.yOffset: 8
     shadow.xOffset: 0
-    shadow.color: Qt.rgba(0, 0, 0, 0.5)
+    shadow.color: card.colors.overlayShadow
 
     Rectangle {
         anchors.fill: parent

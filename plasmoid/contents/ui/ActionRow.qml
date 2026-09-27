@@ -140,8 +140,10 @@ GridLayout {
         background: Rectangle {
             radius: actionRow.theme.radiusMd
             color: actionRow.muted
-                ? Qt.rgba(actionRow.colors.copper.r, actionRow.colors.copper.g, actionRow.colors.copper.b, 0.14)
+                ? actionRow.colors.activeFill
                 : actionRow.colors.controlColor(actionRow.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: actionRow.colors; radius: parent.radius; visible: actionRow.colors.isLight && !actionRow.muted }
             border.width: 1
             border.color: actionRow.muted ? actionRow.colors.copperDim : (parent.hovered ? actionRow.colors.copperDim : actionRow.colors.divider)
         }
@@ -220,6 +222,8 @@ GridLayout {
         background: Rectangle {
             radius: actionRow.theme.radiusMd
             color: actionRow.colors.controlColor(actionRow.transparencySettings)
+            // Phase 17.19.0: light-theme card shadow (hidden in dark).
+            CardShadow { colors: actionRow.colors; radius: parent.radius }
             border.width: 1
             // Booting takes priority over the hover colors below it,
             // which stay completely untouched - the mockup's

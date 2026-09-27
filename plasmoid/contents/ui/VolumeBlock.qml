@@ -177,6 +177,8 @@ ColumnLayout {
             // colors.surface (always fully opaque regardless of panel
             // transparency) before this phase.
             color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+            // Phase 17.19.0: light-theme card shadow (hidden in dark).
+            CardShadow { colors: volumeBlock.colors; radius: parent.radius }
             border.width: 1
             border.color: volumeBlock.colors.divider
             implicitWidth: sourceChipLabel.implicitWidth + 18
@@ -222,6 +224,8 @@ ColumnLayout {
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
                 color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
                 border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
             }
@@ -279,17 +283,36 @@ ColumnLayout {
                     width: volumeSlider.visualPosition * parent.width
                     height: parent.height
                     radius: 999
-                    color: volumeBlock.colors.copper
+                    color: volumeBlock.colors.accentFill
                 }
             }
 
-            handle: Rectangle {
+            // Phase 17.19.0: flat copperBright disc in dark; in light the
+            // mockup's gold sphere (flyout mockup v3 :99-100 - radial
+            // #fcecc0/#f0a623/#a8710b, `0 1px 3px rgba(110,72,10,.35)` shadow,
+            // 3 px rgba(240,166,35,.14) halo) - GoldSphere, promoted from the
+            // 17.0.2 spike. Same 15 px footprint in both, so nothing moves.
+            handle: Item {
                 x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
                 width: 15
                 height: 15
-                radius: 999
-                color: volumeBlock.colors.copperBright
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: !volumeBlock.colors.isLight
+                    radius: 999
+                    color: volumeBlock.colors.copperBright
+                }
+                GoldSphere {
+                    anchors.fill: parent
+                    visible: volumeBlock.colors.isLight
+                    diameter: 15
+                    haloWidth: 3
+                    shadowColor: "#6e480a"
+                    shadowVerticalOffset: 1
+                    shadowBlur: 0.2
+                }
             }
 
             // Phase 4.5.1: scroll-to-adjust-volume - see FullRepresentation
@@ -343,6 +366,8 @@ ColumnLayout {
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
                 color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
                 border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
             }

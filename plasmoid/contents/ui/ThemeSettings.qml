@@ -13,9 +13,8 @@
 // setting (the owner may theme the OSD/tooltip separately) is one more kcfg
 // key and one binding here, with no consumer changes.
 //
-// Until LightPalette.qml exists (17.19.0) every mode resolves to the dark
-// palette (on both flyoutPalette and osdPalette): `light` and `system` are accepted and resolved (resolvedDark),
-// but both palette properties still hand out `dark`.
+// Since 17.19.0 the flyout paints LightPalette when the theme resolves light;
+// osdPalette stays dark until 17.22.0/17.23.0.
 
 import QtQuick
 
@@ -56,6 +55,7 @@ QtObject {
     readonly property bool osdResolvedDark: ts.resolvedDark
 
     readonly property ColorPalette dark: DarkPalette {}
+    readonly property ColorPalette light: LightPalette {}
 
     // One journal line per change (and at startup), so the resolution can
     // be checked from `journalctl --user` without a debugger.
@@ -73,9 +73,9 @@ QtObject {
                     "systemDark", ts.systemDark, "resolvedDark", ts.resolvedDark);
     }
 
-    // 17.19.0 (with `light: LightPalette {}`):
-    //     flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
-    //     osdPalette: ts.osdResolvedDark ? ts.dark : ts.light
-    readonly property ColorPalette flyoutPalette: ts.dark
+    // Phase 17.19.0: the flyout follows the resolved theme. The OSD toast
+    // and tooltip stay dark until their light phases (17.22.0/17.23.0) make
+    // this `ts.osdResolvedDark ? ts.dark : ts.light`.
+    readonly property ColorPalette flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
     readonly property ColorPalette osdPalette: ts.dark
 }

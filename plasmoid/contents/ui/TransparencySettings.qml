@@ -131,6 +131,16 @@ QtObject {
         return Qt.rgba(c.r, c.g, c.b, root.controlAlpha);
     }
 
+    // Phase 17.19.0: the LIGHT theme's control alpha ("glass", flyout
+    // mockup v3 :67/:85, `--glass: calc(0.35 + 0.65 * var(--panel-alpha))`)
+    // - white buttons, chip and source row that frost with the panel rather
+    // than the dark theme's near-transparent controlAlpha. Used through
+    // ColorPalette.controlColor(), which picks this or withControlAlpha().
+    readonly property real glassAlpha: 0.35 + 0.65 * root.alpha
+    function withGlassAlpha(c) {
+        return Qt.rgba(c.r, c.g, c.b, root.glassAlpha);
+    }
+
     // Phase 9.1.1 REVISION 3: the AmpListOverlay/SourceListOverlay
     // dropdown card BACKGROUNDS specifically (not controlAlpha's targets
     // above) - a raw, uncorrected formula, decided independently and

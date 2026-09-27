@@ -53,7 +53,7 @@ Rectangle {
     readonly property int rowHeight: 46
     Layout.fillWidth: true
     implicitHeight: ampHeaderBg.rowHeight + 26
-    color: ampHeaderArea.containsMouse ? Qt.rgba(1, 1, 1, 0.02) : "transparent"
+    color: ampHeaderArea.containsMouse ? ampHeaderBg.colors.headerHover : "transparent"
     // Phase 7.14.0 follow-up: this hover fill is the only thing painted
     // into the flyout's top corners besides FlyoutContent's tint
     // Rectangle, so its top corners follow the flyout's own 16px radius
