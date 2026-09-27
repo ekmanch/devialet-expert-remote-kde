@@ -8650,6 +8650,29 @@ architecture decisions; this file is just sequencing and status.
       #e2b865 (D8). Muted bar colour unchanged (#5c5c60 = `textFaint`, which
       is also the mockup's dark `--muted-fill`).
 
+- [x] **Phase 17.9.0 — OSD icon box: transparent fill (dark).** Owner
+      decision 2026-09-27 (supersedes this phase's original "dark palette
+      alignment" scope and D3's mockup opacities): in the **dark** theme the
+      OSD and tooltip keep today's look - the (23,23,26) → (18,18,20)
+      vertical gradient at 0.94 on both, the icon box's 8 %-white border,
+      the copper glow on the muted icon box. The one thing taken from the
+      mockup is the icon box's **transparent fill** (OSD mockup v2
+      `--key-bg:transparent`; today `theme.surface` #181818,
+      `VolumeToast.qml` iconBox). Light-theme OSD/tooltip (17.22.0/17.23.0)
+      are unaffected by this decision.
+  - Done 2026-09-27: `VolumeToast.qml` iconBox `color: "transparent"`
+    (was `theme.surface`). qmllint count unchanged (2).
+  - Verified: OSD captured audible (−22 dB) and muted via `fakeamp.py
+    --notify`, before/after. The fill change is nearly invisible in dark:
+    the box interior was (24,24,24) against an OSD background of about
+    (20-22,21-22,22-24), and now matches the background. Side effect: the
+    muted copper glow is subtler - the MultiEffect shadow takes its shape
+    from the item's alpha, so with no fill it comes from the border and
+    icon only, not the whole box. Owner verdict on the real OSD: happy
+    with it as is, no rebuilt box glow. (v3's `box-shadow: 0 0 12px -2px`
+    describes a somewhat stronger glow than the widget now draws.) Daemon
+    active with the amp selected after the captures.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8742,19 +8765,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.9.0 — OSD icon box: transparent fill (dark).** Owner
-      decision 2026-09-27 (supersedes this phase's original "dark palette
-      alignment" scope and D3's mockup opacities): in the **dark** theme the
-      OSD and tooltip keep today's look - the (23,23,26) → (18,18,20)
-      vertical gradient at 0.94 on both, the icon box's 8 %-white border,
-      the copper glow on the muted icon box. The one thing taken from the
-      mockup is the icon box's **transparent fill** (OSD mockup v2
-      `--key-bg:transparent`; today `theme.surface` #181818,
-      `VolumeToast.qml` iconBox). Light-theme OSD/tooltip (17.22.0/17.23.0)
-      are unaffected by this decision.
-  - Verify: OSD capture via `fakeamp.py --notify` (audible and muted),
-    before/after crops of the icon box; daemon check afterwards.
 
 - [ ] **Phase 17.11.0 — Typed palette, zero visual change.** `Palette.qml`
       type (every token typed, one `controlColor(ts)` branching on

@@ -193,7 +193,9 @@ PlasmaCore.Dialog {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 radius: 10
-                color: toast.theme.surface
+                // Phase 17.9.0: transparent fill (OSD mockup v3,
+                // `--key-bg:transparent`), was theme.surface #181818.
+                color: "transparent"
                 border.width: 1
                 border.color: toast.muted ? toast.theme.copperDim : toast.theme.divider
 
