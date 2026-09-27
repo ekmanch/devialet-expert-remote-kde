@@ -108,8 +108,8 @@ MouseArea {
     readonly property var chimePool: [chimeExec0, chimeExec1, chimeExec2, chimeExec3]
     property int chimeTick: 0
 
-    // Gate on the amp's live broadcast name, trimmed + lowercased (Theme.qml
-    // sourceGlyph() keyword-match precedent; never by index - see
+    // Gate on the amp's live broadcast name, trimmed + lowercased (the
+    // SourceGlyph.kindFor() keyword-match precedent; never by index - see
     // crates/protocol command.rs). Any other source: no chime at all.
     function isPcSourceActive() {
         return String(root.activeSourceName || "").trim().toLowerCase() === "optical 1";

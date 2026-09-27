@@ -8578,6 +8578,36 @@ architecture decisions; this file is just sequencing and status.
     differences are 17.4.0's split; `powerSpinner` hidden-item noise.
     Crops checked by eye. Daemon active with the amp selected afterwards.
 
+- [x] **Phase 17.7.0 — Painted source glyphs.** Done 2026-09-27. New
+      `plasmoid/contents/ui/SourceGlyph.qml`: the v2 mockup's six glyphs
+      (flyout v2 :630-636 - optical, UPnP, Roon, AirPlay, Spotify, AIR) as
+      QtQuick.Shapes on the mockup's 20-unit grid scaled to `size`, strokes
+      1.6 units (1.1 for Roon's chords), round caps/joins, one flat `color`
+      (copper in dark). Name matching moved in unchanged from
+      `Theme.sourceGlyph()` as `kindFor()` (case-insensitive keywords,
+      "airplay" before "air", unknown/empty → optical); `Theme.sourceGlyph()`
+      deleted and the two comments citing it (chime gate in
+      CompactRepresentation/FlyoutContent) repointed.
+  - Source row (`SourceSelector.qml`): 20 px glyph, list
+    (`SourceListOverlay.qml`): 17 px glyph; the `surface3` boxes removed in
+    both, so nothing sits behind a glyph in either theme. The old slots stay
+    as plain Items (24 px row, 20 px list) keeping their objectNames
+    (`sourceIconBadge`, `sourceOptionChip:<idx>` - harness keys) and the text
+    positions; the mockup's transparent containers are 26/22 px, a 1-2 px
+    difference left for the spacing pass.
+  - `SourceGlyph.qml` lint-clean after replacing a first draft's inline
+    components (7 unqualified-access warnings) with plain ShapePaths and
+    adding `pragma ComponentBehavior: Bound`; all other touched files lint
+    as HEAD. Standalone render (Wayland, scale 2, 20 and 17 px) matched the
+    mockup shapes and was pixel-identical before and after that rewrite.
+  - Verified: QML suite 24/24; harness `--vary src,slist` and smoke
+    (`20260927-123836-after-17.7.0-srclist`, `…-123852-after-17.7.0-
+    smoke`) exit 0; compare vs `after-17.1.1-srclist`: only the glyph
+    Labels replaced by Shapes, no text moved, other moves are 17.4.0/
+    17.6.0 and the owner's −20 dB ceiling. Crops: painted glyphs in the row
+    and list, no boxes; no-amp row shows the optical ring. Daemon active
+    with the amp selected afterwards.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8668,14 +8698,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.7.0 — Painted source glyphs.** New `SourceGlyph.qml`
-      (QtQuick.Shapes, flat colour, `kind` + `size`) from the mockup's `G`
-      paths (flyout v2 :630-636): 20 px in the source row, 17 px in the
-      list (:127-133), strokes 1.6 / 1.1 (:128-129), no box behind them -
-      delete the `surface3` boxes (`SourceSelector.qml:132-145`,
-      `SourceListOverlay.qml:154-167`) and `Theme.sourceGlyph`.
-  - Verify: `--vary src,slist`; 2× crops for stroke weight.
 
 - [ ] **Phase 17.8.0 — Painted ticks.** `Tick.qml`: 16 px box, 2-unit
       round stroke (flyout v2 :452-453, path `M3.8 9.4 L7.4 12.9 L14.2

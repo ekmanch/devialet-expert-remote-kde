@@ -126,20 +126,22 @@ ColumnLayout {
             anchors.rightMargin: 10
             spacing: 10
 
-            // `.source-icon-sm`: 24x24, radius 7, surface-3, copper glyph.
             // Follows the ACTIVE source's glyph (owner decision - the
-            // mockup's static ◉ was a JS shortcut).
-            Rectangle {
+            // mockup's static ◉ was a JS shortcut). Phase 17.7.0: painted
+            // 20 px glyph (flyout mockup v2 :126-131), no box behind it in
+            // either theme; optical when no amp is connected. The 24 px
+            // slot keeps the objectName (harness key) and the text
+            // position; the mockup's transparent container is 26 px -
+            // spacing alignment is its own pass.
+            Item {
                 objectName: "sourceIconBadge"
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: 24
                 Layout.preferredHeight: 24
-                radius: 7
-                color: sourceSelector.theme.surface3
-                Label {
+                SourceGlyph {
                     anchors.centerIn: parent
-                    text: sourceSelector.ampIp === "" ? "◉" : sourceSelector.theme.sourceGlyph(sourceSelector.displayName)
-                    font.pixelSize: 12
+                    sourceName: sourceSelector.ampIp === "" ? "" : sourceSelector.displayName
+                    size: 20
                     color: sourceSelector.theme.copperBright
                 }
             }

@@ -166,7 +166,7 @@ Popup {
                     Layout.fillWidth: true
                     // Pinned (house rule: AlignVCenter children + a row
                     // height equal to the tallest child's real height):
-                    // the 20px chip is the tallest child in every state -
+                    // the 20px glyph slot is the tallest child in every state -
                     // the 13px label's implicit height is below it - so
                     // 20 + 2*8 padding.
                     implicitHeight: 36
@@ -181,17 +181,22 @@ Popup {
                         anchors.rightMargin: 10
                         spacing: 9
 
-                        Rectangle {
+                        // Phase 17.7.0: painted 17 px glyph (flyout mockup
+                        // v2 :132-133), no box behind it - in either theme,
+                        // so it reads right over transparency + blur. The
+                        // 20 px slot keeps the objectName (harness key) and
+                        // the text position; the mockup's transparent
+                        // container is 22 px - spacing alignment is its own
+                        // pass.
+                        Item {
                             objectName: "sourceOptionChip:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
-                            radius: 7
-                            color: overlay.theme.surface3
-                            Label {
+                            SourceGlyph {
                                 anchors.centerIn: parent
-                                text: overlay.theme.sourceGlyph(sourceOption.modelData.name)
-                                font.pixelSize: 10
+                                sourceName: sourceOption.modelData.name
+                                size: 17
                                 color: overlay.theme.copperBright
                             }
                         }

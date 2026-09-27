@@ -203,24 +203,4 @@ QtObject {
     readonly property color overlayGradientTop: "#1e1e21"
     readonly property color overlayGradientBottom: "#19191c"
     readonly property color overlayBorder: Qt.rgba(1, 1, 1, 0.10)
-
-    // Per-source icon glyph (mockup v2 `sources[]` icons). Keyed on the
-    // name the amp itself broadcasts (docs/devialet_source_mapping.md:
-    // "Optical 1", "UPnP", "Roon Ready", "AirPlay", "Spotify", "Air"),
-    // matched case-insensitively by keyword so an "Optical 2" or a
-    // renamed slot still resolves; "airplay" is tested before "air".
-    // Unknown names fall back to the generic ◉ the closed row always
-    // showed before this phase. Same centralization rationale as
-    // volumeIconKindForFraction() above. All six glyphs verified present
-    // in DejaVu Sans, the fontconfig fallback for the bundled fonts.
-    function sourceGlyph(name) {
-        const n = String(name || "").toLowerCase();
-        if (n.indexOf("optical") >= 0) return "◉";
-        if (n.indexOf("upnp") >= 0) return "◫";
-        if (n.indexOf("roon") >= 0) return "◍";
-        if (n.indexOf("airplay") >= 0) return "◈";
-        if (n.indexOf("spotify") >= 0) return "◐";
-        if (n.indexOf("air") >= 0) return "◇";
-        return "◉";
-    }
 }
