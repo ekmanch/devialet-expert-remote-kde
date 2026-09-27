@@ -8577,6 +8577,13 @@ architecture decisions; this file is just sequencing and status.
     (dx +2, dw −4, the wider dot), list row text +3 px; mute/power
     differences are 17.4.0's split; `powerSpinner` hidden-item noise.
     Crops checked by eye. Daemon active with the amp selected afterwards.
+  - **Owner follow-up 2026-09-27: header dot 12 → 10 px** (radius 5). On
+    the real flyout a solid 12 px disc read heavier than the outlined 20 px
+    source glyphs; 10 sits between the original 8 and the mockup's 12 and
+    matches the amp list's dots. Verified: harness `--vary amp` and
+    `--vary pow` (`20260927-125646-after-17.6.1-amp`, `…-125705-after-
+    17.6.1-power`) exit 0, dot 10×10 and header 72 px in every state;
+    daemon active with the amp selected.
 
 - [x] **Phase 17.7.0 — Painted source glyphs.** Done 2026-09-27. New
       `plasmoid/contents/ui/SourceGlyph.qml`: the v2 mockup's six glyphs
@@ -8830,7 +8837,8 @@ architecture decisions; this file is just sequencing and status.
     flyout, not on the driver sheet. Captures per the arc's capture rule.
 - [ ] **Phase 17.21.0 — Light gold glyphs, dots, ticks.** `glyphGold`
       radial + warm drop shadow on source glyphs (flyout v2 :134-136),
-      header/list dots (:101, :141-146) and ticks (`GradientMask` from the
+      header/list dots (:101, :141-146; header dot is 10 px, not the
+      mockup's 12 - owner follow-up to 17.6.0) and ticks (`GradientMask` from the
       merged spike).
   - Verify: `--vary theme,src,slist,list`.
   - Uses `GradientMask.qml` (promoted in 17.19.0) with the glyph Shapes

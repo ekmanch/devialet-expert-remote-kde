@@ -74,12 +74,14 @@ Rectangle {
             id: ampDot
             objectName: "ampDot"
             Layout.alignment: Qt.AlignVCenter
-            // Phase 17.6.0: 8 -> 12 px (flyout mockup v2 :140,
-            // `.amp-header .amp-dot`). Colours, the no-amp hollow ring and
-            // the booting pulse unchanged.
-            width: 12
-            height: 12
-            radius: 6
+            // Phase 17.6.0: 8 -> 12 px per the mockup (flyout v2 :140),
+            // then 10 px on the owner's live review (2026-09-27): a solid
+            // disc reads heavier than the outlined 20 px source glyphs, so
+            // 12 looked too big. 10 matches the amp list's dots. Colours,
+            // the no-amp hollow ring and the booting pulse unchanged.
+            width: 10
+            height: 10
+            radius: 5
             color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.theme.warningBright : (ampHeaderBg.online ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint))
             border.width: ampHeaderBg.ampIp === "" ? 1.5 : 0
             border.color: ampHeaderBg.theme.textFaint
