@@ -187,19 +187,18 @@ GridLayout {
                 Layout.alignment: Qt.AlignVCenter
                 implicitWidth: 13
                 implicitHeight: 13
-                // The glyph follows the mute state (flyout mockup v12,
-                // 2026-09-12): speaker with waves while audible, speaker
-                // with an X while muted. Phase 17.2.0: bundled SVGs (the
-                // same files as the OSD, Theme.volumeIconSources - the v2
-                // mockup's filled speaker) instead of the icon theme's
-                // audio-volume-* symbolic icons, so the glyph is identical
-                // under every icon theme (Tela drew a red slash, Breeze an
-                // X) and can later serve as a mask source for the light
-                // theme's gold glyph. isMask so `color` paints it, like the
-                // theme's symbolic icons were. Mapping unchanged here;
-                // 17.3.0 flips it to show the action. 13x13 in both
-                // states, so muteContentRow's height pin is unaffected.
-                source: actionRow.theme.volumeIconSources[actionRow.muted ? "mute" : "high"]
+                // Phase 17.3.0 (owner decision D7): the button shows the
+                // ACTION a click performs, like its label - while audible,
+                // "Mute" with the muted speaker (X); while muted, "Unmute"
+                // with the speaker and waves (flyout mockup v2 :565-566,
+                // toggleMute()). The OSD is not interactive and keeps
+                // showing the STATE instead (VolumeToast.qml). Bundled SVGs
+                // since 17.2.0 (Theme.volumeIconSources, the v2 mockup's
+                // filled speaker): identical under every icon theme and a
+                // mask source for the light theme's gold glyph. isMask so
+                // `color` paints it. 13x13 in both states, so
+                // muteContentRow's height pin is unaffected.
+                source: actionRow.theme.volumeIconSources[actionRow.muted ? "high" : "mute"]
                 isMask: true
                 color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
             }

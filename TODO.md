@@ -8493,6 +8493,29 @@ architecture decisions; this file is just sequencing and status.
     icon 13×13; crops show waves + "Mute" and copper X + "Unmute"; daemon
     active with the amp selected after the run. QML suite 24/24.
 
+- [x] **Phase 17.3.0 — Flyout mute button shows the action (D7).**
+      Done 2026-09-27. `ActionRow.qml` mute icon source flipped to
+      `theme.volumeIconSources[muted ? "high" : "mute"]`: while audible the
+      button reads "Mute" with the muted speaker (X), while muted "Unmute"
+      with the speaker and waves (flyout mockup v2 :565-566,
+      `toggleMute()`). Labels and colours already described the action and
+      are unchanged. The OSD keeps showing the state (`VolumeToast.qml`
+      untouched; 17.2.0's captures stand). qmllint: the same single
+      pre-existing warning as HEAD.
+  - Verified: harness `--vary mute` (`20260927-120901-after-17.3.0-mute`,
+    run 20 s after the shell restart) exit 0 against
+    `expected-7.14.0.json`; crops show X + "Mute" (audible) and copper
+    waves + "Unmute" (muted); mute button 108 px and icon 13×13 in both
+    states; power button unmoved (x 132, w 152). Real daemon active with
+    192.168.0.22 selected after the run.
+  - Compare vs the 17.2.0 run showed the volume slider's fill and handle
+    ~16 px further right in both states - not this change: the widget's
+    ceiling (`hardLimitDb`) was set to −20 dB between the two runs (owner
+    using the widget at ~12:05, volume held at −20), so −40 dB fills
+    0.333 of the track instead of 0.250 - exactly the two ranges' ratios
+    (−50..−20 vs −50..−10). Harness runs read the live widget settings;
+    compare runs taken under the same settings.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8583,12 +8606,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.3.0 — Flyout mute button shows the action (D7).**
-      `ActionRow.qml:206,213`: unmuted → speaker+X + "Mute"; muted →
-      speaker+waves + "Unmute" (mockup flyout v2 :565-566, `toggleMute()`).
-      The OSD keeps showing state (unmuted → waves, muted → X).
-  - Verify: `--vary mute` crops on both surfaces.
 
 - [ ] **Phase 17.4.0 — Fixed 11:14 action-button split.** Replace the
       TextMetrics/equal-margin maths (`ActionRow.qml:107-126`) with
