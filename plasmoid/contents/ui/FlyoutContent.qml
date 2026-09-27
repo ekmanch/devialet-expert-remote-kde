@@ -764,8 +764,10 @@ Item {
         anchors.fill: parent
         radius: root.theme.radiusLg
         antialiasing: true
-        border.width: 1
-        border.color: root.theme.divider
+        // Phase 17.5.0 (D2): no outer border - the v2 mockups draw none in
+        // either theme (flyout :280). This 1px divider-coloured border was
+        // the flyout's grey edge; NoBackground means no frame or KWin
+        // shadow replaces it.
         gradient: Gradient {
             GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.theme.panelTintTop) }
             GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.theme.panelTintBottom) }

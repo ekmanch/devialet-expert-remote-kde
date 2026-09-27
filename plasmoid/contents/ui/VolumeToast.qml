@@ -152,8 +152,8 @@ PlasmaCore.Dialog {
         implicitWidth: Math.max(340, row.implicitWidth + 36)
         implicitHeight: row.implicitHeight + 28
         radius: toast.theme.radiusLg
-        border.color: toast.theme.divider
-        border.width: 1
+        // Phase 17.5.0 (D2): no outer border (OSD mockup v2 :125). The icon
+        // box below keeps its own border.
 
         gradient: Gradient {
             orientation: Gradient.Vertical

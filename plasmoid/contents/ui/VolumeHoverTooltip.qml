@@ -94,8 +94,7 @@ PlasmaCore.Dialog {
         implicitWidth: 172
         implicitHeight: column.implicitHeight + 18
         radius: tooltip.theme.radiusLg
-        border.color: tooltip.theme.divider
-        border.width: 1
+        // Phase 17.5.0 (D2): no outer border (tooltip mockup v2 :122).
 
         gradient: Gradient {
             orientation: Gradient.Vertical

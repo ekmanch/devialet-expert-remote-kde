@@ -106,8 +106,8 @@ QtObject {
     // readonly property color panelTintTop: "#0E0E10"
     // readonly property color panelTintBottom: "#0E0E10"
 
-    readonly property color panelTintTop: "#131313"
-    readonly property color panelTintBottom: "#131313"
+    readonly property color panelTintTop: "#151515"
+    readonly property color panelTintBottom: "#151515"
 
     // Phase 4.5.0/4.5.3: translucent graphite gradient shared by the OSD
     // toast (VolumeToast.qml) and the hover tooltip (VolumeHoverTooltip.

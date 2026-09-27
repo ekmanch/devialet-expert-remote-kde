@@ -8533,6 +8533,30 @@ architecture decisions; this file is just sequencing and status.
     planned; crops show nothing clipped. Real daemon active with
     192.168.0.22 selected after the run. QML suite 24/24.
 
+- [x] **Phase 17.5.0 — Remove the outer borders (D2).** `border.width`/
+      `border.color` off the flyout (`FlyoutContent.qml:767-768`), toast
+      (`VolumeToast.qml:155-156`) and tooltip (`VolumeHoverTooltip.qml:
+      97-98`) (mockups: flyout v2 :280, OSD v2 :125, tooltip v2 :122).
+      Done 2026-09-27.
+  - Done: the three outer borders removed, each replaced by a one-line
+    comment; the OSD icon box keeps its own border (`VolumeToast.qml:
+    197-198`, the mockup's key border). qmllint counts unchanged from HEAD
+    in all three files.
+  - Captures (flyout via harness `--pad 40`, runs `20260927-121705-before-
+    17.5.0-edge` / `20260927-121801-after-17.5.0-edge`, both exit 0; OSD
+    via the scratchpad `--notify` script, −22 dB and muted): the border is
+    gone and the flyout's corner is one clean curve. Left-edge profile
+    at mid-height: before desktop (1,1,2) → border (30,27,27) → panel
+    (12-15); after desktop ≈(29,25,24) → panel ≈(25,23,22) - the desktop
+    behind differed between the two captures (lighter area after), and at
+    the panel's 90 % opacity the edge against it is only 3-5 levels: the
+    no-separation risk D2 named, since a NoBackground Dialog gets no KWin
+    shadow either. Daemon active with the amp selected after each run.
+  - Owner verdict 2026-09-27, on the real desktop: flyout, OSD and
+    tooltip all look right without a border - keep it (no hairline). The
+    low-contrast edge in the after capture was that capture's lighter
+    background, not a problem on the owner's desktop.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8623,15 +8647,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.5.0 — Remove the outer borders (D2).** `border.width`/
-      `border.color` off the flyout (`FlyoutContent.qml:767-768`), toast
-      (`VolumeToast.qml:155-156`) and tooltip (`VolumeHoverTooltip.qml:
-      97-98`) (mockups: flyout v2 :280, OSD v2 :125, tooltip v2 :122).
-  - Verify: edge-pixel crops over dark and light backdrops (white-window
-    recipe) confirming the no-shadow consequence; owner looks. A
-    barely-visible hairline is added only if the owner asks after seeing
-    it.
 
 - [ ] **Phase 17.6.0 — Status dots.** Header 8→12 (`AmpHeader.qml:73-79`;
       flyout v2 :140), amp list 7→10 (`AmpListOverlay.qml:213-220`; :141),
