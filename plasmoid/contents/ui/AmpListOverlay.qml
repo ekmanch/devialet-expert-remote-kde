@@ -110,9 +110,11 @@ Popup {
 
                     Rectangle {
                         Layout.alignment: Qt.AlignVCenter
-                        width: 7
-                        height: 7
-                        radius: 3.5
+                        // Phase 17.6.0: 7 -> 10 px, matching the amp rows'
+                        // dots below (the mockup has no "None" row).
+                        width: 10
+                        height: 10
+                        radius: 5
                         color: "transparent"
                         border.width: 1.5
                         border.color: ampNoneOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
@@ -212,9 +214,11 @@ Popup {
 
                         Rectangle {
                             Layout.alignment: Qt.AlignVCenter
-                            width: 7
-                            height: 7
-                            radius: 3.5
+                            // Phase 17.6.0: 7 -> 10 px (flyout mockup v2
+                            // :141, `.amp-option-dot`).
+                            width: 10
+                            height: 10
+                            radius: 5
                             color: ampOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
                             opacity: ampOption.modelData.online ? 1.0 : 0.5
                         }

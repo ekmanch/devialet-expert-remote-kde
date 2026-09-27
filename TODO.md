@@ -8557,6 +8557,27 @@ architecture decisions; this file is just sequencing and status.
     low-contrast edge in the after capture was that capture's lighter
     background, not a problem on the owner's desktop.
 
+- [x] **Phase 17.6.0 — Status dots.** Done 2026-09-27 (tooltip dot:
+      owner's hover check pending). Header dot 8 → 12 px, radius 6
+      (`AmpHeader.qml`; flyout mockup v2 :140) - colours, the no-amp hollow
+      ring and the booting pulse unchanged. Amp list dots 7 → 10 px, radius
+      5 (`AmpListOverlay.qml`; :141), including the "None" row's hollow
+      ring - the mockup has no "None" row, sized to match the amp rows.
+      Tooltip dot 5 → 7 px, radius 3.5, glow removed
+      (`VolumeHoverTooltip.qml`; tooltip mockup v2 :133, dark = no glows),
+      and with it the file's only `QtQuick.Effects` use, so that import
+      went too. Footer dot (4 px) unchanged. qmllint: header and list
+      counts unchanged from HEAD; tooltip one warning fewer (4 → 3).
+  - Verified: harness `--vary amp,list` and `--vary pow`
+    (`20260927-122748-after-17.6.0-amplist`, `…-122822-after-17.6.0-
+    power`), both exit 0 against `expected-7.14.0.json`. Header dot 12×12
+    in every state (filled, hollow no-amp ring, booting pulse); list dots
+    10×10 in every open state; header height 72 in every state. Compare vs
+    `after-17.1.0-amplist`: no vertical moves; header text +4 px right
+    (dx +2, dw −4, the wider dot), list row text +3 px; mute/power
+    differences are 17.4.0's split; `powerSpinner` hidden-item noise.
+    Crops checked by eye. Daemon active with the amp selected afterwards.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8647,13 +8668,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.6.0 — Status dots.** Header 8→12 (`AmpHeader.qml:73-79`;
-      flyout v2 :140), amp list 7→10 (`AmpListOverlay.qml:213-220`; :141),
-      tooltip 5→7 (`VolumeHoverTooltip.qml:134-150`; tooltip v2 :133) and
-      drop the tooltip dot glow (dark = no glows). Footer dot 4 stays.
-  - Verify: harness Δ report (header height must not change); tooltip =
-    owner hover.
 
 - [ ] **Phase 17.7.0 — Painted source glyphs.** New `SourceGlyph.qml`
       (QtQuick.Shapes, flat colour, `kind` + `size`) from the mockup's `G`

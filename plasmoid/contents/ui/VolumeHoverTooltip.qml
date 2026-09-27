@@ -66,7 +66,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import QtQuick.Effects
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
@@ -130,22 +129,14 @@ PlasmaCore.Dialog {
                 // numbers here, not the literal CSS ones.
                 Layout.bottomMargin: 7
 
+                // Phase 17.6.0: 5 -> 7 px and no glow (tooltip mockup v2
+                // :133 - dark palette has no glows; the light theme's gold
+                // sphere comes in 17.23.0).
                 Rectangle {
                     id: dot
-                    width: 5; height: 5
-                    radius: 2.5
+                    width: 7; height: 7
+                    radius: 3.5
                     color: tooltip.theme.copperBright
-
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: tooltip.theme.copperBright
-                        shadowBlur: 0.6
-                        shadowOpacity: 0.5
-                        shadowScale: 1.6
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 0
-                    }
                 }
 
                 Label {

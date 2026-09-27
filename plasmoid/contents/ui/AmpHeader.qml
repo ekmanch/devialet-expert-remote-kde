@@ -74,9 +74,12 @@ Rectangle {
             id: ampDot
             objectName: "ampDot"
             Layout.alignment: Qt.AlignVCenter
-            width: 8
-            height: 8
-            radius: 4
+            // Phase 17.6.0: 8 -> 12 px (flyout mockup v2 :140,
+            // `.amp-header .amp-dot`). Colours, the no-amp hollow ring and
+            // the booting pulse unchanged.
+            width: 12
+            height: 12
+            radius: 6
             color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.theme.warningBright : (ampHeaderBg.online ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint))
             border.width: ampHeaderBg.ampIp === "" ? 1.5 : 0
             border.color: ampHeaderBg.theme.textFaint
