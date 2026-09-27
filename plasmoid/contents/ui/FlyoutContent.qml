@@ -81,9 +81,11 @@ Item {
     property bool popupVisible: false
 
     readonly property Theme theme: Theme {}
-    // Phase 17.11.0: the flyout's colour tokens, forwarded to every child
-    // alongside `theme`; ThemeSettings (17.12.0) will supply it instead.
-    readonly property ColorPalette colors: DarkPalette {}
+    // Phase 17.12.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml); `colors` is the flyout's palette, forwarded to every child
+    // alongside `theme`.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: root.themeSettings.flyoutPalette
 
     implicitWidth: theme.panelWidth
     implicitHeight: mainColumn.implicitHeight
@@ -561,6 +563,14 @@ Item {
     // Phase 7.14.0: the source list is a second owner-driven Popup
     // (SourceListOverlay.qml) with the identical contract.
     property bool sourceListOpen: false
+    // Phase 17.12.0, harness-only: a UiState key pinning the theme for a
+    // capture ("dark"/"light"; "" = follow the setting). Pushed into
+    // ThemeSettings.harnessOverride; the harness sends "" on teardown.
+    property string themeOverride: ""
+    onThemeOverrideChanged: {
+        console.log("[FlyoutContent] harness theme override:", JSON.stringify(root.themeOverride));
+        root.themeSettings.harnessOverride = root.themeOverride;
+    }
 
     // Reset both lists when the flyout hides, so neither is already
     // expanded on the next open (neither the old flyout nor a QtQuick

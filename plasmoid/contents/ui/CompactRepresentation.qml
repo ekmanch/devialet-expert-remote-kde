@@ -57,6 +57,8 @@ MouseArea {
     // TransparencySettings.qml's own header comment and this file's
     // header comment above.
     required property TransparencySettings transparencySettings
+    // Phase 17.12.0: forwarded to the flyout (and, in 17.13.0, the toast and tooltip).
+    required property ThemeSettings themeSettings
     // 2026-09-08 follow-up: the amp's PowerState, from main.qml's root-
     // anchored mirror (ampPowerState) - forwarded like pendingAmpState/
     // volumeSettings rather than reaching into the flyout's own guarded
@@ -327,6 +329,7 @@ MouseArea {
         // Same forwarding, for the shared transparency alpha (Phase
         // 9.1.0) - see TransparencySettings.qml's header comment.
         transparencySettings: root.transparencySettings
+        themeSettings: root.themeSettings
 
         // Phase 4.5.3 item 4's fix, flyout-side: hides the hover tooltip
         // whenever this popup opens, or the tooltip would silently start

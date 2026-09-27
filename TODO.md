@@ -8734,6 +8734,50 @@ architecture decisions; this file is just sequencing and status.
     **0 differing pixels**. QML suite 24/24. Daemon active with the amp
     selected after every capture; installed copy == working tree.
 
+- [x] **Phase 17.12.0 — ThemeSettings + kcfg + flyout chain.** Done
+      2026-09-27.
+  - New `ThemeSettings.qml` (QtObject, root-anchored in `main.qml` next to
+    TransparencySettings): `required property string mode` ←
+    `Plasmoid.configuration.theme`; `systemDark: true` (placeholder until
+    SystemScheme, 17.15.0); `harnessOverride` (wins over `mode` when
+    non-empty); `effectiveMode`, `resolvedDark` (`system` → systemDark,
+    `light` → false, anything else → dark); `dark: DarkPalette {}`;
+    `flyoutPalette` and `osdPalette` - **both `dark` until 17.19.0**, so
+    Light and Follow system are accepted and resolved but paint dark. One
+    journal line at startup and one per real change (`[ThemeSettings] mode
+    … effective … systemDark … resolvedDark …`); a first version logged
+    three lines at startup (creation-time binding settles) and was guarded
+    to one.
+  - `main.xml`: `theme` (String, default `system`). Forwarding exactly like
+    TransparencySettings: `main.qml` → `CompactRepresentation` (required) →
+    `FlyoutPopup` (required) → `FlyoutContent` (required), whose `colors`
+    is now `themeSettings.flyoutPalette` instead of its own `DarkPalette`.
+    Harness hook: `FlyoutContent.themeOverride` (UiState key), pushed into
+    `ThemeSettings.harnessOverride` with a journal line per change.
+  - Harness: new `theme` dimension (`dark`/`light`) in `scenarios.py`,
+    base `dark`, **omitted from state ids when dark** (every earlier run's
+    ids unchanged - `full` is still the same 870 ids as HEAD, compared
+    directly) and excluded from `--set full`; `adjacent_pairs` reads a
+    missing dimension as its base value, so older `states.json` still
+    pair; `build_ui` sends `themeOverride`; `harness.py`'s teardown sends
+    `themeOverride: ""` before closing the popup. README documents it.
+    (My plan text said the full set was 438 states - stale since the slist
+    dimension; it is 870 at HEAD.)
+  - Verified: qmllint counts as HEAD, ThemeSettings 0; `main.xml`
+    well-formed; QML suite 24/24. Live config (written through Plasma's
+    scripting API, the same store the ConfigDialog writes): `light` →
+    journal `mode light … resolvedDark false` without a restart; still
+    `light` after `plasmashell --replace` (read from disk); back to
+    `system` → `resolvedDark true` (disk now holds `theme=system`, the
+    default, explicitly). Harness `--vary theme` + smoke
+    (`20260927-143404-after-17.12.0-theme`, `…-143412-after-17.12.0-smoke`)
+    exit 0; journal shows the pin going dark → light → `""` (teardown) →
+    back to `system`, in both runs. Dark vs light captures over the grey
+    backdrop (`20260927-143451-after-17.12.0-theme-grey`): **0 of 396,000
+    px differ** (over the live desktop they differed by the desktop behind
+    the translucent flyout). Daemon active with the amp selected after
+    every run.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8827,16 +8871,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.12.0 — ThemeSettings + kcfg + flyout chain.**
-      `ThemeSettings.qml` (mode, `systemDark` placeholder, `resolvedDark`,
-      `flyoutPalette`/`osdPalette`, `harnessOverride`), `main.xml` `theme`
-      (String, default `system`), forwarding through
-      CompactRepresentation → FlyoutPopup → FlyoutContent → children;
-      `FlyoutContent.themeOverride` UiState key; `theme` dimension in
-      `scenarios.py`. **`light` and `system` both resolve to the dark
-      palette until 17.19.0** (no LightPalette yet).
-  - Verify: harness `--vary theme` → zero Δ; reload persistence check.
 
 - [ ] **Phase 17.13.0 — Toast/tooltip hop.** Forward `themeSettings` from
       CompactRepresentation into VolumeToast and VolumeHoverTooltip

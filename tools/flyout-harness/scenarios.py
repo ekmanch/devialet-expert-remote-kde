@@ -15,7 +15,7 @@ for such states and carry no inner product.
 
 import itertools
 
-DIMS = ["amp", "vol", "mute", "pow", "src", "list", "slist"]
+DIMS = ["amp", "vol", "mute", "pow", "src", "list", "slist", "theme"]
 
 AMP_VALUES = ["0known", "1auto-short", "1auto-long", "1none", "2none", "2sel-short", "2sel-long"]
 VOL_VALUES = ["-40.0", "-15.0", "0.0"]
@@ -27,6 +27,11 @@ LIST_VALUES = ["closed", "open"]
 # through FlyoutContent.sourceListOpen exactly like `list` drives
 # ampListOpen.
 SLIST_VALUES = ["closed", "open"]
+# Phase 17.12.0: the widget theme, pinned per state through
+# FlyoutContent.themeOverride (ThemeSettings.harnessOverride), so captures do
+# not depend on the owner's own Theme setting. "dark" is the base and is left
+# out of state ids, keeping every earlier run's ids (and compares) valid.
+THEME_VALUES = ["dark", "light"]
 
 VALUES = {
     "amp": AMP_VALUES,
@@ -36,9 +41,10 @@ VALUES = {
     "src": SRC_VALUES,
     "list": LIST_VALUES,
     "slist": SLIST_VALUES,
+    "theme": THEME_VALUES,
 }
 
-BASE = {"amp": "1auto-short", "vol": "-40.0", "mute": "off", "pow": "On", "src": "short", "list": "closed", "slist": "closed"}
+BASE = {"amp": "1auto-short", "vol": "-40.0", "mute": "off", "pow": "On", "src": "short", "list": "closed", "slist": "closed", "theme": "dark"}
 
 WILD = "-"
 
@@ -117,7 +123,8 @@ def normalize(dims):
 
 
 def state_id(dims):
-    return "_".join(f"{k}={dims[k]}" for k in DIMS)
+    # theme=dark (the base) is omitted so pre-17.12.0 ids stay unchanged.
+    return "_".join(f"{k}={dims[k]}" for k in DIMS if not (k == "theme" and dims.get(k, "dark") == "dark"))
 
 
 def build_props(dims):
@@ -147,6 +154,7 @@ def build_ui(dims):
     return {
         "ampListOpen": "true" if dims["list"] == "open" else "false",
         "sourceListOpen": "true" if dims["slist"] == "open" else "false",
+        "themeOverride": dims.get("theme", "dark"),
     }
 
 
@@ -178,7 +186,9 @@ def vary(dim_names):
 
 
 def full():
-    return vary(DIMS)
+    # The theme dimension is opt-in (`--vary theme`): the full gate stays the
+    # dark set it has always been (870 states since the slist dimension).
+    return vary([d for d in DIMS if d != "theme"])
 
 
 def smoke():
@@ -235,7 +245,8 @@ def adjacent_pairs(states):
             differing = []
             ok = True
             for k in DIMS:
-                av, bv = a[k], b[k]
+                # .get: states.json from runs before a dimension existed lack it.
+                av, bv = a.get(k, BASE[k]), b.get(k, BASE[k])
                 if av == bv:
                     continue
                 if av == WILD or bv == WILD:

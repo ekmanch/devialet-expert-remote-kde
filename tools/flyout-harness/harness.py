@@ -485,6 +485,10 @@ def cmd_run(args):
         save_run_info()
         if fake is not None:
             try:
+                # Phase 17.12.0: clear the theme pin first, so a run never
+                # leaves ThemeSettings.harnessOverride overriding the owner's
+                # own Theme setting in the live shell.
+                fake.set_ctl(UiState={"themeOverride": ""})
                 fake.set_ctl(PopupOpen=False)
                 time.sleep(0.2)
             except Exception as e:  # noqa: BLE001

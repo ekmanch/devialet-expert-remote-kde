@@ -239,6 +239,14 @@ PlasmoidItem {
         percent: Plasmoid.configuration.transparencyPercent
     }
 
+    // Phase 17.12.0: the widget's colour theme, resolved to palettes -
+    // root-anchored and forwarded exactly like transparencySettings above
+    // (see ThemeSettings.qml's header).
+    ThemeSettings {
+        id: themeSettings
+        mode: Plasmoid.configuration.theme
+    }
+
     // Phase 8.4.0: dedicated executable-engine DataSource for
     // applyImmediateClamp() below - NOT shared with CompactRepresentation
     // .qml's or FlyoutContent.qml's own `exec` (those are per-representation
@@ -350,6 +358,7 @@ PlasmoidItem {
         pendingAmpState: pendingAmpState
         volumeSettings: volumeSettings
         transparencySettings: transparencySettings
+        themeSettings: themeSettings
         powerState: root.ampPowerState
     }
 
