@@ -187,23 +187,20 @@ GridLayout {
                 Layout.alignment: Qt.AlignVCenter
                 implicitWidth: 13
                 implicitHeight: 13
-                // 2026-09-12 (flyout mockup v11 -> v12): the glyph follows
-                // the mute state like the mockup's muteIconOn/muteIconOff
-                // swap - a speaker with a sound wave while audible, the
-                // theme's muted speaker while muted (v11 drew the
-                // muted-speaker glyph in both states). Theme icon names,
-                // not the mockup's Lucide paths, like every other icon in
-                // this flyout (system-shutdown-symbolic beside it). Why
-                // "medium" and not "low" for the mockup's single-wave
-                // glyph: measured under Tela (the dev machine's theme) at
-                // this 13 px size, low draws both arcs at 35% opacity so
-                // it reads as a bare speaker, while medium is one solid
-                // arc plus a faint outer one - the mockup's look. Breeze
-                // uses the same convention (low: both arcs at 35%,
-                // medium: one solid, one faint), so the choice holds
-                // there too. The icon stays 13x13 in both states, so
-                // muteContentRow's measured height pin below is unaffected.
-                source: actionRow.muted ? "audio-volume-muted-symbolic" : "audio-volume-medium-symbolic"
+                // The glyph follows the mute state (flyout mockup v12,
+                // 2026-09-12): speaker with waves while audible, speaker
+                // with an X while muted. Phase 17.2.0: bundled SVGs (the
+                // same files as the OSD, Theme.volumeIconSources - the v2
+                // mockup's filled speaker) instead of the icon theme's
+                // audio-volume-* symbolic icons, so the glyph is identical
+                // under every icon theme (Tela drew a red slash, Breeze an
+                // X) and can later serve as a mask source for the light
+                // theme's gold glyph. isMask so `color` paints it, like the
+                // theme's symbolic icons were. Mapping unchanged here;
+                // 17.3.0 flips it to show the action. 13x13 in both
+                // states, so muteContentRow's height pin is unaffected.
+                source: actionRow.theme.volumeIconSources[actionRow.muted ? "mute" : "high"]
+                isMask: true
                 color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
             }
             Label {

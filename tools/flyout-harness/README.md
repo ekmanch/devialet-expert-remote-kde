@@ -189,3 +189,9 @@ clean.
 - `fakeamp.py --state <id> [--open] [--ui k=v]` runs the fake standalone
   for manual poking (real daemon stopped by hand first;
   `--list-states` prints ids). Restart the daemon yourself afterwards.
+  `--notify volume=<dB>` / `--notify mute=<true|false>` (Phase 17.2.0)
+  additionally emits the daemon's `VolumeCommandNotified` /
+  `MuteCommandNotified` once, 1.5 s after start, so the widget shows its
+  OSD toast (visible 1.8 s) with no real pointer - capture it with
+  `spectacle` on Wayland. Needs a connected `--state` (the widget drops a
+  signal whose ip is not its current amp).

@@ -21,6 +21,7 @@ later. A name that is already owned raises NameOwnedError.
 
 Standalone use for manual poking:
     fakeamp.py --state <id> [--open] [--ui ampListOpen=true] [--settle 600]
+               [--notify volume=-22.0 | --notify mute=true]
     fakeamp.py --list-states
 (requires the real daemon to be stopped first:
     systemctl --user stop devialet-remote-daemon.service)
@@ -32,6 +33,7 @@ import os
 import signal
 import sys
 import threading
+import time
 
 import gi
 
@@ -61,6 +63,15 @@ AMP_METHODS = [
     ("NotifyVolumeCommand", [("ip", "s"), ("volume_db", "d")]),
     ("NotifyMuteCommand", [("ip", "s"), ("muted", "b")]),
 ]
+# The daemon's two custom signals (busctl introspect, 2026-09-27: `sb` and
+# `sd`), emitted by NotifyMuteCommand/NotifyVolumeCommand for every accepted
+# call (Phase 16.0.0). Declared so the fake's introspection matches the real
+# daemon; emitted on demand by notify_command() / `--notify` (Phase 17.2.0)
+# so the OSD toast can be captured without a real pointer.
+AMP_SIGNALS = [
+    ("MuteCommandNotified", [("ip", "s"), ("muted", "b")]),
+    ("VolumeCommandNotified", [("ip", "s"), ("db", "d")]),
+]
 # Seq deliberately last: it is the probe's trigger, everything else must
 # already be applied when it lands.
 # UiState is a JSON object serialised into a plain string: an `a{ss}` dict
@@ -81,8 +92,13 @@ class NameOwnedError(RuntimeError):
     pass
 
 
-def _iface_xml(name, props, methods=()):
+def _iface_xml(name, props, methods=(), signals=()):
     parts = [f'<node><interface name="{name}">']
+    for sname, args in signals:
+        parts.append(f'<signal name="{sname}">')
+        for aname, sig in args:
+            parts.append(f'<arg name="{aname}" type="{sig}"/>')
+        parts.append("</signal>")
     for mname, args in methods:
         parts.append(f'<method name="{mname}">')
         for aname, sig in args:
@@ -136,7 +152,7 @@ class FakeAmp:
                                      f"(systemctl --user stop devialet-remote-daemon.service)")
         # Objects first, names second: a client reacting to NameOwnerChanged
         # must find GetAll already answerable.
-        amp_info = Gio.DBusNodeInfo.new_for_xml(_iface_xml(AMP_IFACE, AMP_PROPS, AMP_METHODS)).interfaces[0]
+        amp_info = Gio.DBusNodeInfo.new_for_xml(_iface_xml(AMP_IFACE, AMP_PROPS, AMP_METHODS, AMP_SIGNALS)).interfaces[0]
         ctl_info = Gio.DBusNodeInfo.new_for_xml(_iface_xml(CTL_IFACE, CTL_PROPS)).interfaces[0]
         self._reg_ids.append(self.conn.register_object(AMP_PATH, amp_info, self._on_method, self._get_amp, None))
         self._reg_ids.append(self.conn.register_object(CTL_PATH, ctl_info, self._on_method, self._get_ctl, None))
@@ -264,6 +280,26 @@ class FakeAmp:
 
         self._in_loop(apply)
 
+    def notify_command(self, kind, value):
+        """Emit the daemon's VolumeCommandNotified(s ip, d db) or
+        MuteCommandNotified(s ip, b muted) for the current AmpIp - what the
+        real daemon sends after an external tool's Notify*Command call. The
+        widget shows its OSD for it unless it is its own echo (it isn't:
+        nothing in the widget queued it)."""
+        if kind not in ("volume", "mute"):
+            raise ValueError(f"notify kind must be volume or mute, not {kind!r}")
+
+        def apply():
+            ip = self.amp["AmpIp"]
+            if kind == "volume":
+                member, body = "VolumeCommandNotified", GLib.Variant("(sd)", (ip, float(value)))
+            else:
+                member, body = "MuteCommandNotified", GLib.Variant("(sb)", (ip, bool(value)))
+            self.conn.emit_signal(None, AMP_PATH, AMP_IFACE, member, body)
+            self.log(f"fakeamp: emitted {member}({ip!r}, {value!r})")
+
+        self._in_loop(apply)
+
     def set_ctl(self, **props):
         unknown = set(props) - set(dict(CTL_PROPS))
         if unknown:
@@ -285,6 +321,9 @@ def main(argv=None):
     ap.add_argument("--open", action="store_true", help="also set Harness1.PopupOpen = true")
     ap.add_argument("--ui", action="append", default=[], metavar="KEY=VALUE", help="Harness1.UiState entries")
     ap.add_argument("--settle", type=int, default=600, help="Harness1.SettleMs")
+    ap.add_argument("--notify", metavar="volume=<dB>|mute=<true|false>",
+                    help="after applying --state, emit the daemon's command signal once so the "
+                         "widget shows its OSD toast (Phase 17.2.0); needs a connected --state")
     args = ap.parse_args(argv)
 
     if args.list_states:
@@ -316,6 +355,13 @@ def main(argv=None):
             ui = dict(state["ui"], **ui)
         fake.set_ctl(PopupOpen=bool(args.open), SettleMs=args.settle, UiState=ui,
                      StateId=(state["id"] if state else "manual"), Seq=1)
+        if args.notify:
+            kind, _, raw = args.notify.partition("=")
+            value = float(raw) if kind == "volume" else raw.strip().lower() in ("1", "true", "yes", "on")
+            # Give the widget time to fetch AmpIp from the new owner first:
+            # it drops a command signal whose ip is not its current amp.
+            time.sleep(1.5)
+            fake.notify_command(kind, value)
         print("fakeamp: running - Ctrl-C to stop (releases the names, restart the real daemon yourself)",
               file=sys.stderr, flush=True)
         while not stop.is_set() and not fake.name_lost.is_set():

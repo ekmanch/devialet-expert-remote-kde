@@ -8425,8 +8425,11 @@ architecture decisions; this file is just sequencing and status.
     `powerSpinner` (visible only while Booting) reports stale
     coordinates in some states - untouched file, harness noise. Crop
     with index 14 selected checked by eye: row and tick visible left of
-    the scrollbar. Owner hands-on check on the fixed widget (last source
-    selected, open the list, wheel-scroll, pick a source): pending.
+    the scrollbar. Owner hands-on check on the fixed widget (2026-09-26,
+    AIR selected on the real amp): the list opens scrolled to the bottom
+    with AIR and its tick visible left of the scrollbar (owner's
+    screenshot). The tick is still the 11 px "✓" label; 17.8.0 replaces
+    it with the painted 16 px tick.
   - Same shape elsewhere: `AmpListOverlay.qml:105` binds its column to
     the Popup's `availableWidth` too, so an amp list long enough to
     scroll (more than ~3 amps, cap 230 px) would get the same covered
@@ -8456,6 +8459,39 @@ architecture decisions; this file is just sequencing and status.
     `SelectedAmpIp` 192.168.0.22; `ActiveSourceIndex` 14,
     `ActiveSourceName` "AIR", `Sources` lists "AirPlay" and "AIR"; the
     owner's screenshot shows "AIR" in the source row and the volume chip.
+
+- [x] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
+      Done 2026-09-27.
+  - **Plan correction found on reading the code**: the OSD already used
+    bundled files, four level icons in `contents/icons/audio-volume-
+    icons/` picked by volume (`Theme.volumeIconKindForFraction`: 0 % mute,
+    ≤25 % low, ≤75 % medium, above high - the Phase 4.5.3 match to
+    Plasma's own OSD), drawn with an outlined speaker body. Only the
+    flyout's mute button used icon-theme names. The v2 OSD mockup shows a
+    filled speaker in just two states and never a low volume, so it does
+    not settle whether the levels stay. **Owner decision: keep the four
+    level steps, redraw them filled.**
+  - Done: the four SVGs redrawn with the mockup's filled body
+    (`fill="currentColor"` on the speaker path) and the mockup's X
+    (`M22 9 L16 15`, `M16 9 L22 15`, was 23/17); waves unchanged.
+    `ActionRow.qml` mute icon: `theme.volumeIconSources[muted ? "mute" :
+    "high"]` with `isMask: true`, replacing `audio-volume-muted-symbolic` /
+    `audio-volume-medium-symbolic` - same mapping (audible → waves, muted
+    → X), now identical under every icon theme and usable as a mask
+    source for the light theme's gold glyph. qmllint: the same single
+    pre-existing `parent.hovered` warning as HEAD.
+  - `fakeamp.py`: declares the daemon's two command signals
+    (`MuteCommandNotified sb`, `VolumeCommandNotified sd`, matching
+    `busctl introspect` of the real daemon) and gains `notify_command()`
+    and `--notify volume=<dB>|mute=<bool>`; harness README documents it.
+  - Verified: OSD captured hands-free on Wayland for −40 dB (25 %, small
+    wave), −22 dB (70 %, one wave), −12 dB (95 %, two waves) and muted
+    (copper X) - each glyph filled and correct; real daemon stopped for
+    the captures and restored afterwards (active, 192.168.0.22 selected).
+    Harness `--vary mute` (`20260927-115943-after-17.2.0-mute`): exit 0
+    against `expected-7.14.0.json`; mute button 108 px in both states,
+    icon 13×13; crops show waves + "Mute" and copper X + "Unmute"; daemon
+    active with the amp selected after the run. QML suite 24/24.
 
 ## Up next
 
@@ -8547,21 +8583,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
-      Add the two mockup speaker SVGs (speaker+X, speaker+waves; paths
-      flyout v2 :565-566 / OSD v2 :228,:245, filled body + stroked
-      waves/X) under `contents/icons/`; swap the flyout mute icon
-      (`ActionRow.qml:184-208`) and the OSD icon (`VolumeToast.qml:
-      191-219`, `Theme.volumeIconSources`) from theme icon names to the
-      files, rendered `Kirigami.Icon { isMask: true }`, keeping today's
-      state→glyph mapping.
-  - Adds `fakeamp.py --notify volume=<db>|mute=<bool>` emitting
-    `VolumeCommandNotified`/`MuteCommandNotified` (fakeamp only emits
-    `PropertiesChanged` today, `_emit` :247-251) so the toast can be
-    captured hands-free with the white-window recipe.
-  - Verify: `harness run --vary mute` crops; toast capture via
-    `--notify`.
 
 - [ ] **Phase 17.3.0 — Flyout mute button shows the action (D7).**
       `ActionRow.qml:206,213`: unmuted → speaker+X + "Mute"; muted →
