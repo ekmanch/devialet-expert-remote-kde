@@ -64,7 +64,10 @@ KCM.SimpleKCM {
     id: root
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    // Phase 17.14.0: the page's palette, forwarded to every settings
+    // component below. Dark for now; 17.15.0 resolves it from the desktop's
+    // colour scheme (this page follows its window's scheme, not the widget's
+    // Theme setting - it cannot reach main.qml's ThemeSettings anyway).
     readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     // Phase 4.4.2: cfg_<entryName> is the standard Plasma ConfigModule
@@ -459,14 +462,16 @@ KCM.SimpleKCM {
         // flyout's panel-tint alpha live (TransparencySettings.qml), not
         // just this dialog's own preview. OSD toast/hover tooltip alpha is
         // still separate (Phase 9.2.0's job); see main.xml's own comment.
-        SectionLabel { text: "Appearance"; first: true }
+        SectionLabel { colors: root.colors; text: "Appearance"; first: true }
 
         SettingsRow {
+            colors: root.colors
             name: "Transparency"
             desc: "Let the desktop show through the panel"
 
             SettingsSwitch {
                 id: transparencySwitch
+                colors: root.colors
                 checked: root.cfg_transparencyEnabled
                 // Phase 10.1.2: onToggled, not onCheckedChanged - see
                 // SettingsSwitch.qml's header for the broken-binding bug
@@ -595,9 +600,10 @@ KCM.SimpleKCM {
         }
 
         // ---- Volume ----
-        SectionLabel { text: "Volume" }
+        SectionLabel { colors: root.colors; text: "Volume" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Step Size"
             desc: "Change how large one increment change in volume is"
 
@@ -659,10 +665,12 @@ KCM.SimpleKCM {
         }
 
         SettingsRow {
+            colors: root.colors
             name: "Startup / Source-Switch Volume"
             desc: "Default volume at startup and when source is changed"
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_startupVolumeDb
                 from: root.dbRangeMin
                 to: root.dbRangeMax
@@ -678,13 +686,15 @@ KCM.SimpleKCM {
         // mis-drag - a stepper gives exact, unambiguous values. Volume
         // floor is ordered before Volume ceiling to match the mockup;
         // don't rearrange.
-        SectionLabel { text: "Volume Limits" }
+        SectionLabel { colors: root.colors; text: "Volume Limits" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Floor"
             desc: "Lowest volume possible to set"
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_volumeFloorDb
                 from: root.dbRangeMin
                 // Phase 8.3.0: can never reach (let alone pass) the current
@@ -699,11 +709,13 @@ KCM.SimpleKCM {
         }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Ceiling"
             desc: "Highest volume possible to set"
             showDivider: false
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_hardLimitDb
                 // Phase 8.3.0: mirror of the floor stepper above - can
                 // never reach the current floor, capped one step above it.
@@ -722,14 +734,16 @@ KCM.SimpleKCM {
         // sub-row above is (opacity 0.35 + enabled:false, the mockup's
         // .kcm-sub-row.disabled), holding the three-way source
         // segmented control and one visible variant block.
-        SectionLabel { text: "Volume Feedback" }
+        SectionLabel { colors: root.colors; text: "Volume Feedback" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Feedback Chime"
             desc: "Plays a short tone on each scroll tick, matching the volume you're setting"
 
             SettingsSwitch {
                 id: chimeSwitch
+                colors: root.colors
                 checked: root.cfg_chimeEnabled
                 onToggled: (checked) => root.cfg_chimeEnabled = checked
             }
@@ -753,6 +767,7 @@ KCM.SimpleKCM {
             // Mockup line 481: .kcm-row with border-bottom:none and
             // padding-top:0.
             SettingsRow {
+                colors: root.colors
                 name: "Chime Sound"
                 desc: "Which sound plays on each tick"
                 showDivider: false
@@ -866,6 +881,7 @@ KCM.SimpleKCM {
                     Item { Layout.fillWidth: true }
 
                     ChimeIconButton {
+                        colors: root.colors
                         kind: "play"
                         tooltip: "Preview"
                         enabled: root.chimePreviewPath() !== ""
@@ -898,12 +914,14 @@ KCM.SimpleKCM {
 
                         ThemeDropdown {
                             id: themeDropdown
+                            colors: root.colors
                             themes: root.soundThemes.themes
                             currentId: root.cfg_chimePinnedTheme
                             onThemeChosen: (id) => root.cfg_chimePinnedTheme = id
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "play"
                             tooltip: "Preview"
                             enabled: root.chimePreviewPath() !== ""
@@ -982,12 +1000,14 @@ KCM.SimpleKCM {
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "browse"
                             tooltip: "Browse…"
                             onClicked: chimeFileDialogLoader.active = true
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "play"
                             tooltip: "Preview"
                             enabled: root.cfg_chimeSoundFile !== ""
@@ -999,9 +1019,10 @@ KCM.SimpleKCM {
         }
 
         // ---- Startup ----
-        SectionLabel { text: "Startup" }
+        SectionLabel { colors: root.colors; text: "Startup" }
 
         SettingsRow {
+            colors: root.colors
             name: "Launch at Login"
             desc: "Automatically start the daemon used for UDP communication to amplifier"
             // Phase 11.0.0: wired for real - see the daemonAutostart block
@@ -1015,6 +1036,7 @@ KCM.SimpleKCM {
             note: root.launchAtLoginNote()
 
             SettingsSwitch {
+                colors: root.colors
                 checked: root.launchDesired
                 enabled: root.daemonAutostart.toggleable && !root.daemonAutostart.writing
                 onToggled: (checked) => root.launchDesired = checked
@@ -1030,9 +1052,10 @@ KCM.SimpleKCM {
         // Loader/Repeater/conditional slot exists there for a 4th button).
         // v14 moves it into the page content instead, as this section -
         // see that mockup's own updated legend for the same reasoning.
-        SectionLabel { text: "Reset" }
+        SectionLabel { colors: root.colors; text: "Reset" }
 
         SettingsRow {
+            colors: root.colors
             name: "Restore Defaults"
             desc: "Resets every setting on this page back to its default values"
             showDivider: false

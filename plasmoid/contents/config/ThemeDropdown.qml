@@ -45,8 +45,10 @@ Rectangle {
     signal themeChosen(string id)
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
-    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
+    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
+    // palette for the whole page; required, so a missed hand-off fails at
+    // load instead of silently painting a different palette).
+    required property Ui.ColorPalette colors
     readonly property bool open: list.opened
 
     function nameFor(id) {

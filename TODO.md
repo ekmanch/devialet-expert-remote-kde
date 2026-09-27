@@ -8799,6 +8799,25 @@ architecture decisions; this file is just sequencing and status.
     hover tooltip open on the real desktop): both look right - tooltip dot
     7 px without glow, no outer borders, solid copper bars.
 
+- [x] **Phase 17.14.0 — ConfigDialog components take a forwarded
+      ColorPalette.** Done 2026-09-27 (owner's look at the real dialog
+      pending). SectionLabel, SettingsRow, SettingsSwitch, DbStepper,
+      ThemeDropdown and ChimeIconButton now `required property
+      Ui.ColorPalette colors` (their own `Ui.DarkPalette {}` removed), so a
+      missed hand-off fails at load; `ConfigGeneral.qml` passes its own
+      `colors` at all 26 instantiations (single-line ones as `{ colors:
+      root.colors; … }`, multi-line ones directly after `id:` when present).
+      `ConfigGeneral.colors` stays `Ui.DarkPalette {}` as the page's one
+      palette: the plan's "PageTheme" resolver needs `systemDark`, so its
+      choice logic lands with 17.15.0's portal reader. A first scripted
+      pass inserted stray blank lines (its indentation pattern swallowed
+      the preceding newline); the file was restored from HEAD and redone.
+  - Verified: qmllint counts as HEAD (ConfigGeneral 0); QML suite 24/24;
+    settings page rendered standalone from HEAD and from the working tree
+    (Wayland, scale 2): **0 differing pixels**, no required-property or
+    other errors (hidden chime variants are created at load too, so a
+    missing hand-off would have failed there). Installed; daemon active.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8892,12 +8911,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.14.0 — ConfigDialog components take a forwarded
-      ColorPalette.** ConfigGeneral owns `PageTheme` (dark for now); SettingsRow,
-      SectionLabel, SettingsSwitch, DbStepper, ThemeDropdown,
-      ChimeIconButton take `required property ColorPalette colors`.
-  - Verify: standalone driver screenshot identical; qmllint.
 
 - [ ] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Per the
       contract in the saved report: `systemDark` starts `true`;
