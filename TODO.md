@@ -8896,6 +8896,28 @@ architecture decisions; this file is just sequencing and status.
     → `cfg_chimeSourceMode` "file", "System theme" → "follow", activeIndex
     following each time. QML suite 38/38; installed; daemon active.
 
+- [x] **Phase 17.18.0 — Follow-system status line.** Done 2026-09-27.
+      Under the Theme row in `ConfigGeneral.qml` (configDialog mockup v2
+      :585-590): the chime section's dot + mono pattern - 6 px copperBright
+      dot, "Following your desktop's color scheme — currently
+      <b>Dark|Light</b>" in 11 px mono textDim with the value bold
+      copperBright, 10 px above, a divider 14 px below (`.kcm-sub-row`
+      padding 10px 2px 14px + border-bottom). Shown only while
+      `cfg_theme === "system"` (reacts to the selection before Apply, like
+      the chime line). Value from the page's own `pageScheme.dark` (the XDG
+      portal through SystemScheme.qml, 17.15.0). objectNames
+      `themeFollowStatus` / `themeFollowLabel`.
+  - Verified: ConfigGeneral lint 0; QML suite 38/38. Scratch QtTest on the
+    real page: visible for Follow system, hidden for Dark and Light; with
+    the owner's real portal the line reads "currently Dark"; setting
+    `pageScheme.dark` false/true switches it to Light/Dark; the 17.17.0
+    Theme-row test still passes. Render matches the mockup. The page is now
+    1079 px tall in the driver's 1044 px viewport, so its "scrolled to the
+    bottom" capture moves 35 px - a driver artifact (the first capture is
+    requested before the scroll but rendered after it); the page opens at
+    `contentY` 0 in both HEAD and the working tree. Installed; daemon
+    active.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9007,17 +9029,12 @@ architecture decisions; this file is just sequencing and status.
     system with the highlight following; the step-size and chime controls
     (now 2nd and 3rd on the page) still write their settings; Defaults
     resets `cfg_theme` from light to system. Installed; daemon active.
-  - Pending owner (CLAUDE.md "Every settings control must persist"): in the
-    real dialog pick Light → Apply - the journal should show
-    `[ThemeSettings] mode light`; close and reopen the dialog - Light still
-    selected; restart the shell (or reload the widget) - still Light; then
-    set Follow system again.
-
-- [ ] **Phase 17.18.0 — Follow-system status line.** "Following your
-      desktop's color scheme — currently <b>Dark/Light</b>" below the row,
-      chime-pattern (`ConfigGeneral.qml:830-872`, `escapeStyledText`),
-      visible only for Follow system (configDialog v2 :585-590).
-  - Verify: driver with fake portal values.
+  - Owner's real-dialog check, from the journal (2026-09-27): 18:43:10
+    Apply with Light → `[ThemeSettings] mode light … resolvedDark false`
+    live; 18:43:17 back to Follow system → `mode system`; the config group
+    then has no `theme=` key (writing the default back removes it). The
+    close/reopen and shell-reload steps are not visible in the journal and
+    were not observed - still to confirm by the owner if wanted.
 
 - [ ] **Phase 17.19.0 — LightPalette + light flyout base.**
       `LightPalette.qml`; white surfaces, text `#1c1a17`/`#6e6a64`/

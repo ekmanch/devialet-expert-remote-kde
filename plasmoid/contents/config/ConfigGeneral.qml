@@ -500,6 +500,55 @@ KCM.SimpleKCM {
             }
         }
 
+        // Phase 17.18.0: Follow-system status line (configDialog mockup v2
+        // :585-590, `.kcm-sub-row` padding 10px 2px 14px + border-bottom,
+        // `.theme-follow-status`) - the same dot + mono line as the chime
+        // section's "Following your desktop's sound theme". Shown only while
+        // Follow system is selected (reacts to the selection before Apply,
+        // like the chime line); the value is this dialog's own reading of the
+        // desktop's scheme (pageScheme, the XDG portal via SystemScheme.qml),
+        // the same portal value the widget follows.
+        ColumnLayout {
+            id: themeFollowStatus
+            objectName: "themeFollowStatus"
+            Layout.fillWidth: true
+            Layout.topMargin: 10
+            spacing: 0
+            visible: root.cfg_theme === "system"
+
+            RowLayout {
+                Layout.leftMargin: 2
+                spacing: 9
+
+                Rectangle {
+                    Layout.preferredWidth: 6
+                    Layout.preferredHeight: 6
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 3
+                    color: root.colors.copperBright
+                }
+
+                Label {
+                    objectName: "themeFollowLabel"
+                    Layout.alignment: Qt.AlignVCenter
+                    textFormat: Text.StyledText
+                    text: "Following your desktop's color scheme — currently <font color=\""
+                        + root.colors.copperBright + "\"><b>"
+                        + (root.pageScheme.dark ? "Dark" : "Light") + "</b></font>"
+                    font.family: root.theme.fontMono
+                    font.pixelSize: 11
+                    color: root.colors.textDim
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 14
+                Layout.preferredHeight: 1
+                color: root.colors.divider
+            }
+        }
+
         SettingsRow {
             colors: root.colors
             name: "Transparency"
