@@ -8875,6 +8875,27 @@ architecture decisions; this file is just sequencing and status.
     Fixed by 17.19.0 (LightPalette; the page switches palette on
     `pageScheme.dark`) and 17.25.0-17.27.0 (the light page per the mockup).
 
+- [x] **Phase 17.16.0 — Extract `SegmentedControl.qml`.** Done
+      2026-09-27. New `plasmoid/contents/config/SegmentedControl.qml`, the
+      two inline copies in `ConfigGeneral.qml` (Volume step size, Chime
+      sound) extracted unchanged - they were visually identical (radiusSm
+      `surface` box, 1 px divider border, 3 px padding; 2 px gaps; segments
+      radius 6, label +22/+10; active `surface3`; 11 px mono,
+      copperBright when active or hovered, else textDim; hover recolours
+      text only). API: `labels`, `activeIndex` (bound by the page),
+      `picked(index)` signal (the page writes its cfg_* in the handler),
+      `required property Ui.ColorPalette colors`; per-file `Ui.Theme`.
+      ConfigGeneral: 104 lines out, 16 in; the Phase 4.4.2 activeIndex note
+      kept.
+  - Verified: SegmentedControl and ConfigGeneral lint 0; settings page
+    rendered standalone from HEAD and the working tree: **0 differing
+    pixels** (both views). Clicks (scratch QtTest driver, page in its own
+    Window - inside the TestCase root it reported `visible: false` and
+    swallowed clicks, a test-setup issue confirmed by calling `picked(2)`
+    directly): "2 dB" → `cfg_volumeStepDb` 2, "0.5 dB" → 0.5, "Custom file"
+    → `cfg_chimeSourceMode` "file", "System theme" → "follow", activeIndex
+    following each time. QML suite 38/38; installed; daemon active.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8968,11 +8989,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.16.0 — Extract `SegmentedControl.qml`.** From the two
-      inline copies (`ConfigGeneral.qml:602-656`, :762-813), zero visual
-      change.
-  - Verify: driver screenshot identical; `saveConfig` path unchanged.
 
 - [ ] **Phase 17.17.0 — Theme row.** Dark / Light / Follow system as the
       first Appearance row, writing `cfg_theme` (copy and IDs: configDialog

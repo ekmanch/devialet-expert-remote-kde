@@ -615,60 +615,16 @@ KCM.SimpleKCM {
             name: "Volume Step Size"
             desc: "Change how large one increment change in volume is"
 
-            Rectangle {
+            // Phase 17.16.0: the shared SegmentedControl (was an inline copy).
+            // Phase 4.4.2: activeIndex is derived from cfg_volumeStepDb
+            // rather than a literal, so it stays in sync whether that value
+            // came from the dialog's own initial load or a click.
+            SegmentedControl {
                 id: stepSegmented
-                radius: root.theme.radiusSm
-                color: root.colors.surface
-                border.width: 1
-                border.color: root.colors.divider
-                implicitWidth: stepRow.implicitWidth + 6
-                implicitHeight: stepRow.implicitHeight + 6
-
-                // Phase 4.4.2: derived from cfg_volumeStepDb rather than a
-                // literal, so it stays in sync whether that value came from
-                // the dialog's own initial load or a click below.
-                property int activeIndex: root.stepValues.indexOf(root.cfg_volumeStepDb)
-
-                RowLayout {
-                    id: stepRow
-                    anchors.centerIn: parent
-                    spacing: 2
-
-                    Repeater {
-                        model: ["0.5 dB", "1 dB", "2 dB"]
-
-                        Rectangle {
-                            required property string modelData
-                            required property int index
-
-                            radius: 6
-                            color: stepSegmented.activeIndex === index ? root.colors.surface3 : "transparent"
-                            implicitWidth: stepLabel.implicitWidth + 22
-                            implicitHeight: stepLabel.implicitHeight + 10
-
-                            Label {
-                                id: stepLabel
-                                anchors.centerIn: parent
-                                text: parent.modelData
-                                font.family: root.theme.fontMono
-                                font.pixelSize: 11
-                                // Mockup v25 .kcm-seg-btn:not(.active):hover
-                                // {color:var(--copper-bright)}: hover lights the
-                                // text only - no background change, no cursor
-                                // change ("segmented hover is text-color only").
-                                color: stepSegmented.activeIndex === parent.index || stepArea.containsMouse
-                                    ? root.colors.copperBright : root.colors.textDim
-                            }
-
-                            MouseArea {
-                                id: stepArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.cfg_volumeStepDb = root.stepValues[parent.index]
-                            }
-                        }
-                    }
-                }
+                colors: root.colors
+                labels: ["0.5 dB", "1 dB", "2 dB"]
+                activeIndex: root.stepValues.indexOf(root.cfg_volumeStepDb)
+                onPicked: index => root.cfg_volumeStepDb = root.stepValues[index]
             }
         }
 
@@ -783,58 +739,14 @@ KCM.SimpleKCM {
 
                 // Same segmented control as the Volume step size row
                 // above (mockup .kcm-segmented / .kcm-seg-btn), three
-                // string-valued modes instead of three dB values.
-                Rectangle {
+                // string-valued modes instead of three dB values - the shared
+                // SegmentedControl since Phase 17.16.0.
+                SegmentedControl {
                     id: chimeSegmented
-                    radius: root.theme.radiusSm
-                    color: root.colors.surface
-                    border.width: 1
-                    border.color: root.colors.divider
-                    implicitWidth: chimeSegRow.implicitWidth + 6
-                    implicitHeight: chimeSegRow.implicitHeight + 6
-
-                    property int activeIndex: root.chimeSourceModes.indexOf(root.cfg_chimeSourceMode)
-
-                    RowLayout {
-                        id: chimeSegRow
-                        anchors.centerIn: parent
-                        spacing: 2
-
-                        Repeater {
-                            model: ["System theme", "Choose theme", "Custom file"]
-
-                            Rectangle {
-                                id: chimeSeg
-                                required property string modelData
-                                required property int index
-                                readonly property bool active: chimeSegmented.activeIndex === chimeSeg.index
-
-                                radius: 6
-                                color: chimeSeg.active ? root.colors.surface3 : "transparent"
-                                implicitWidth: chimeSegLabel.implicitWidth + 22
-                                implicitHeight: chimeSegLabel.implicitHeight + 10
-
-                                Label {
-                                    id: chimeSegLabel
-                                    anchors.centerIn: parent
-                                    text: chimeSeg.modelData
-                                    font.family: root.theme.fontMono
-                                    font.pixelSize: 11
-                                    // Same v25 hover rule as the step-size segments
-                                    // above: text-color only, cursor stays normal.
-                                    color: chimeSeg.active || chimeSegArea.containsMouse
-                                        ? root.colors.copperBright : root.colors.textDim
-                                }
-
-                                MouseArea {
-                                    id: chimeSegArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: root.setChimeSourceMode(root.chimeSourceModes[chimeSeg.index])
-                                }
-                            }
-                        }
-                    }
+                    colors: root.colors
+                    labels: ["System theme", "Choose theme", "Custom file"]
+                    activeIndex: root.chimeSourceModes.indexOf(root.cfg_chimeSourceMode)
+                    onPicked: index => root.setChimeSourceMode(root.chimeSourceModes[index])
                 }
             }
 
