@@ -8642,6 +8642,14 @@ architecture decisions; this file is just sequencing and status.
     amp list 252-268 of 276); crops show the tick only on the selected row.
     Daemon active with the amp selected afterwards.
 
+- [x] **Phase 17.10.0 — Copper gradient bars on dark OSD/tooltip:
+      dropped.** Closed without code 2026-09-27 by owner decision: the OSD
+      and tooltip volume bars stay **solid copper** #c17f4e in the dark
+      theme (not the v2 mockups' #9a5a2c → #c17f4e → #e8a974 sweep, OSD/
+      tooltip :81), matching the light theme, whose bars and slider are flat
+      #e2b865 (D8). Muted bar colour unchanged (#5c5c60 = `textFaint`, which
+      is also the mockup's dark `--muted-fill`).
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8688,13 +8696,15 @@ architecture decisions; this file is just sequencing and status.
       never coexists with it; no runtime swap is possible by any theme.
   - **Owner decisions**: D1 Follow-system source = portal/application scheme.
     D2 remove the outer border, screenshot, hairline only if it reads badly.
-    D3 toast/tooltip alpha stays hardcoded per the mockups (dark OSD 0.96,
-    tooltip opaque, light opaque). D4 flyout radius stays 16 (v2 mockups draw
+    D3 toast/tooltip alpha stays hardcoded, not tied to the transparency
+    setting; revised 2026-09-27: dark keeps today's 0.94 gradient on both
+    (not the mockups' 0.96 / opaque flat #121212), light per the mockups
+    (opaque white). D4 flyout radius stays 16 (v2 mockups draw
     12). D5 bundle the speaker SVGs. D6 one About icon, no phase. D7 flyout
     mute button shows the action, OSD shows the state. D8 one sphere gradient
     (`#fcecc0 0% / #f0a623 38% / #a8710b 100%`, centre 32% 28%) for thumb and
-    dots; light fills flat `#e2b865`; dark OSD/tooltip bars copper sweep
-    `#9a5a2c → #c17f4e → #e8a974`. D9 the gradient-rendering spike ran
+    dots; light fills flat `#e2b865`; dark OSD/tooltip bars stay solid
+    copper #c17f4e (revised 2026-09-27, 17.10.0 dropped). D9 the gradient-rendering spike ran
     unnumbered on `spike/gradient-rendering` after 17.0.1 and became Phase
     17.0.2 once the owner passed its captures (see "## Done").
   - **Architecture**: `Theme.qml` stays per-file with fonts/radii/sizes only;
@@ -8733,16 +8743,18 @@ architecture decisions; this file is just sequencing and status.
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
 
-- [ ] **Phase 17.9.0 — OSD/tooltip dark palette alignment.** Flat
-      `#121212` (OSD at 0.96, tooltip opaque, per D3), `#252525` lines,
-      remove the muted-icon glow (`VolumeToast.qml:200-209`) (OSD v2
-      :77-87, :124; tooltip v2 :121).
-  - Verify: toast capture; tooltip owner hover.
-
-- [ ] **Phase 17.10.0 — Copper gradient bars on dark OSD/tooltip.**
-      `#9a5a2c → #c17f4e → #e8a974` (OSD/tooltip v2 :81); muted bar
-      `#5c5c60` (OSD v2 :87, :176). The flyout slider stays solid copper.
-  - Verify: toast capture; tooltip owner hover.
+- [ ] **Phase 17.9.0 — OSD icon box: transparent fill (dark).** Owner
+      decision 2026-09-27 (supersedes this phase's original "dark palette
+      alignment" scope and D3's mockup opacities): in the **dark** theme the
+      OSD and tooltip keep today's look - the (23,23,26) → (18,18,20)
+      vertical gradient at 0.94 on both, the icon box's 8 %-white border,
+      the copper glow on the muted icon box. The one thing taken from the
+      mockup is the icon box's **transparent fill** (OSD mockup v2
+      `--key-bg:transparent`; today `theme.surface` #181818,
+      `VolumeToast.qml` iconBox). Light-theme OSD/tooltip (17.22.0/17.23.0)
+      are unaffected by this decision.
+  - Verify: OSD capture via `fakeamp.py --notify` (audible and muted),
+    before/after crops of the icon box; daemon check afterwards.
 
 - [ ] **Phase 17.11.0 — Typed palette, zero visual change.** `Palette.qml`
       type (every token typed, one `controlColor(ts)` branching on
