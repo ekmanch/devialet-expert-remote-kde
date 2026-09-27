@@ -49,6 +49,8 @@ RowLayout {
     objectName: "footer"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     required property bool online
 
@@ -65,7 +67,7 @@ RowLayout {
         width: 5
         height: 5
         radius: 2.5
-        color: footer.online ? footer.theme.copperBright : footer.theme.textFaint
+        color: footer.online ? footer.colors.copperBright : footer.colors.textFaint
     }
 
     Label {
@@ -74,7 +76,7 @@ RowLayout {
         text: footer.ampIp === "" ? "Not connected" : (footer.online ? "Connected" : "Not responding")
         font.family: footer.theme.fontMono
         font.pixelSize: 10
-        color: footer.theme.textFaint
+        color: footer.colors.textFaint
         wrapMode: Text.NoWrap
     }
 }

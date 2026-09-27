@@ -63,6 +63,8 @@ ColumnLayout {
     objectName: "volumeBlock"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     // undefined | number - see header comment, fed from
     // FlyoutContent's root.pendingAmpState.volumeDb.
@@ -144,7 +146,7 @@ ColumnLayout {
                 font.family: volumeBlock.theme.fontMono
                 font.weight: Font.Medium
                 font.pixelSize: 26
-                color: volumeBlock.theme.copperBright
+                color: volumeBlock.colors.copperBright
                 wrapMode: Text.NoWrap
             }
             Label {
@@ -153,7 +155,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 text: "dB"
                 font.pixelSize: 12
-                color: volumeBlock.theme.textDim
+                color: volumeBlock.colors.textDim
                 Layout.leftMargin: 3
                 wrapMode: Text.NoWrap
             }
@@ -172,11 +174,11 @@ ColumnLayout {
             radius: 999
             // Phase 9.1.1: tracks panel alpha with a floor - see
             // TransparencySettings.qml's controlAlpha comment. Was a flat
-            // theme.surface (always fully opaque regardless of panel
+            // colors.surface (always fully opaque regardless of panel
             // transparency) before this phase.
-            color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+            color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
             border.width: 1
-            border.color: volumeBlock.theme.divider
+            border.color: volumeBlock.colors.divider
             implicitWidth: sourceChipLabel.implicitWidth + 18
             implicitHeight: sourceChipLabel.implicitHeight + 6
 
@@ -189,7 +191,7 @@ ColumnLayout {
                 text: volumeBlock.activeSourceName !== "" ? volumeBlock.activeSourceName : "—"
                 font.family: volumeBlock.theme.fontMono
                 font.pixelSize: 11
-                color: volumeBlock.theme.textFaint
+                color: volumeBlock.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -219,16 +221,16 @@ ColumnLayout {
             // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
-                color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+                color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.theme.copperDim : volumeBlock.theme.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
             }
             contentItem: Label {
                 text: parent.text
                 font.family: volumeBlock.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: parent.hovered ? volumeBlock.theme.copperBright : volumeBlock.theme.text
+                color: parent.hovered ? volumeBlock.colors.copperBright : volumeBlock.colors.text
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -271,13 +273,13 @@ ColumnLayout {
                 width: volumeSlider.availableWidth
                 height: 4
                 radius: 999
-                color: volumeBlock.theme.surface3
+                color: volumeBlock.colors.surface3
 
                 Rectangle {
                     width: volumeSlider.visualPosition * parent.width
                     height: parent.height
                     radius: 999
-                    color: volumeBlock.theme.copper
+                    color: volumeBlock.colors.copper
                 }
             }
 
@@ -287,7 +289,7 @@ ColumnLayout {
                 width: 15
                 height: 15
                 radius: 999
-                color: volumeBlock.theme.copperBright
+                color: volumeBlock.colors.copperBright
             }
 
             // Phase 4.5.1: scroll-to-adjust-volume - see FullRepresentation
@@ -340,16 +342,16 @@ ColumnLayout {
             // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
-                color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+                color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.theme.copperDim : volumeBlock.theme.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
             }
             contentItem: Label {
                 text: parent.text
                 font.family: volumeBlock.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: parent.hovered ? volumeBlock.theme.copperBright : volumeBlock.theme.text
+                color: parent.hovered ? volumeBlock.colors.copperBright : volumeBlock.colors.text
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

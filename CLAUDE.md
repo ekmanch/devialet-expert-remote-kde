@@ -174,7 +174,11 @@ all three.
   out of `Theme.qml` into `TransparencySettings.qml` (root-anchored and
   forwarded exactly like `VolumeSettings.qml`, exposing `alpha` and
   `withAlpha(color)`), while `Theme.qml` keeps only the opaque base tint
-  colours and stays per-file. **Correction (Phase 17.0.0, 2026-09-26)**: only
+  colours and stays per-file. **Update (Phase 17.11.0, 2026-09-27)**: the
+  colours have since moved out too - `ColorPalette.qml` (typed, `required`
+  tokens) and `DarkPalette.qml`, read through a `colors` property; `Theme.qml`
+  now holds fonts, sizes, radii and the volume icon map only.
+  **Correction (Phase 17.0.0, 2026-09-26)**: only
   the flyout was ever wired to `TransparencySettings`; `VolumeToast.qml` and
   `VolumeHoverTooltip.qml` still paint `Theme.qml`'s hardcoded 0.94 pair and,
   per the owner's Phase 17 decision D3, stay hardcoded (mockup values), so

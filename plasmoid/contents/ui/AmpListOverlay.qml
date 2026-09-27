@@ -51,6 +51,8 @@ Popup {
     objectName: "ampListOverlay"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property var knownAmps
     required property string ampIp
     // Phase 9.1.1: chrome alpha for the card background - see
@@ -78,7 +80,7 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-    background: OverlayCardBackground { theme: overlay.theme; transparencySettings: overlay.transparencySettings }
+    background: OverlayCardBackground { theme: overlay.theme; colors: overlay.colors; transparencySettings: overlay.transparencySettings }
 
     contentItem: ScrollView {
         clip: true
@@ -98,7 +100,7 @@ Popup {
                 Layout.fillWidth: true
                 implicitHeight: ampNoneRow.implicitHeight + 16
                 radius: overlay.theme.radiusOverlayRow
-                color: ampNoneArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                color: ampNoneArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                 RowLayout {
                     id: ampNoneRow
@@ -117,7 +119,7 @@ Popup {
                         radius: 5
                         color: "transparent"
                         border.width: 1.5
-                        border.color: ampNoneOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
+                        border.color: ampNoneOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint
                     }
 
                     ColumnLayout {
@@ -131,7 +133,7 @@ Popup {
                             font.weight: Font.DemiBold
                             font.italic: true
                             font.pixelSize: 13
-                            color: ampNoneOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                            color: ampNoneOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
@@ -142,7 +144,7 @@ Popup {
                             text: "Don't connect to any amplifier"
                             font.family: overlay.theme.fontMono
                             font.pixelSize: 10
-                            color: overlay.theme.textFaint
+                            color: overlay.colors.textFaint
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
@@ -154,7 +156,7 @@ Popup {
                     Tick {
                         objectName: "ampNoneTick"
                         Layout.alignment: Qt.AlignVCenter
-                        color: overlay.theme.copperBright
+                        color: overlay.colors.copperBright
                         visible: ampNoneOption.isCurrent
                     }
                 }
@@ -175,7 +177,7 @@ Popup {
                 Layout.leftMargin: 4
                 Layout.rightMargin: 4
                 height: 1
-                color: overlay.theme.divider
+                color: overlay.colors.divider
             }
 
             Label {
@@ -187,7 +189,7 @@ Popup {
                 text: "No amps discovered yet"
                 font.family: overlay.theme.fontMono
                 font.pixelSize: 11
-                color: overlay.theme.textFaint
+                color: overlay.colors.textFaint
             }
 
             Repeater {
@@ -203,7 +205,7 @@ Popup {
                     Layout.fillWidth: true
                     implicitHeight: ampOptionRow.implicitHeight + 16
                     radius: overlay.theme.radiusOverlayRow
-                    color: ampOptionArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                    color: ampOptionArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                     RowLayout {
                         id: ampOptionRow
@@ -220,7 +222,7 @@ Popup {
                             width: 10
                             height: 10
                             radius: 5
-                            color: ampOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
+                            color: ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint
                             opacity: ampOption.modelData.online ? 1.0 : 0.5
                         }
 
@@ -234,7 +236,7 @@ Popup {
                                 font.family: overlay.theme.fontDisplay
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 13
-                                color: ampOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                                color: ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                                 wrapMode: Text.NoWrap
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
@@ -247,7 +249,7 @@ Popup {
                                     + (ampOption.modelData.modelName !== "" ? "" : " · name unresolved")
                                 font.family: overlay.theme.fontMono
                                 font.pixelSize: 10
-                                color: overlay.theme.textFaint
+                                color: overlay.colors.textFaint
                                 wrapMode: Text.NoWrap
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
@@ -258,7 +260,7 @@ Popup {
                         Tick {
                             objectName: "ampOptionTick:" + ampOption.modelData.ip
                             Layout.alignment: Qt.AlignVCenter
-                            color: overlay.theme.copperBright
+                            color: overlay.colors.copperBright
                             visible: ampOption.isCurrent
                         }
                     }

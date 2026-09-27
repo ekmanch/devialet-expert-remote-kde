@@ -17,6 +17,8 @@ RowLayout {
     property bool first: false
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     Layout.fillWidth: true
     Layout.topMargin: root.first ? 2 : 28
@@ -30,12 +32,12 @@ RowLayout {
         font.pixelSize: 11
         font.letterSpacing: 1.4
         font.capitalization: Font.AllUppercase
-        color: root.theme.copperBright
+        color: root.colors.copperBright
     }
 
     Rectangle {
         Layout.fillWidth: true
         height: 1
-        color: root.theme.divider
+        color: root.colors.divider
     }
 }

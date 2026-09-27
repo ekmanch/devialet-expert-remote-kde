@@ -39,6 +39,8 @@ Popup {
     objectName: "sourceListOverlay"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     // Array of {name, index, enabled, selected} - enabled ones only.
     required property var enabledSources
     required property int activeSourceIndex
@@ -94,7 +96,7 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-    background: OverlayCardBackground { theme: overlay.theme; transparencySettings: overlay.transparencySettings }
+    background: OverlayCardBackground { theme: overlay.theme; colors: overlay.colors; transparencySettings: overlay.transparencySettings }
 
     // Phase 17.1.1: since 17.1.0's shorter flyout, the real amp's six
     // sources no longer fit in the room above the row, so the list
@@ -146,7 +148,7 @@ Popup {
                 text: "No sources"
                 font.family: overlay.theme.fontMono
                 font.pixelSize: 11
-                color: overlay.theme.textFaint
+                color: overlay.colors.textFaint
             }
 
             Repeater {
@@ -171,7 +173,7 @@ Popup {
                     // 20 + 2*8 padding.
                     implicitHeight: 36
                     radius: overlay.theme.radiusOverlayRow
-                    color: sourceOptionArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                    color: sourceOptionArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                     RowLayout {
                         anchors.left: parent.left
@@ -197,7 +199,7 @@ Popup {
                                 anchors.centerIn: parent
                                 sourceName: sourceOption.modelData.name
                                 size: 17
-                                color: overlay.theme.copperBright
+                                color: overlay.colors.copperBright
                             }
                         }
 
@@ -209,7 +211,7 @@ Popup {
                             font.family: overlay.theme.fontDisplay
                             font.weight: Font.DemiBold
                             font.pixelSize: 13
-                            color: sourceOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                            color: sourceOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
@@ -220,7 +222,7 @@ Popup {
                         Tick {
                             objectName: "sourceOptionTick:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
-                            color: overlay.theme.copperBright
+                            color: overlay.colors.copperBright
                             visible: sourceOption.isCurrent
                         }
                     }

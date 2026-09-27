@@ -42,6 +42,8 @@ ColumnLayout {
     objectName: "sourceSelector"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     // Raw array of {name, index, enabled, selected} objects - see
     // FlyoutContent's `unwrapSources()`/`fetchSourcesFresh()` for how
@@ -114,9 +116,9 @@ ColumnLayout {
         radius: sourceSelector.theme.radiusMd
         // Phase 9.1.1: tracks panel alpha with a floor - see
         // TransparencySettings.qml's controlAlpha comment.
-        color: sourceSelector.transparencySettings.withControlAlpha(sourceSelector.theme.surface)
+        color: sourceSelector.colors.controlColor(sourceSelector.transparencySettings)
         border.width: 1
-        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.theme.copperDim : sourceSelector.theme.divider
+        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.divider
 
         RowLayout {
             anchors.left: parent.left
@@ -142,7 +144,7 @@ ColumnLayout {
                     anchors.centerIn: parent
                     sourceName: sourceSelector.ampIp === "" ? "" : sourceSelector.displayName
                     size: 20
-                    color: sourceSelector.theme.copperBright
+                    color: sourceSelector.colors.copperBright
                 }
             }
 
@@ -159,7 +161,7 @@ ColumnLayout {
                     font.family: sourceSelector.theme.fontMono
                     font.pixelSize: 10
                     font.letterSpacing: 1
-                    color: sourceSelector.theme.textFaint
+                    color: sourceSelector.colors.textFaint
                     wrapMode: Text.NoWrap
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -172,7 +174,7 @@ ColumnLayout {
                     font.family: sourceSelector.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 13
-                    color: sourceSelector.theme.text
+                    color: sourceSelector.colors.text
                     wrapMode: Text.NoWrap
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -186,7 +188,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 text: "⌄"
                 font.pixelSize: 11
-                color: sourceSelector.listOpen ? sourceSelector.theme.copperBright : sourceSelector.theme.textFaint
+                color: sourceSelector.listOpen ? sourceSelector.colors.copperBright : sourceSelector.colors.textFaint
                 rotation: sourceSelector.listOpen ? 180 : 0
                 Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             }

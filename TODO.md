@@ -8673,6 +8673,67 @@ architecture decisions; this file is just sequencing and status.
     describes a somewhat stronger glow than the widget now draws.) Daemon
     active with the amp selected after the captures.
 
+- [x] **Phase 17.11.0 — Typed palette, zero visual change.** Done
+      2026-09-27.
+  - **Names changed from the plan** (both measured in the qmltypes, not
+    assumed): QtQuick already exports a `Palette` type (`QtQuick/Palette
+    6.0`) and every `Item` has a built-in `palette` property
+    (`QQuickItem.palette`), so a local `Palette.qml` / `property Palette
+    palette` would collide. The base type is **`ColorPalette.qml`** and the
+    consumer property is **`colors`** (`root.colors.copperBright`);
+    `DarkPalette.qml` / `LightPalette.qml` keep their planned names. No base
+    type in QtQuick, Controls, Kirigami, KCMUtils or Plasma core defines
+    `colors`.
+  - New `ColorPalette.qml` (QtObject): 23 colour tokens + `isLight`, each a
+    **`required property`**, so a palette missing a token fails at creation
+    with a named error; one function, `controlColor(ts:
+    TransparencySettings): color` (dark: `ts.withControlAlpha(surface)`;
+    17.19.0 adds the light glass branch on `isLight`). New
+    `DarkPalette.qml` (`ColorPalette { ... }`): today's values and their
+    history comments, moved unchanged from `Theme.qml`, including the
+    owner's `panelTintTop/Bottom: "#151515"`. `Theme.qml` keeps fonts,
+    sizes, radii and the volume icon map only; the unused `bg` (#0e0e10,
+    read nowhere) was not carried over.
+  - Migration (one script, per-file report): 212 `theme.<colour>` reads →
+    `colors.<colour>` across 18 files; the 6 control backgrounds
+    (`withControlAlpha(<root>.theme.surface)`) → `<root>.colors.
+    controlColor(<root>.transparencySettings)`; flyout children (AmpHeader,
+    AmpListOverlay, ActionRow, SourceSelector, SourceListOverlay, Footer,
+    VolumeBlock, OverlayCardBackground) take `required property
+    ColorPalette colors`, forwarded at FlyoutContent's 7 hand-offs and the
+    2 OverlayCardBackground ones; FlyoutContent, VolumeToast and
+    VolumeHoverTooltip own `DarkPalette {}` for now (17.12.0/17.13.0 swap in
+    ThemeSettings), each config component owns `Ui.DarkPalette {}` (17.14.0
+    forwards one); `tst_SourceListOverlay.qml` passes a `DarkPalette`.
+    Hardcoded colours outside Theme (e.g. `SettingsSwitch`'s knob
+    `#e8e6e1`, ActionRow's copper `Qt.rgba(..., 0.14)`) are untouched here;
+    the light phases tokenize what they need.
+  - **qmllint proof** (planted `footer.colors.copperBrigth` in
+    `Footer.qml`, reverted):
+    `Warning: plasmoid/contents/ui/Footer.qml:70:46: Member "copperBrigth"
+    not found on type "ColorPalette" [missing-property]` +
+    `Info: Did you mean "copperBright"?`. So the type resolves through the
+    qmldir-less directory import and a forwarded token typo is caught - as
+    a **warning; qmllint still exits 0**, so it protects only when the
+    output is read (per-file warning counts are compared every phase;
+    `--missing-property error` would make it fatal). The fallback token
+    audit is not needed.
+  - qmllint: every touched plasmoid file has the same warning count as
+    HEAD; ColorPalette/DarkPalette 0; the test file +1 of its pre-existing
+    unqualified-access kind (the new `colors: testColors` line).
+  - **Zero visual change, measured**: HEAD (git export) and the refactor
+    each installed and captured over a full-screen #808080 backdrop (a
+    first pair over the live desktop differed only where the 90 %-opaque
+    flyout showed a different desktop behind it). Flyout, harness smoke
+    (`20260927-142102-before-17.11.0-grey` / `…-142152-after-17.11.0-
+    grey`, both exit 0): max difference 1-2 levels on 43-106 of 396,000
+    px in every state, except Booting (max 110 on 486 px) - all 486 inside
+    the pulsing header dot (324) and the spinner (162), i.e. animation
+    phase. OSD, −22 dB and muted: max 1 on 35 / 7 px. ConfigDialog page
+    rendered standalone from both trees (Wayland, scale 2, whole page):
+    **0 differing pixels**. QML suite 24/24. Daemon active with the amp
+    selected after every capture; installed copy == working tree.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8731,7 +8792,8 @@ architecture decisions; this file is just sequencing and status.
     unnumbered on `spike/gradient-rendering` after 17.0.1 and became Phase
     17.0.2 once the owner passed its captures (see "## Done").
   - **Architecture**: `Theme.qml` stays per-file with fonts/radii/sizes only;
-    `Palette.qml` is a typed token base with one `controlColor(ts)` function
+    `ColorPalette.qml` (typed, `required` tokens; consumers read a `colors`
+    property - renamed in 17.11.0, see its entry) with one `controlColor(ts)` function
     branching on `isLight`; `DarkPalette.qml`/`LightPalette.qml` are instances;
     `ThemeSettings.qml` (root-anchored, forwarded like TransparencySettings,
     plus two new hops to toast/tooltip) exposes `flyoutPalette` and
@@ -8766,20 +8828,6 @@ architecture decisions; this file is just sequencing and status.
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
 
-- [ ] **Phase 17.11.0 — Typed palette, zero visual change.** `Palette.qml`
-      type (every token typed, one `controlColor(ts)` branching on
-      `isLight`) + `DarkPalette.qml` (today's values); `Theme.qml` loses
-      its colours (keeps fonts/radii/sizes/icon map); flyout consumers take
-      `required property Palette palette` (FlyoutContent instantiates
-      `DarkPalette {}` for now); toast/tooltip and the config components
-      instantiate `DarkPalette {}` locally in place of Theme colours.
-  - **qmllint proof**: plant a deliberate `palette.copperBrigth`, run
-    `/usr/lib/qt6/bin/qmllint`, paste the real output here, revert. If
-    `--missing-property` stays silent for a QML-defined type, add the
-    fallback token audit decided then.
-  - Verify: full harness smoke vs `expected-17.json` → zero Δ;
-    `scripts/test-qml.sh`; qmllint clean.
-
 - [ ] **Phase 17.12.0 — ThemeSettings + kcfg + flyout chain.**
       `ThemeSettings.qml` (mode, `systemDark` placeholder, `resolvedDark`,
       `flyoutPalette`/`osdPalette`, `harnessOverride`), `main.xml` `theme`
@@ -8797,9 +8845,9 @@ architecture decisions; this file is just sequencing and status.
   - Verify: toast capture identical; qmllint.
 
 - [ ] **Phase 17.14.0 — ConfigDialog components take a forwarded
-      Palette.** ConfigGeneral owns `PageTheme` (dark for now); SettingsRow,
+      ColorPalette.** ConfigGeneral owns `PageTheme` (dark for now); SettingsRow,
       SectionLabel, SettingsSwitch, DbStepper, ThemeDropdown,
-      ChimeIconButton take `required property Palette palette`.
+      ChimeIconButton take `required property ColorPalette colors`.
   - Verify: standalone driver screenshot identical; qmllint.
 
 - [ ] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Per the
@@ -8925,7 +8973,7 @@ architecture decisions; this file is just sequencing and status.
     on Wayland (not offscreen) and is composited on a solid backdrop
     before judging.
 - [ ] **Phase 17.28.0 — Wrap-up.** CLAUDE.md (Theme.qml = fonts/sizes
-      only; typed Palette rule; portal reader contract; harness `theme`
+      only; typed ColorPalette/`colors` rule; portal reader contract; harness `theme`
       dim), README settings section, PKGBUILD dependency check (none
       added), final `expected-17.json`, owner soak; then ready for the
       owner's commits/merge. Also removes `tools/spike-gradient-rendering/`

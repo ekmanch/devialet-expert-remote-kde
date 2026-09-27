@@ -72,7 +72,7 @@
 // Fraction), shared with VolumeHoverTooltip.qml (Phase 4.5.3 item 2)
 // instead of each file keeping its own copy.
 //
-// Gradient colors also moved to Theme.qml (theme.osdGradientTop/Bottom) -
+// Gradient colors also moved to Theme.qml (colors.osdGradientTop/Bottom) -
 // shared with VolumeHoverTooltip.qml, which now uses the same translucent
 // graphite background/radius/border/glow treatment (Phase 4.5.3 item 2).
 
@@ -87,6 +87,8 @@ PlasmaCore.Dialog {
     id: toast
 
     readonly property Theme theme: Theme {}
+    // Phase 17.11.0: colour tokens; ThemeSettings forwards one in 17.13.0.
+    readonly property ColorPalette colors: DarkPalette {}
 
     // ---- Content state (set via showVolume()/showMute() below) ----
     property string ampName: ""
@@ -157,8 +159,8 @@ PlasmaCore.Dialog {
 
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: toast.theme.osdGradientTop }
-            GradientStop { position: 1.0; color: toast.theme.osdGradientBottom }
+            GradientStop { position: 0.0; color: toast.colors.osdGradientTop }
+            GradientStop { position: 1.0; color: toast.colors.osdGradientBottom }
         }
 
         Timer {
@@ -194,15 +196,15 @@ PlasmaCore.Dialog {
                 Layout.preferredHeight: 34
                 radius: 10
                 // Phase 17.9.0: transparent fill (OSD mockup v3,
-                // `--key-bg:transparent`), was theme.surface #181818.
+                // `--key-bg:transparent`), was colors.surface #181818.
                 color: "transparent"
                 border.width: 1
-                border.color: toast.muted ? toast.theme.copperDim : toast.theme.divider
+                border.color: toast.muted ? toast.colors.copperDim : toast.colors.divider
 
                 layer.enabled: toast.muted
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: toast.theme.copperBright
+                    shadowColor: toast.colors.copperBright
                     shadowBlur: 0.5
                     shadowOpacity: 0.25
                     shadowScale: 1.25
@@ -216,7 +218,7 @@ PlasmaCore.Dialog {
                     height: 17
                     source: toast.theme.volumeIconSources[toast.iconKind]
                     isMask: true
-                    color: toast.muted ? toast.theme.copperBright : toast.theme.text
+                    color: toast.muted ? toast.colors.copperBright : toast.colors.text
                 }
             }
 
@@ -267,7 +269,7 @@ PlasmaCore.Dialog {
                         font.family: toast.theme.fontDisplay
                         font.weight: Font.DemiBold
                         font.pixelSize: 13
-                        color: toast.theme.text
+                        color: toast.colors.text
                         elide: Text.ElideRight
                     }
 
@@ -280,10 +282,10 @@ PlasmaCore.Dialog {
                         // Mockup only shows a "Muted" word variant (copper)
                         // and a numeric dB variant (always copper) - there's
                         // no "Unmuted" example. Extrapolated: "Unmuted"
-                        // renders plain (theme.text), consistent with "copper
+                        // renders plain (colors.text), consistent with "copper
                         // is reserved for signaling an actually-active state"
                         // (the same rule the mockup states for the icon).
-                        color: toast.isWordValue ? (toast.muted ? toast.theme.copperBright : toast.theme.text) : toast.theme.copperBright
+                        color: toast.isWordValue ? (toast.muted ? toast.colors.copperBright : toast.colors.text) : toast.colors.copperBright
                     }
                 }
 
@@ -291,14 +293,14 @@ PlasmaCore.Dialog {
                     Layout.fillWidth: true
                     height: 4
                     radius: 999
-                    color: toast.theme.surface3
+                    color: toast.colors.surface3
                     clip: true
 
                     Rectangle {
                         height: parent.height
                         width: parent.width * toast.fraction
                         radius: 999
-                        color: toast.muted ? toast.theme.textFaint : toast.theme.copper
+                        color: toast.muted ? toast.colors.textFaint : toast.colors.copper
                     }
                 }
 
@@ -307,7 +309,7 @@ PlasmaCore.Dialog {
                     text: toast.sourceName !== "" ? toast.sourceName : "—"
                     font.family: toast.theme.fontMono
                     font.pixelSize: 10
-                    color: toast.theme.textFaint
+                    color: toast.colors.textFaint
                 }
             }
         }

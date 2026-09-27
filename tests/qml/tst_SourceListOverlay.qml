@@ -36,6 +36,7 @@ TestCase {
     readonly property var threeSources: sixSources.slice(0, 3)
 
     Theme { id: testTheme }
+    DarkPalette { id: testColors }
     TransparencySettings { id: testTransparency; enabled: false; percent: 100 }
 
     // Stand-in for SourceSelector's row: same 16 px side inset, 50 px tall,
@@ -52,6 +53,7 @@ TestCase {
         id: overlayComponent
         SourceListOverlay {
             theme: testTheme
+            colors: testColors
             transparencySettings: testTransparency
             enabledSources: tc.sixSources
             activeSourceIndex: 0

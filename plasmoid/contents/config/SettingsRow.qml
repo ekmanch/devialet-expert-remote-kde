@@ -29,10 +29,12 @@ ColumnLayout {
     // no existing row moves. First user: Launch at login's systemd
     // status/error text; Phase 11.1.0's forget-amps row may reuse it.
     property string note: ""
-    property color noteColor: theme.dangerBright
+    property color noteColor: colors.dangerBright
     default property alias controlData: controlHolder.data
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     Layout.fillWidth: true
     spacing: 0
@@ -53,7 +55,7 @@ ColumnLayout {
                 text: root.name
                 font.pixelSize: 14
                 font.weight: Font.Medium
-                color: root.theme.text
+                color: root.colors.text
                 wrapMode: Text.WordWrap
             }
 
@@ -62,7 +64,7 @@ ColumnLayout {
                 text: root.desc
                 visible: root.desc !== ""
                 font.pixelSize: 11
-                color: root.theme.textFaint
+                color: root.colors.textFaint
                 wrapMode: Text.WordWrap
             }
         }
@@ -93,6 +95,6 @@ ColumnLayout {
         Layout.fillWidth: true
         height: 1
         visible: root.showDivider
-        color: root.theme.divider
+        color: root.colors.divider
     }
 }

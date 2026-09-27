@@ -81,6 +81,9 @@ Item {
     property bool popupVisible: false
 
     readonly property Theme theme: Theme {}
+    // Phase 17.11.0: the flyout's colour tokens, forwarded to every child
+    // alongside `theme`; ThemeSettings (17.12.0) will supply it instead.
+    readonly property ColorPalette colors: DarkPalette {}
 
     implicitWidth: theme.panelWidth
     implicitHeight: mainColumn.implicitHeight
@@ -755,7 +758,7 @@ Item {
     //
     // Phase 9.1.0: the gradient's alpha is now the user-configured
     // transparency setting, not a hardcoded value baked into Theme.qml -
-    // theme.panelTintTop/Bottom are the opaque base colours only (see
+    // colors.panelTintTop/Bottom are the opaque base colours only (see
     // Theme.qml's own comment), and transparencySettings.withAlpha()
     // reads the live alpha on every call, so a ConfigDialog Apply/OK
     // re-paints this immediately (no reload), per TransparencySettings.
@@ -769,8 +772,8 @@ Item {
         // the flyout's grey edge; NoBackground means no frame or KWin
         // shadow replaces it.
         gradient: Gradient {
-            GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.theme.panelTintTop) }
-            GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.theme.panelTintBottom) }
+            GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.colors.panelTintTop) }
+            GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.colors.panelTintBottom) }
         }
     }
 
@@ -784,6 +787,7 @@ Item {
         AmpHeader {
             id: ampHeader
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             headerName: root.headerName
             headerSub: root.headerSub
@@ -797,6 +801,7 @@ Item {
         VolumeBlock {
             id: volumeBlock
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             volumeDb: root.pendingAmpState.volumeDb
             volumeSettings: root.volumeSettings
@@ -812,6 +817,7 @@ Item {
         ActionRow {
             id: actionRow
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             muted: root.pendingAmpState.muted
             power: root.power
@@ -824,6 +830,7 @@ Item {
         SourceSelector {
             id: sourceSelector
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             sources: root.sources
             activeSourceIndex: root.activeSourceIndex
@@ -844,12 +851,13 @@ Item {
             objectName: "sourceFooterDivider"
             Layout.fillWidth: true
             height: 1
-            color: root.theme.divider
+            color: root.colors.divider
         }
 
         Footer {
             id: footer
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             online: root.online
         }
@@ -864,6 +872,7 @@ Item {
         id: ampListOverlay
         parent: ampHeader
         theme: root.theme
+        colors: root.colors
         knownAmps: root.knownAmps
         ampIp: root.ampIp
         transparencySettings: root.transparencySettings
@@ -881,6 +890,7 @@ Item {
         id: sourceListOverlay
         parent: sourceSelector.rowItem
         theme: root.theme
+        colors: root.colors
         enabledSources: sourceSelector.enabledSources
         activeSourceIndex: root.activeSourceIndex
         transparencySettings: root.transparencySettings
@@ -901,7 +911,7 @@ Item {
         width: 24
         height: 24
         radius: root.theme.radiusSm
-        color: settingsTriggerArea.containsMouse ? root.theme.surface2 : "transparent"
+        color: settingsTriggerArea.containsMouse ? root.colors.surface2 : "transparent"
         z: 10
 
         Kirigami.Icon {
@@ -910,7 +920,7 @@ Item {
             height: 15
             source: Qt.resolvedUrl("../icons/settings_gear.svg")
             isMask: true
-            color: settingsTriggerArea.containsMouse ? root.theme.copperBright : root.theme.textFaint
+            color: settingsTriggerArea.containsMouse ? root.colors.copperBright : root.colors.textFaint
         }
 
         MouseArea {

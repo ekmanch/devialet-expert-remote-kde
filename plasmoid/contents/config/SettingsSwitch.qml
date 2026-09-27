@@ -30,6 +30,8 @@ Item {
     property bool checked: false
     signal toggled(bool checked)
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     implicitWidth: 36
     implicitHeight: 21
@@ -38,9 +40,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: root.checked ? root.theme.copperDim : root.theme.surface3
+        color: root.checked ? root.colors.copperDim : root.colors.surface3
         border.width: 1
-        border.color: root.theme.divider
+        border.color: root.colors.divider
         Behavior on color { ColorAnimation { duration: 180 } }
     }
 
@@ -50,7 +52,7 @@ Item {
         radius: 8
         y: 1.5
         x: root.checked ? root.width - width - 1.5 : 1.5
-        color: root.checked ? root.theme.copperBright : "#e8e6e1"
+        color: root.checked ? root.colors.copperBright : "#e8e6e1"
         Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         Behavior on color { ColorAnimation { duration: 180 } }
     }

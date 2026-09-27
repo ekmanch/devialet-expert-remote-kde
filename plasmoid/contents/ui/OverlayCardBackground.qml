@@ -18,6 +18,8 @@ Kirigami.ShadowedRectangle {
     id: card
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     // Phase 9.1.1 REVISION: overlay alpha (the card's own fill) - a
     // genuine floor, deliberately NOT controlAlpha's compositing-
     // corrected offset - see TransparencySettings.qml's overlayAlpha
@@ -30,9 +32,9 @@ Kirigami.ShadowedRectangle {
     required property TransparencySettings transparencySettings
 
     radius: card.theme.radiusOverlay
-    color: card.transparencySettings.withOverlayAlpha(card.theme.overlayGradientTop)
+    color: card.transparencySettings.withOverlayAlpha(card.colors.overlayGradientTop)
     border.width: 1
-    border.color: card.theme.overlayBorder
+    border.color: card.colors.overlayBorder
     // Approximates `box-shadow: 0 18px 44px -10px rgba(0,0,0,0.6)`.
     shadow.size: 24
     shadow.yOffset: 8
@@ -45,8 +47,8 @@ Kirigami.ShadowedRectangle {
         radius: card.theme.radiusOverlay - 1
         antialiasing: true
         gradient: Gradient {
-            GradientStop { position: 0.0; color: card.transparencySettings.withOverlayAlpha(card.theme.overlayGradientTop) }
-            GradientStop { position: 1.0; color: card.transparencySettings.withOverlayAlpha(card.theme.overlayGradientBottom) }
+            GradientStop { position: 0.0; color: card.transparencySettings.withOverlayAlpha(card.colors.overlayGradientTop) }
+            GradientStop { position: 1.0; color: card.transparencySettings.withOverlayAlpha(card.colors.overlayGradientBottom) }
         }
     }
 }

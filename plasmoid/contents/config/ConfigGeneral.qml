@@ -64,6 +64,8 @@ KCM.SimpleKCM {
     id: root
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     // Phase 4.4.2: cfg_<entryName> is the standard Plasma ConfigModule
     // convention - the shell's own AppletConfiguration.qml (open()/
@@ -417,15 +419,15 @@ KCM.SimpleKCM {
                 Layout.preferredWidth: 36
                 Layout.preferredHeight: 36
                 radius: 9
-                color: root.theme.surface
+                color: root.colors.surface
                 border.width: 1
-                border.color: root.theme.copperDim
+                border.color: root.colors.copperDim
 
                 Label {
                     anchors.centerIn: parent
                     text: "◉"
                     font.pixelSize: 14
-                    color: root.theme.copperBright
+                    color: root.colors.copperBright
                 }
             }
 
@@ -437,7 +439,7 @@ KCM.SimpleKCM {
                     font.family: root.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 17
-                    color: root.theme.text
+                    color: root.colors.text
                 }
 
                 Label {
@@ -445,7 +447,7 @@ KCM.SimpleKCM {
                     font.family: root.theme.fontMono
                     font.pixelSize: 10
                     font.letterSpacing: 1.2
-                    color: root.theme.textFaint
+                    color: root.colors.textFaint
                 }
             }
 
@@ -522,13 +524,13 @@ KCM.SimpleKCM {
                     width: transparencySlider.availableWidth
                     height: 4
                     radius: 999
-                    color: root.theme.surface3
+                    color: root.colors.surface3
 
                     Rectangle {
                         width: transparencySlider.visualPosition * parent.width
                         height: parent.height
                         radius: 999
-                        color: root.theme.copper
+                        color: root.colors.copper
                     }
                 }
 
@@ -538,7 +540,7 @@ KCM.SimpleKCM {
                     width: 15
                     height: 15
                     radius: 999
-                    color: root.theme.copperBright
+                    color: root.colors.copperBright
                 }
 
                 // Scroll-to-adjust, same mechanism as VolumeBlock.qml's
@@ -586,7 +588,7 @@ KCM.SimpleKCM {
                 text: Math.round(transparencySlider.value) + "%"
                 font.family: root.theme.fontMono
                 font.pixelSize: 11
-                color: root.theme.copperBright
+                color: root.colors.copperBright
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
             }
@@ -602,9 +604,9 @@ KCM.SimpleKCM {
             Rectangle {
                 id: stepSegmented
                 radius: root.theme.radiusSm
-                color: root.theme.surface
+                color: root.colors.surface
                 border.width: 1
-                border.color: root.theme.divider
+                border.color: root.colors.divider
                 implicitWidth: stepRow.implicitWidth + 6
                 implicitHeight: stepRow.implicitHeight + 6
 
@@ -626,7 +628,7 @@ KCM.SimpleKCM {
                             required property int index
 
                             radius: 6
-                            color: stepSegmented.activeIndex === index ? root.theme.surface3 : "transparent"
+                            color: stepSegmented.activeIndex === index ? root.colors.surface3 : "transparent"
                             implicitWidth: stepLabel.implicitWidth + 22
                             implicitHeight: stepLabel.implicitHeight + 10
 
@@ -641,7 +643,7 @@ KCM.SimpleKCM {
                                 // text only - no background change, no cursor
                                 // change ("segmented hover is text-color only").
                                 color: stepSegmented.activeIndex === parent.index || stepArea.containsMouse
-                                    ? root.theme.copperBright : root.theme.textDim
+                                    ? root.colors.copperBright : root.colors.textDim
                             }
 
                             MouseArea {
@@ -762,9 +764,9 @@ KCM.SimpleKCM {
                 Rectangle {
                     id: chimeSegmented
                     radius: root.theme.radiusSm
-                    color: root.theme.surface
+                    color: root.colors.surface
                     border.width: 1
-                    border.color: root.theme.divider
+                    border.color: root.colors.divider
                     implicitWidth: chimeSegRow.implicitWidth + 6
                     implicitHeight: chimeSegRow.implicitHeight + 6
 
@@ -785,7 +787,7 @@ KCM.SimpleKCM {
                                 readonly property bool active: chimeSegmented.activeIndex === chimeSeg.index
 
                                 radius: 6
-                                color: chimeSeg.active ? root.theme.surface3 : "transparent"
+                                color: chimeSeg.active ? root.colors.surface3 : "transparent"
                                 implicitWidth: chimeSegLabel.implicitWidth + 22
                                 implicitHeight: chimeSegLabel.implicitHeight + 10
 
@@ -798,7 +800,7 @@ KCM.SimpleKCM {
                                     // Same v25 hover rule as the step-size segments
                                     // above: text-color only, cursor stays normal.
                                     color: chimeSeg.active || chimeSegArea.containsMouse
-                                        ? root.theme.copperBright : root.theme.textDim
+                                        ? root.colors.copperBright : root.colors.textDim
                                 }
 
                                 MouseArea {
@@ -846,18 +848,18 @@ KCM.SimpleKCM {
                             Layout.preferredHeight: 6
                             Layout.alignment: Qt.AlignVCenter
                             radius: 3
-                            color: root.theme.copperBright
+                            color: root.colors.copperBright
                         }
 
                         Label {
                             Layout.alignment: Qt.AlignVCenter
                             textFormat: Text.StyledText
                             text: "Following your desktop's sound theme — currently <font color=\""
-                                + root.theme.copperBright + "\"><b>"
+                                + root.colors.copperBright + "\"><b>"
                                 + root.escapeStyledText(root.soundThemes.followDisplayName()) + "</b></font>"
                             font.family: root.theme.fontMono
                             font.pixelSize: 11
-                            color: root.theme.textDim
+                            color: root.colors.textDim
                         }
                     }
 
@@ -883,7 +885,7 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         text: "Always use this theme's tone, regardless of your desktop setting"
                         font.pixelSize: 11
-                        color: root.theme.textFaint
+                        color: root.colors.textFaint
                         wrapMode: Text.WordWrap
                     }
 
@@ -922,7 +924,7 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         text: "Any sound file on disk"
                         font.pixelSize: 11
-                        color: root.theme.textFaint
+                        color: root.colors.textFaint
                         wrapMode: Text.WordWrap
                     }
 
@@ -948,9 +950,9 @@ KCM.SimpleKCM {
                             implicitWidth: chimeFileLabel.implicitWidth + 20
                             implicitHeight: chimeFileLabel.implicitHeight + 12
                             radius: root.theme.radiusSm
-                            color: root.theme.surface
+                            color: root.colors.surface
                             border.width: 1
-                            border.color: root.theme.divider
+                            border.color: root.colors.divider
 
                             readonly property bool hasFile: root.cfg_chimeSoundFile !== ""
 
@@ -963,7 +965,7 @@ KCM.SimpleKCM {
                                 text: chimeFileChip.hasFile ? root.chimeFileBaseName() : "No file chosen"
                                 font.family: root.theme.fontMono
                                 font.pixelSize: 11
-                                color: chimeFileChip.hasFile ? root.theme.textDim : root.theme.textFaint
+                                color: chimeFileChip.hasFile ? root.colors.textDim : root.colors.textFaint
                                 elide: Text.ElideRight
                             }
 
@@ -1040,9 +1042,9 @@ KCM.SimpleKCM {
                 radius: root.theme.radiusSm
                 implicitWidth: defaultsLabel.implicitWidth + 28
                 implicitHeight: defaultsLabel.implicitHeight + 14
-                color: root.theme.surface
+                color: root.colors.surface
                 border.width: 1
-                border.color: defaultsArea.containsMouse ? root.theme.copperDim : root.theme.divider
+                border.color: defaultsArea.containsMouse ? root.colors.copperDim : root.colors.divider
 
                 Label {
                     id: defaultsLabel
@@ -1050,7 +1052,7 @@ KCM.SimpleKCM {
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     text: "Defaults"
-                    color: defaultsArea.containsMouse ? root.theme.copperBright : root.theme.text
+                    color: defaultsArea.containsMouse ? root.colors.copperBright : root.colors.text
                 }
 
                 MouseArea {

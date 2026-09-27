@@ -65,6 +65,8 @@ GridLayout {
     objectName: "actionRow"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     required property bool muted
     required property bool power
@@ -138,10 +140,10 @@ GridLayout {
         background: Rectangle {
             radius: actionRow.theme.radiusMd
             color: actionRow.muted
-                ? Qt.rgba(actionRow.theme.copper.r, actionRow.theme.copper.g, actionRow.theme.copper.b, 0.14)
-                : actionRow.transparencySettings.withControlAlpha(actionRow.theme.surface)
+                ? Qt.rgba(actionRow.colors.copper.r, actionRow.colors.copper.g, actionRow.colors.copper.b, 0.14)
+                : actionRow.colors.controlColor(actionRow.transparencySettings)
             border.width: 1
-            border.color: actionRow.muted ? actionRow.theme.copperDim : (parent.hovered ? actionRow.theme.copperDim : actionRow.theme.divider)
+            border.color: actionRow.muted ? actionRow.colors.copperDim : (parent.hovered ? actionRow.colors.copperDim : actionRow.colors.divider)
         }
         contentItem: RowLayout {
             id: muteContentRow
@@ -181,7 +183,7 @@ GridLayout {
                 // muteContentRow's height pin is unaffected.
                 source: actionRow.theme.volumeIconSources[actionRow.muted ? "high" : "mute"]
                 isMask: true
-                color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
+                color: actionRow.muted ? actionRow.colors.copperBright : actionRow.colors.text
             }
             Label {
                 id: muteLabel
@@ -190,7 +192,7 @@ GridLayout {
                 text: actionRow.muted ? "Unmute" : "Mute"
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
-                color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
+                color: actionRow.muted ? actionRow.colors.copperBright : actionRow.colors.text
                 wrapMode: Text.NoWrap
             }
             Item { Layout.fillWidth: true }
@@ -217,15 +219,15 @@ GridLayout {
         // TransparencySettings.qml's controlAlpha comment.
         background: Rectangle {
             radius: actionRow.theme.radiusMd
-            color: actionRow.transparencySettings.withControlAlpha(actionRow.theme.surface)
+            color: actionRow.colors.controlColor(actionRow.transparencySettings)
             border.width: 1
             // Booting takes priority over the hover colors below it,
             // which stay completely untouched - the mockup's
             // .state-booting rule isn't a :hover variant, it applies
             // unconditionally while booting.
             border.color: actionRow.powerState === "Booting"
-                ? actionRow.theme.warning
-                : (powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.success) : actionRow.theme.divider)
+                ? actionRow.colors.warning
+                : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.success) : actionRow.colors.divider)
         }
         contentItem: RowLayout {
             id: powerContentRow
@@ -251,7 +253,7 @@ GridLayout {
                 implicitWidth: 13
                 implicitHeight: 13
                 source: "system-shutdown-symbolic"
-                color: powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.successBright) : actionRow.theme.text
+                color: powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.successBright) : actionRow.colors.text
                 visible: actionRow.powerState !== "Booting"
             }
 
@@ -273,7 +275,7 @@ GridLayout {
                     radius: width / 2
                     color: "transparent"
                     border.width: 2
-                    border.color: Qt.rgba(actionRow.theme.warningBright.r, actionRow.theme.warningBright.g, actionRow.theme.warningBright.b, 0.25)
+                    border.color: Qt.rgba(actionRow.colors.warningBright.r, actionRow.colors.warningBright.g, actionRow.colors.warningBright.b, 0.25)
                 }
 
                 Shape {
@@ -288,7 +290,7 @@ GridLayout {
                     }
                     ShapePath {
                         strokeWidth: 2
-                        strokeColor: actionRow.theme.warningBright
+                        strokeColor: actionRow.colors.warningBright
                         fillColor: "transparent"
                         capStyle: ShapePath.RoundCap
                         PathAngleArc {
@@ -311,8 +313,8 @@ GridLayout {
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
                 color: actionRow.powerState === "Booting"
-                    ? actionRow.theme.warningBright
-                    : (powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.successBright) : actionRow.theme.text)
+                    ? actionRow.colors.warningBright
+                    : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.successBright) : actionRow.colors.text)
                 wrapMode: Text.NoWrap
             }
             Item { Layout.fillWidth: true }

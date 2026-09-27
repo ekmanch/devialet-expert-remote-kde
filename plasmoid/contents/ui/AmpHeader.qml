@@ -30,6 +30,8 @@ Rectangle {
     objectName: "ampHeader"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     required property string headerName
     required property string headerSub
@@ -82,9 +84,9 @@ Rectangle {
             width: 10
             height: 10
             radius: 5
-            color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.theme.warningBright : (ampHeaderBg.online ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint))
+            color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.colors.warningBright : (ampHeaderBg.online ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint))
             border.width: ampHeaderBg.ampIp === "" ? 1.5 : 0
-            border.color: ampHeaderBg.theme.textFaint
+            border.color: ampHeaderBg.colors.textFaint
             property real pulseOpacity: 1.0
             opacity: ampHeaderBg.powerState === "Booting" ? ampDot.pulseOpacity : (ampHeaderBg.online && !ampHeaderBg.power ? 0.3 : 1.0)
             SequentialAnimation on pulseOpacity {
@@ -106,7 +108,7 @@ Rectangle {
                 font.family: ampHeaderBg.theme.fontMono
                 font.pixelSize: 10
                 font.letterSpacing: 1.2
-                color: ampHeaderBg.theme.textFaint
+                color: ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -119,7 +121,7 @@ Rectangle {
                 font.family: ampHeaderBg.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: ampHeaderBg.theme.text
+                color: ampHeaderBg.colors.text
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -131,7 +133,7 @@ Rectangle {
                 text: ampHeaderBg.headerSub
                 font.family: ampHeaderBg.theme.fontMono
                 font.pixelSize: 11
-                color: ampHeaderBg.theme.textFaint
+                color: ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -144,7 +146,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             text: "⌄"
             font.pixelSize: 11
-            color: ampHeaderBg.listOpen ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint
+            color: ampHeaderBg.listOpen ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint
             rotation: ampHeaderBg.listOpen ? 180 : 0
             Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         }
@@ -158,7 +160,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: ampHeaderBg.theme.divider
+        color: ampHeaderBg.colors.divider
     }
 
     MouseArea {

@@ -31,6 +31,8 @@ RowLayout {
     signal stepped(real value)
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.11.0: colour tokens; ConfigGeneral forwards one in 17.14.0.
+    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
 
     spacing: 8
 
@@ -59,16 +61,16 @@ RowLayout {
         opacity: enabled ? 1.0 : 0.4
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.theme.surface
+            color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.theme.copperDim : root.theme.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.divider
         }
         contentItem: Label {
             text: parent.text
             font.family: root.theme.fontDisplay
             font.weight: Font.DemiBold
             font.pixelSize: 14
-            color: parent.hovered ? root.theme.copperBright : root.theme.text
+            color: parent.hovered ? root.colors.copperBright : root.colors.text
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -76,9 +78,9 @@ RowLayout {
 
     Rectangle {
         radius: root.theme.radiusSm
-        color: root.theme.surface
+        color: root.colors.surface
         border.width: 1
-        border.color: root.theme.divider
+        border.color: root.colors.divider
         implicitWidth: valueLabel.implicitWidth + 20
         implicitHeight: 26
 
@@ -88,7 +90,7 @@ RowLayout {
             text: Math.round(root.value) + " dB"
             font.family: root.theme.fontMono
             font.pixelSize: 12
-            color: root.theme.copperBright
+            color: root.colors.copperBright
             wrapMode: Text.NoWrap
         }
     }
@@ -106,16 +108,16 @@ RowLayout {
         opacity: enabled ? 1.0 : 0.4
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.theme.surface
+            color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.theme.copperDim : root.theme.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.divider
         }
         contentItem: Label {
             text: parent.text
             font.family: root.theme.fontDisplay
             font.weight: Font.DemiBold
             font.pixelSize: 14
-            color: parent.hovered ? root.theme.copperBright : root.theme.text
+            color: parent.hovered ? root.colors.copperBright : root.colors.text
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }

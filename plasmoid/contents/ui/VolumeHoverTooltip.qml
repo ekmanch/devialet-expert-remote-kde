@@ -60,7 +60,7 @@
 // to the dot; "Muted" still swaps in for the dB reading (that part of
 // the earlier fix was correct and is kept), just with no icon
 // accompanying it, muted or not. Background gradient/radius/border still
-// match VolumeToast.qml's OSD-toast look (theme.osdGradientTop/Bottom,
+// match VolumeToast.qml's OSD-toast look (colors.osdGradientTop/Bottom,
 // radiusLg) - only the icon was reverted, nothing else from that round.
 
 import QtQuick
@@ -80,6 +80,8 @@ PlasmaCore.Dialog {
     property bool muted: false
 
     readonly property Theme theme: Theme {}
+    // Phase 17.11.0: colour tokens; ThemeSettings forwards one in 17.13.0.
+    readonly property ColorPalette colors: DarkPalette {}
     readonly property bool isWordValue: tooltip.hasAmp && tooltip.muted
 
     type: PlasmaCore.Dialog.Tooltip
@@ -97,8 +99,8 @@ PlasmaCore.Dialog {
 
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: tooltip.theme.osdGradientTop }
-            GradientStop { position: 1.0; color: tooltip.theme.osdGradientBottom }
+            GradientStop { position: 0.0; color: tooltip.colors.osdGradientTop }
+            GradientStop { position: 1.0; color: tooltip.colors.osdGradientBottom }
         }
 
         ColumnLayout {
@@ -136,7 +138,7 @@ PlasmaCore.Dialog {
                     id: dot
                     width: 7; height: 7
                     radius: 3.5
-                    color: tooltip.theme.copperBright
+                    color: tooltip.colors.copperBright
                 }
 
                 Label {
@@ -145,7 +147,7 @@ PlasmaCore.Dialog {
                     font.family: tooltip.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 11
-                    color: tooltip.theme.text
+                    color: tooltip.colors.text
                     elide: Text.ElideRight
                 }
             }
@@ -221,7 +223,7 @@ PlasmaCore.Dialog {
                     text: tooltip.hasAmp && tooltip.sourceName !== "" ? tooltip.sourceName : "—"
                     font.family: tooltip.theme.fontMono
                     font.pixelSize: 10
-                    color: tooltip.theme.textFaint
+                    color: tooltip.colors.textFaint
                 }
 
                 Item { Layout.fillWidth: true }
@@ -236,14 +238,14 @@ PlasmaCore.Dialog {
                     font.family: tooltip.isWordValue ? tooltip.theme.fontDisplay : tooltip.theme.fontMono
                     font.weight: tooltip.isWordValue ? Font.DemiBold : Font.Medium
                     font.pixelSize: tooltip.isWordValue ? 12 : 13
-                    color: tooltip.theme.copperBright
+                    color: tooltip.colors.copperBright
                 }
                 Label {
                     Layout.alignment: Qt.AlignVCenter
                     visible: !tooltip.isWordValue
                     text: "dB"
                     font.pixelSize: 9
-                    color: tooltip.theme.textDim
+                    color: tooltip.colors.textDim
                 }
             }
 
@@ -253,14 +255,14 @@ PlasmaCore.Dialog {
                 Layout.bottomMargin: 7
                 height: 2.5
                 radius: 999
-                color: tooltip.theme.surface3
+                color: tooltip.colors.surface3
                 clip: true
 
                 Rectangle {
                     height: parent.height
                     width: parent.width * tooltip.volumeFraction
                     radius: 999
-                    color: tooltip.muted ? tooltip.theme.textFaint : tooltip.theme.copper
+                    color: tooltip.muted ? tooltip.colors.textFaint : tooltip.colors.copper
                 }
             }
 
@@ -269,13 +271,13 @@ PlasmaCore.Dialog {
 
                 RowLayout {
                     spacing: 3
-                    Label { text: "Scroll"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.theme.textDim }
-                    Label { text: "to adjust"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.theme.textFaint }
+                    Label { text: "Scroll"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.colors.textDim }
+                    Label { text: "to adjust"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.colors.textFaint }
                 }
                 RowLayout {
                     spacing: 3
-                    Label { text: "Middle-click"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.theme.textDim }
-                    Label { text: "to mute"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.theme.textFaint }
+                    Label { text: "Middle-click"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.colors.textDim }
+                    Label { text: "to mute"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.colors.textFaint }
                 }
             }
         }
