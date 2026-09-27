@@ -86,43 +86,24 @@ GridLayout {
     // last-known Mute/Unmute text, only dimmed.
     readonly property bool muteInteractive: actionRow.ampIp !== "" && actionRow.powerState === "On"
 
-    // 2026-09-12 follow-up (owner request): a fixed, unequal split with
-    // equal worst-case margins. Two plain fillWidth columns shared the
-    // row in proportion to each Button's content width, so "Unmute"
-    // grew the mute button by 14 px on every toggle; pinning both to
-    // the same preferredWidth (the mockup's `1fr 1fr`) stopped the
-    // motion but left "Powering on…" nearly touching its borders while
-    // "Unmute" sat in ~33 px of air per side. So: measure each button's
-    // widest content (icon + gap + widest label, in the labels' own
-    // font via TextMetrics, not hardcoded pixel counts), give both
-    // buttons the same margin around that worst case, and split what
-    // the row has accordingly. Static - the widths never follow the
-    // current label. actionRow.width comes from mainColumn, anchored to
-    // FlyoutContent's constant-width root, so deriving preferredWidth
-    // from it can't loop back into the flyout's own implicit width.
-    // Measured live (harness run 20260912-130939, all mute x pow
-    // states): content 63 / 106 px, row 260 px -> buttons 108 / 152 px
-    // in every state, worst-case margins 22-23 px per side on both
-    // ("Unmute" 23/22, "Powering on…" 23/23).
-    TextMetrics {
-        id: muteWorstCase
-        font: muteLabel.font
-        text: "Unmute"
-    }
-    TextMetrics {
-        id: powerWorstCase
-        font: powerLabel.font
-        text: "Powering on…"
-    }
-    readonly property real iconAndGap: 13 + muteContentRow.spacing
-    readonly property real muteContentMax: actionRow.iconAndGap + muteWorstCase.advanceWidth
-    readonly property real powerContentMax: actionRow.iconAndGap + powerWorstCase.advanceWidth
+    // Phase 17.4.0: a fixed 11:14 split (flyout mockup v2 :403-408,
+    // `grid-template-columns: 11fr 14fr`): never content-sized, so nothing
+    // moves when a label changes (Mute/Unmute, Power Off/Power On/
+    // Powering on…), and Power gets the larger share so "Powering on…"
+    // plus its spinner has room. Replaces the 2026-09-12 split (Phase
+    // 12.0.0), which measured each button's widest content with
+    // TextMetrics and gave both equal worst-case margins (108 / 152 px);
+    // the mockup now fixes the ratio instead. actionRow.width comes from
+    // mainColumn, anchored to FlyoutContent's constant-width root, so
+    // deriving preferredWidth from it can't loop back into the flyout's
+    // own implicit width. At the 300 px panel: row 268 px (16 px side
+    // margins), minus the 8 px column spacing = 260 px -> 114 / 146 px
+    // (the mockup's 259.5 px -> 114.2 / 145.3).
     readonly property real buttonsAvailable: actionRow.width - actionRow.columnSpacing
-    readonly property real equalMargin: Math.max(0, (actionRow.buttonsAvailable - actionRow.muteContentMax - actionRow.powerContentMax) / 4)
     // Whole pixels: the mute button rounds, the power button takes the
     // exact remainder so the two always sum to the row (no sub-pixel
     // borders on either).
-    readonly property int muteButtonWidth: Math.round(actionRow.muteContentMax + 2 * actionRow.equalMargin)
+    readonly property int muteButtonWidth: Math.round(actionRow.buttonsAvailable * 11 / 25)
     readonly property int powerButtonWidth: actionRow.buttonsAvailable - actionRow.muteButtonWidth
 
     Layout.fillWidth: true

@@ -8516,6 +8516,23 @@ architecture decisions; this file is just sequencing and status.
     (−50..−20 vs −50..−10). Harness runs read the live widget settings;
     compare runs taken under the same settings.
 
+- [x] **Phase 17.4.0 — Fixed 11:14 action-button split.** Done
+      2026-09-27. `ActionRow.qml`: the Phase 12.0.0 TextMetrics /
+      equal-worst-case-margin maths (108 / 152 px) replaced by
+      `muteButtonWidth = Math.round(buttonsAvailable * 11 / 25)`,
+      `powerButtonWidth = buttonsAvailable - muteButtonWidth` (flyout mockup
+      v2 :403-408, `11fr 14fr`); row 268 px − 8 px spacing = 260 px →
+      **114 / 146 px**. Both TextMetrics and four helper properties
+      removed (no other readers). qmllint: the same single pre-existing
+      warning as HEAD.
+  - Verified: harness `--vary mute,pow` (`20260927-121249-after-17.4.0-
+    mutepow`, 6 states) exit 0 against `expected-7.14.0.json`; mute 114
+    px and power 146 px in every state. Content margins per side, from the
+    probe dump: "Mute" 33/33, "Unmute" 26/25, "Power On" 35/34, "Power
+    Off" 31/31, "Powering on…" (with spinner) 20/20 - the tightest, as
+    planned; crops show nothing clipped. Real daemon active with
+    192.168.0.22 selected after the run. QML suite 24/24.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8606,14 +8623,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.4.0 — Fixed 11:14 action-button split.** Replace the
-      TextMetrics/equal-margin maths (`ActionRow.qml:107-126`) with
-      `muteButtonWidth = Math.round(buttonsAvailable * 11 / 25)`,
-      `powerButtonWidth = buttonsAvailable - muteButtonWidth` → 114/146 px
-      at the 260 px row (mockup flyout v2 :408 `11fr 14fr`).
-  - Verify: `--vary mute,pow` widths logged before and after; identical
-    in all six states; "Powering on…" margins ≥ 20 px per side.
 
 - [ ] **Phase 17.5.0 — Remove the outer borders (D2).** `border.width`/
       `border.color` off the flyout (`FlyoutContent.qml:767-768`), toast
