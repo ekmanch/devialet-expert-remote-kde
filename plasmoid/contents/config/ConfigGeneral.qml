@@ -100,6 +100,14 @@ KCM.SimpleKCM {
     readonly property real cfg_volumeStepDbDefault: root.shippedDefaults.volumeStepDb
     readonly property var stepValues: [0.5, 1, 2]
 
+    // Phase 17.17.0: main.xml `theme` - the widget's colour theme for the
+    // flyout, OSD and tooltip (ThemeSettings.qml reads it). Segment order
+    // matches the row: Dark, Light, Follow system. Until 17.19.0 every
+    // value still paints the dark palette.
+    readonly property var themeModes: ["dark", "light", "system"]
+    property string cfg_theme: "system"
+    readonly property string cfg_themeDefault: root.shippedDefaults.theme
+
     // Appearance section - wired for real in Phase 9.1.0 (see main.xml's
     // own comment on these two entries and TransparencySettings.qml).
     property bool cfg_transparencyEnabled: true
@@ -181,6 +189,7 @@ KCM.SimpleKCM {
     // rather than three times. Update this alongside main.xml if a
     // default ever changes.
     readonly property var shippedDefaults: ({
+        theme: "system",
         transparencyEnabled: true,
         transparencyPercent: 90,
         volumeStepDb: 1.0,
@@ -471,6 +480,25 @@ KCM.SimpleKCM {
         // just this dialog's own preview. OSD toast/hover tooltip alpha is
         // still separate (Phase 9.2.0's job); see main.xml's own comment.
         SectionLabel { colors: root.colors; text: "Appearance"; first: true }
+
+        // Phase 17.17.0: Theme (configDialog mockup v2 :574-584; Follow
+        // system is the shipped default). Recolours the flyout, hover
+        // tooltip and OSD - not this page, which follows its window's
+        // scheme. The "Following your desktop's color scheme" status line
+        // below it is 17.18.0.
+        SettingsRow {
+            colors: root.colors
+            name: "Theme"
+            desc: "Colors for the popup, hover tooltip and volume overlay"
+
+            SegmentedControl {
+                id: themeSegmented
+                colors: root.colors
+                labels: ["Dark", "Light", "Follow system"]
+                activeIndex: root.themeModes.indexOf(root.cfg_theme)
+                onPicked: index => root.cfg_theme = root.themeModes[index]
+            }
+        }
 
         SettingsRow {
             colors: root.colors
@@ -1010,6 +1038,7 @@ KCM.SimpleKCM {
                     // Values must stay in sync with main.xml's own
                     // <default> entries - see root.shippedDefaults above.
                     onClicked: {
+                        root.cfg_theme = root.shippedDefaults.theme;
                         root.cfg_transparencyEnabled = root.shippedDefaults.transparencyEnabled;
                         root.cfg_transparencyPercent = root.shippedDefaults.transparencyPercent;
                         root.cfg_volumeStepDb = root.shippedDefaults.volumeStepDb;

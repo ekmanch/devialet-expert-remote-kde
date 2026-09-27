@@ -8990,11 +8990,28 @@ architecture decisions; this file is just sequencing and status.
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
 
-- [ ] **Phase 17.17.0 — Theme row.** Dark / Light / Follow system as the
-      first Appearance row, writing `cfg_theme` (copy and IDs: configDialog
-      v2 :574-584). **Picking Light is visually a no-op until 17.19.0.**
-  - Verify: driver TestEvent clicks; close/reopen + widget reload keep the
-    value (CLAUDE.md persistence rule); owner opens the real dialog.
+- [ ] **Phase 17.17.0 — Theme row.** Code done 2026-09-27; open for the
+      owner's real-dialog persistence check (below). First Appearance row in
+      `ConfigGeneral.qml`: "Theme" / "Colors for the popup, hover tooltip
+      and volume overlay" (configDialog mockup v2 :574-584) with the shared
+      `SegmentedControl` - Dark / Light / Follow system → `cfg_theme`
+      "dark" / "light" / "system" (`themeModes`). Same pattern as every other
+      setting: `cfg_theme` + `cfg_themeDefault` (from `shippedDefaults.theme:
+      "system"`, matching main.xml), and the Reset section's Defaults button
+      resets it. **Picking Light (or Follow system on a light desktop) is
+      still visually a no-op until 17.19.0.**
+  - Verified: ConfigGeneral lint 0; QML suite 38/38; render shows the row
+    above Transparency with Follow system highlighted. Scratch QtTest driver
+    on the real page (own Window): default `system`, Follow system
+    highlighted; clicks Dark/Light/Follow system → `cfg_theme` dark/light/
+    system with the highlight following; the step-size and chime controls
+    (now 2nd and 3rd on the page) still write their settings; Defaults
+    resets `cfg_theme` from light to system. Installed; daemon active.
+  - Pending owner (CLAUDE.md "Every settings control must persist"): in the
+    real dialog pick Light → Apply - the journal should show
+    `[ThemeSettings] mode light`; close and reopen the dialog - Light still
+    selected; restart the shell (or reload the widget) - still Light; then
+    set Follow system again.
 
 - [ ] **Phase 17.18.0 — Follow-system status line.** "Following your
       desktop's color scheme — currently <b>Dark/Light</b>" below the row,
