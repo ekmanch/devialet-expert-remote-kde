@@ -80,8 +80,11 @@ PlasmaCore.Dialog {
     property bool muted: false
 
     readonly property Theme theme: Theme {}
-    // Phase 17.11.0: colour tokens; ThemeSettings forwards one in 17.13.0.
-    readonly property ColorPalette colors: DarkPalette {}
+    // Phase 17.13.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml, forwarded by CompactRepresentation); `colors` is the OSD/
+    // tooltip palette, which ThemeSettings keeps separate from the flyout's.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: tooltip.themeSettings.osdPalette
     readonly property bool isWordValue: tooltip.hasAmp && tooltip.muted
 
     type: PlasmaCore.Dialog.Tooltip

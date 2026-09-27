@@ -57,7 +57,7 @@ MouseArea {
     // TransparencySettings.qml's own header comment and this file's
     // header comment above.
     required property TransparencySettings transparencySettings
-    // Phase 17.12.0: forwarded to the flyout (and, in 17.13.0, the toast and tooltip).
+    // Phase 17.12.0/17.13.0: forwarded to the flyout, the toast and the tooltip.
     required property ThemeSettings themeSettings
     // 2026-09-08 follow-up: the amp's PowerState, from main.qml's root-
     // anchored mirror (ampPowerState) - forwarded like pendingAmpState/
@@ -345,6 +345,7 @@ MouseArea {
 
     VolumeHoverTooltip {
         id: hoverTooltip
+        themeSettings: root.themeSettings
         visualParent: root
         ampName: root.tooltipAmpName
         sourceName: root.activeSourceName
@@ -401,6 +402,7 @@ MouseArea {
 
     VolumeToast {
         id: volumeToast
+        themeSettings: root.themeSettings
     }
 
     // PC-originated commands from outside this widget (the MPV scroll-to-

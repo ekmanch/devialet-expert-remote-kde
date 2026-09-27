@@ -87,8 +87,11 @@ PlasmaCore.Dialog {
     id: toast
 
     readonly property Theme theme: Theme {}
-    // Phase 17.11.0: colour tokens; ThemeSettings forwards one in 17.13.0.
-    readonly property ColorPalette colors: DarkPalette {}
+    // Phase 17.13.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml, forwarded by CompactRepresentation); `colors` is the OSD/
+    // tooltip palette, which ThemeSettings keeps separate from the flyout's.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: toast.themeSettings.osdPalette
 
     // ---- Content state (set via showVolume()/showMute() below) ----
     property string ampName: ""

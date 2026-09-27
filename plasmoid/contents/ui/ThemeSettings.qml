@@ -2,8 +2,8 @@
 // Dark / Light / Follow-system setting resolved to ColorPalette objects.
 //
 // Root-anchored in main.qml and forwarded like TransparencySettings.qml
-// (main.qml -> CompactRepresentation -> FlyoutPopup -> FlyoutContent; the
-// OSD toast and hover tooltip get it in 17.13.0), because the flyout, OSD
+// (main.qml -> CompactRepresentation -> FlyoutPopup -> FlyoutContent, and
+// CompactRepresentation -> VolumeToast / VolumeHoverTooltip), because the flyout, OSD
 // and tooltip must never disagree about the theme (CLAUDE.md "Shared
 // cross-view state"). The ConfigDialog page cannot reach main.qml's root and
 // resolves its own page palette (17.14.0/17.15.0).
@@ -14,7 +14,7 @@
 // key and one binding here, with no consumer changes.
 //
 // Until LightPalette.qml exists (17.19.0) every mode resolves to the dark
-// palette: `light` and `system` are accepted and resolved (resolvedDark),
+// palette (on both flyoutPalette and osdPalette): `light` and `system` are accepted and resolved (resolvedDark),
 // but both palette properties still hand out `dark`.
 
 import QtQuick
@@ -38,7 +38,22 @@ QtObject {
     property string harnessOverride: ""
 
     readonly property string effectiveMode: ts.harnessOverride !== "" ? ts.harnessOverride : ts.mode
-    readonly property bool resolvedDark: ts.effectiveMode === "system" ? ts.systemDark : ts.effectiveMode !== "light"
+    readonly property bool resolvedDark: ts.darkFor(ts.effectiveMode)
+
+    // "dark" | "light" | "system" -> paints dark? (anything else: dark)
+    function darkFor(m: string): bool {
+        return m === "system" ? ts.systemDark : m !== "light";
+    }
+
+    // The OSD toast + hover tooltip's own resolution (Phase 17.13.0 seam).
+    // Today they simply follow the widget's Theme. A later option to let
+    // them follow the desktop's appearance instead (owner idea, 2026-09-27)
+    // is one kcfg key plus this binding, e.g.
+    //     osdResolvedDark: osdFollowsSystem ? systemDark : resolvedDark
+    // - no change in VolumeToast/VolumeHoverTooltip, which read osdPalette.
+    // The harness override applies through resolvedDark, so it still pins
+    // all three surfaces.
+    readonly property bool osdResolvedDark: ts.resolvedDark
 
     readonly property ColorPalette dark: DarkPalette {}
 
@@ -58,7 +73,9 @@ QtObject {
                     "systemDark", ts.systemDark, "resolvedDark", ts.resolvedDark);
     }
 
-    // 17.19.0: `ts.resolvedDark ? ts.dark : ts.light` for both.
+    // 17.19.0 (with `light: LightPalette {}`):
+    //     flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
+    //     osdPalette: ts.osdResolvedDark ? ts.dark : ts.light
     readonly property ColorPalette flyoutPalette: ts.dark
     readonly property ColorPalette osdPalette: ts.dark
 }

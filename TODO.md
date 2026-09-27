@@ -8778,6 +8778,27 @@ architecture decisions; this file is just sequencing and status.
     the translucent flyout). Daemon active with the amp selected after
     every run.
 
+- [x] **Phase 17.13.0 — Toast/tooltip hop.** Done 2026-09-27.
+      `VolumeToast.qml` and `VolumeHoverTooltip.qml` take `required
+      property ThemeSettings themeSettings` and read `colors:
+      themeSettings.osdPalette` (their local `DarkPalette {}` removed);
+      `CompactRepresentation` forwards its own `themeSettings` to both.
+  - Seam for the owner's idea (2026-09-27; see "Not yet scoped / parked"):
+    `ThemeSettings` now resolves through `darkFor(mode)` and gives the OSD
+    and tooltip their own `osdResolvedDark`, today equal to `resolvedDark`.
+    A later "OSD/tooltip follow the desktop's appearance" option is one
+    kcfg key plus that one binding; no consumer changes. No behaviour or
+    setting added now.
+  - Verified: qmllint counts as HEAD (ThemeSettings 0); QML suite 24/24;
+    reinstalled, journal shows one `[ThemeSettings]` line and no
+    required-property or load errors from either file. OSD over the grey
+    backdrop (−22 dB and muted) vs the 17.11.0 capture under the same
+    conditions: max 2 levels on 34 / 22 px of the whole screen
+    (anti-aliasing) - unchanged. Daemon active with the amp selected
+    afterwards. Owner check 2026-09-27 (screenshot with the OSD and the
+    hover tooltip open on the real desktop): both look right - tooltip dot
+    7 px without glow, no outer borders, solid copper bars.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8871,12 +8892,6 @@ architecture decisions; this file is just sequencing and status.
     the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
-
-- [ ] **Phase 17.13.0 — Toast/tooltip hop.** Forward `themeSettings` from
-      CompactRepresentation into VolumeToast and VolumeHoverTooltip
-      (`required property`), bind `osdPalette`; drop their local
-      `DarkPalette {}`.
-  - Verify: toast capture identical; qmllint.
 
 - [ ] **Phase 17.14.0 — ConfigDialog components take a forwarded
       ColorPalette.** ConfigGeneral owns `PageTheme` (dark for now); SettingsRow,
@@ -9042,6 +9057,16 @@ architecture decisions; this file is just sequencing and status.
 
 
 ## Not yet scoped / parked
+
+- **OSD + tooltip: follow the desktop's appearance, or the widget's Theme**
+  (owner idea, 2026-09-27, not decided). A ConfigDialog option letting the
+  OSD toast and hover tooltip follow the system appearance even when the
+  widget's Theme is set to Dark or Light. Prepared in Phase 17.13.0:
+  `ThemeSettings.osdResolvedDark` is the one binding to change
+  (`osdFollowsSystem ? systemDark : resolvedDark`) plus one `main.xml` key
+  and one settings row; `VolumeToast`/`VolumeHoverTooltip` already read the
+  separate `osdPalette`. Best scheduled after 17.15.0 (the portal reader
+  that drives `systemDark`) and 17.19.0 (a light palette to switch to).
 
 - **Amp list: rows under the scrollbar once it scrolls** (found in Phase
   17.1.1, 2026-09-26). `AmpListOverlay.qml:105` binds its column to the
