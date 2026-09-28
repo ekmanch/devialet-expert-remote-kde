@@ -121,4 +121,5 @@ ColorPalette {
     headerHover: Qt.rgba(1, 1, 1, 0.02)            // AmpHeader hover
     activeFill: Qt.rgba(193 / 255, 127 / 255, 78 / 255, 0.14)   // copper at 0.14, muted button
     cardShadow: "transparent"                      // no control shadows in dark
+    controlAlphaK: 0.1                             // Phase 9.1.1 value, unchanged (moved from TransparencySettings in 17.19.2)
 }

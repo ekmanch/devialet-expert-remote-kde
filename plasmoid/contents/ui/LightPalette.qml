@@ -55,4 +55,5 @@ ColorPalette {
     headerHover: Qt.rgba(28 / 255, 24 / 255, 18 / 255, 0.025)    // --header-hover
     activeFill: Qt.rgba(195 / 255, 148 / 255, 67 / 255, 0.10)    // --active-bg
     cardShadow: Qt.rgba(20 / 255, 16 / 255, 10 / 255, 0.10)      // --card-shadow
+    controlAlphaK: 0.1                                           // 17.19.2 starting value (fixed-k, as dark); tune live
 }

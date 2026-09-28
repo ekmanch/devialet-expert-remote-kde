@@ -9136,6 +9136,61 @@ architecture decisions; this file is just sequencing and status.
       short note in the ConfigDialog pointing at the compositor's
       force-blur option), which a later light-theme phase can include.
 
+- [x] **Phase 17.19.2 — Fixed-k light controls.** Done 2026-09-28. Light
+      controls (buttons, source row, chip, +/- steppers) use the dark
+      theme's fixed-k model instead of glass `0.35 + 0.65 x alpha` - the
+      17.19.1 spike's adopted finding.
+      - `controlAlphaK` moved from `TransparencySettings.qml` into the
+        palette: `required property real controlAlphaK` in `ColorPalette.qml`
+        (the owner's "Palette.qml" - the base type is named ColorPalette
+        because `Palette` clashes with QtQuick's type).
+        `DarkPalette.qml` 0.1 (unchanged value), `LightPalette.qml` 0.1
+        (starting value, to tune live).
+      - The Phase 9.1.1 derivation comment for k moved with it.
+        `TransparencySettings.qml` keeps a short pointer where controlAlpha
+        was, because seven components' comments still say "see
+        TransparencySettings.qml's controlAlpha comment".
+      - `ColorPalette.controlColor(ts)` returns `surface` at the palette's
+        `controlAlphaK` for both themes. `ts` is no longer read; the
+        parameter stays so no component changed.
+      - Removed from `TransparencySettings.qml`: `controlAlphaK`,
+        `controlAlpha`, `withControlAlpha`, `glassAlpha`, `withGlassAlpha`.
+        Nothing else in the repo used them (grep of plasmoid/, tests/,
+        tools/).
+  - Verified:
+    - qmllint: warning counts equal to HEAD for the four touched files (all
+      0) and for their consumers (ActionRow 1, VolumeBlock 6, SourceSelector
+      0, ConfigGeneral 0).
+    - QML suite 38/38.
+    - Harness over the #808080 backdrop, transparency 50 %, Dim Inactive
+      loaded in every run: before `20260928-220128-before-17.19.2-dark`,
+      `-220144-...-light-a` (`--vary theme,mute,slist`) and
+      `-220159-...-light-b` (`--vary theme,list`); after `-220323`,
+      `-220339`, `-220354`. All exit 0 against `expected-17.json`, no moves.
+    - **Dark: no widget change.** Before vs after differs by about 23 000 px
+      of at most 7 levels per state. A restart-only control (shell
+      restarted with no code change, `-220602-after2-17.19.2-dark-restart`)
+      gives the same diff (22 922 vs 22 966 px, max 7). It is compositor
+      noise from each `plasmashell --replace` (Better Blur DX's noise band
+      at the top of the flyout, plus the transparent corners outside its
+      rounded edge), not the widget. Within one shell session, two runs
+      differ by about 100 px of 1 level. The dark panel reads 67 before
+      and after, and Booting differs only by its animation.
+    - **Light: only controls change.** Every changed pixel outside the six
+      control rectangles (sourceChip, volumeDown/UpButton, muteButton,
+      powerButton, sourceRow; 1 px margin) matches that same noise (22 966
+      / 7 776 px, max 7, none above 7). Inside the controls, faces went
+      from 232-233 (glass) to 191-194 at 50 %; fixed k predicts 191 over
+      the panel's 184.
+    - Installed; daemon active on 192.168.0.22.
+  - Left for the owner: the live check with transparency + blur (Better
+    Blur DX), and tuning `LightPalette.controlAlphaK` if 0.1 reads too
+    faint.
+  - Stale comment, not changed (component comment, and components were out
+    of scope): `CardShadow.qml:10` still says "light controls are glass
+    (TransparencySettings.withGlassAlpha)". The mask it describes is still
+    needed, now that fixed-k controls are even more see-through.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo

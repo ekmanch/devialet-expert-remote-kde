@@ -74,12 +74,86 @@ QtObject {
     // transparent in dark, which has no control shadows.
     required property color cardShadow
 
-    // Background of a control (button, source row, chip, +/- steppers) at
-    // the configured transparency. One mechanism for both themes: dark
-    // uses the constant control alpha over `surface`; light uses the
-    // mockup's glass alpha (0.35 + 0.65 x panel alpha) over white, so the
-    // buttons frost together with the panel (flyout mockup v3 :67, :85).
+    // ---- Phase 17.19.2: control alpha, per palette ----
+    // Phase 9.1.1 REVISION 4 (moved here from TransparencySettings.qml in
+    // Phase 17.19.2; "controlAlpha" below is this palette's controlAlphaK):
+    // interactive chrome (volume +/- buttons, mute/power buttons, the source
+    // row, and the current-source chip - NOT the overlay dropdown cards, see
+    // TransparencySettings.overlayAlpha) targets a
+    // FRACTION of the remaining gap to full opacity, not a flat +N-point
+    // EFFECTIVE offset - the previous ("REVISION") formula had a real
+    // bug, not just a tuning issue: `Math.min(1.0, alpha +
+    // controlOffsetTarget)` clamps to exactly 1.0 once alpha >= 1 -
+    // controlOffsetTarget (0.90 at controlOffsetTarget=0.10), which
+    // forces the inverse-solved controlAlpha to ALSO be exactly 1.0 for
+    // the entire panel range 90-100% - buttons rendered as fully solid,
+    // unchanging pixels while the panel itself kept visibly changing
+    // right up to 100%. Confirmed both mathematically (a standalone
+    // computation of the old formula across panel 75-100% showed
+    // controlAlpha flat at 1.0000 from panel=0.90 onward, every single
+    // step) and live (screenshots at panel 75/85/90/94/100%: 75% and
+    // 100% looked correct, everything between looked visibly "off",
+    // worst in the high-80s/low-90s - exactly the plateau's span).
+    //
+    // Fix: targetEffective = panelAlpha + (1 - panelAlpha) * k for a
+    // fraction k (controlAlphaK) - closes a FRACTION of the
+    // remaining gap to 1.0, not a fixed number of points, so
+    // targetEffective is strictly < 1.0 whenever panelAlpha is (for any
+    // k < 1) and can never plateau or need clamping. Same compositing-
+    // correction inverse as before (effectiveOpacity = 1 - (1 -
+    // panelAlpha) * (1 - chromeAlpha), solved for chromeAlpha given the
+    // target) - but for THIS specific target shape the algebra collapses
+    // to an exact constant:
+    //   1 - targetEffective = 1 - panelAlpha - (1-panelAlpha)*k
+    //                        = (1-panelAlpha)*(1-k)
+    //   controlAlpha = 1 - (1-targetEffective)/(1-panelAlpha)
+    //                = 1 - (1-k) = k
+    // i.e. painting chrome at a flat raw alpha k and letting Porter-Duff
+    // compositing do the rest IS the inverse-corrected solution for a
+    // proportional-gap target - verified numerically (a standalone
+    // computation confirmed controlAlpha comes out to exactly k at every
+    // panel value tested, 0 through 0.99) before relying on it. Written
+    // as the closed form directly (not the general divide-based inverse)
+    // for two reasons: it's what the algebra actually reduces to, and
+    // the general form divides by (1-panelAlpha), which -> 0 as
+    // panelAlpha -> 1 and is a real (if usually harmless) source of
+    // floating-point noise near the top of the range - exactly where
+    // the previous formula's bug lived, so avoiding that division
+    // entirely here is deliberate, not just a simplification.
+    //
+    // k chosen live (Phase 9.1.1 REVISION 4 sweep, TODO.md): candidates
+    // 0.3/0.4/0.5 compared at panel 50% plus a fine ~3%-step sweep across
+    // 75-100% (the exact range the old bug broke) confirmed smooth,
+    // continuously-changing effective opacity with no plateau at every
+    // tested k - the choice among them is a real aesthetic trade-off
+    // (low k: subtle everywhere, including at low panel opacity where
+    // more standout was wanted; high k: closer to the old flat-offset
+    // feel, more standout at low panel, less separation-per-point-of-
+    // panel-change near the very top), not a bug to be tuned away.
+    // Revision 5 picked 0.3; Revision 6 (owner, live): the top end
+    // (panel ~70%+) already looked right at k=0.3, the problem was
+    // specifically the low end - k*(1-panelAlpha) is a ~30pt gap at
+    // panel=0%, too large for an almost-invisible panel. Since the gap
+    // shrinks proportionally with k at every panel value (not two
+    // problems needing different curve shapes), lowering k alone fixes
+    // the low end and only makes the already-fine top end more subtle
+    // still. 0.1 sets the panel=0% gap to exactly 10pt
+    // (targetEffective = panelAlpha + (1-panelAlpha)*k reduces to
+    // targetEffective = k when panelAlpha = 0), tapering smoothly from
+    // there - the owner's explicit target.
+    // Phase 17.19.2: one model for both themes (the 17.19.1 light-glass
+    // spike measured light's glass alpha, 0.35 + 0.65 x panel alpha, as the
+    // cause of grey "slabs" over dark wallpapers: +94 levels above the panel
+    // at alpha 0.20 over black, against +20 with fixed k = 0.1). Dark 0.1 is
+    // the unchanged value; light 0.1 is a starting value to tune live.
+    required property real controlAlphaK
+
+    // Background of a control (button, source row, chip, +/- steppers):
+    // `surface` at the palette's fixed controlAlphaK, painted over the
+    // panel, for both themes. `ts` is no longer read (k does not depend on
+    // the transparency setting - that is the point of the fixed-k model);
+    // the parameter stays so the call sites are unchanged.
     function controlColor(ts: TransparencySettings): color {
-        return cp.isLight ? ts.withGlassAlpha(cp.surface) : ts.withControlAlpha(cp.surface);
+        return Qt.rgba(cp.surface.r, cp.surface.g, cp.surface.b, cp.controlAlphaK);
     }
 }

@@ -10,7 +10,8 @@
 // formula (a flat floor) was rejected live for an enormous panel/chrome
 // gap - see controlAlpha's own comment for the compositing-corrected
 // replacement, and TODO.md's Phase 9.1.1-revision entries for the full
-// history of both formulas.
+// history of both formulas. Phase 17.19.2 moved controlAlpha into the
+// palette (ColorPalette.controlAlphaK); overlayAlpha stays here.
 //
 // Same shape as VolumeSettings.qml / PendingAmpState.qml: a plain QtObject
 // (no `pragma Singleton` - no qmldir exists anywhere under contents/ui/),
@@ -59,87 +60,14 @@ QtObject {
         return Qt.rgba(c.r, c.g, c.b, root.alpha);
     }
 
-    // Phase 9.1.1 REVISION 4: interactive chrome (volume +/- buttons,
-    // mute/power buttons, the source row, and the current-source chip -
-    // NOT the overlay dropdown cards, see overlayAlpha below) targets a
-    // FRACTION of the remaining gap to full opacity, not a flat +N-point
-    // EFFECTIVE offset - the previous ("REVISION") formula had a real
-    // bug, not just a tuning issue: `Math.min(1.0, alpha +
-    // controlOffsetTarget)` clamps to exactly 1.0 once alpha >= 1 -
-    // controlOffsetTarget (0.90 at controlOffsetTarget=0.10), which
-    // forces the inverse-solved controlAlpha to ALSO be exactly 1.0 for
-    // the entire panel range 90-100% - buttons rendered as fully solid,
-    // unchanging pixels while the panel itself kept visibly changing
-    // right up to 100%. Confirmed both mathematically (a standalone
-    // computation of the old formula across panel 75-100% showed
-    // controlAlpha flat at 1.0000 from panel=0.90 onward, every single
-    // step) and live (screenshots at panel 75/85/90/94/100%: 75% and
-    // 100% looked correct, everything between looked visibly "off",
-    // worst in the high-80s/low-90s - exactly the plateau's span).
-    //
-    // Fix: targetEffective = panelAlpha + (1 - panelAlpha) * k for a
-    // fraction k (this file's controlAlphaK) - closes a FRACTION of the
-    // remaining gap to 1.0, not a fixed number of points, so
-    // targetEffective is strictly < 1.0 whenever panelAlpha is (for any
-    // k < 1) and can never plateau or need clamping. Same compositing-
-    // correction inverse as before (effectiveOpacity = 1 - (1 -
-    // panelAlpha) * (1 - chromeAlpha), solved for chromeAlpha given the
-    // target) - but for THIS specific target shape the algebra collapses
-    // to an exact constant:
-    //   1 - targetEffective = 1 - panelAlpha - (1-panelAlpha)*k
-    //                        = (1-panelAlpha)*(1-k)
-    //   controlAlpha = 1 - (1-targetEffective)/(1-panelAlpha)
-    //                = 1 - (1-k) = k
-    // i.e. painting chrome at a flat raw alpha k and letting Porter-Duff
-    // compositing do the rest IS the inverse-corrected solution for a
-    // proportional-gap target - verified numerically (a standalone
-    // computation confirmed controlAlpha comes out to exactly k at every
-    // panel value tested, 0 through 0.99) before relying on it. Written
-    // as the closed form directly (not the general divide-based inverse)
-    // for two reasons: it's what the algebra actually reduces to, and
-    // the general form divides by (1-panelAlpha), which -> 0 as
-    // panelAlpha -> 1 and is a real (if usually harmless) source of
-    // floating-point noise near the top of the range - exactly where
-    // the previous formula's bug lived, so avoiding that division
-    // entirely here is deliberate, not just a simplification.
-    //
-    // k chosen live (Phase 9.1.1 REVISION 4 sweep, TODO.md): candidates
-    // 0.3/0.4/0.5 compared at panel 50% plus a fine ~3%-step sweep across
-    // 75-100% (the exact range the old bug broke) confirmed smooth,
-    // continuously-changing effective opacity with no plateau at every
-    // tested k - the choice among them is a real aesthetic trade-off
-    // (low k: subtle everywhere, including at low panel opacity where
-    // more standout was wanted; high k: closer to the old flat-offset
-    // feel, more standout at low panel, less separation-per-point-of-
-    // panel-change near the very top), not a bug to be tuned away.
-    // Revision 5 picked 0.3; Revision 6 (owner, live): the top end
-    // (panel ~70%+) already looked right at k=0.3, the problem was
-    // specifically the low end - k*(1-panelAlpha) is a ~30pt gap at
-    // panel=0%, too large for an almost-invisible panel. Since the gap
-    // shrinks proportionally with k at every panel value (not two
-    // problems needing different curve shapes), lowering k alone fixes
-    // the low end and only makes the already-fine top end more subtle
-    // still. 0.1 sets the panel=0% gap to exactly 10pt
-    // (targetEffective = panelAlpha + (1-panelAlpha)*k reduces to
-    // targetEffective = k when panelAlpha = 0), tapering smoothly from
-    // there - the owner's explicit target.
-    readonly property real controlAlphaK: 0.1
-    readonly property real controlAlpha: root.controlAlphaK
-
-    // Same reactive-function idiom as withAlpha() above.
-    function withControlAlpha(c) {
-        return Qt.rgba(c.r, c.g, c.b, root.controlAlpha);
-    }
-
-    // Phase 17.19.0: the LIGHT theme's control alpha ("glass", flyout
-    // mockup v3 :67/:85, `--glass: calc(0.35 + 0.65 * var(--panel-alpha))`)
-    // - white buttons, chip and source row that frost with the panel rather
-    // than the dark theme's near-transparent controlAlpha. Used through
-    // ColorPalette.controlColor(), which picks this or withControlAlpha().
-    readonly property real glassAlpha: 0.35 + 0.65 * root.alpha
-    function withGlassAlpha(c) {
-        return Qt.rgba(c.r, c.g, c.b, root.glassAlpha);
-    }
+    // controlAlpha (Phase 9.1.1 REVISION 4-6, k = 0.1) moved to the palette
+    // in Phase 17.19.2: ColorPalette.controlAlphaK, set per palette
+    // (DarkPalette 0.1 unchanged, LightPalette 0.1), applied by
+    // ColorPalette.controlColor() for both themes. Its derivation comment
+    // (why a flat raw alpha k is the compositing-corrected answer, and how
+    // k = 0.1 was chosen live) moved with it. The light theme's glass alpha
+    // (0.35 + 0.65 x alpha, 17.19.0) is gone: the 17.19.1 spike measured it
+    // as the cause of the "grey slabs" on dark wallpapers.
 
     // Phase 9.1.1 REVISION 3: the AmpListOverlay/SourceListOverlay
     // dropdown card BACKGROUNDS specifically (not controlAlpha's targets
