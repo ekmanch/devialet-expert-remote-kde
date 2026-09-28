@@ -1,0 +1,46 @@
+lmin065-glass-v3.png         ampName    measured  7.48 (fg #1c1a17 bg #aaaaab)  computed  7.41 (fg #1c1a17 bg #a9a9aa)  diff +0.067
+lmin065-glass-v3.png         ipLine     measured  1.17 (fg #a19c95 bg #aaaaab)  computed  1.15 (fg #a29d95 bg #a9a9aa)  diff +0.024
+lmin065-glass-v3.png         dB         measured  2.31 (fg #6e6a64 bg #aaaaab)  computed  2.29 (fg #6e6a64 bg #a9a9aa)  diff +0.021
+lmin065-glass-v3.png         footer     measured  1.22 (fg #a39887 bg #aaaaab)  computed  1.15 (fg #a29d95 bg #a9a9aa)  diff +0.072
+lmin065-glass-v3.png         chipText   measured  2.28 (fg #a29d95 bg #ececec)  computed  2.27 (fg #a29d95 bg #ebebec)  diff +0.010
+lmin065-glass-v3.png         srcEyebrow measured  2.28 (fg #a29d95 bg #ececec)  computed  2.27 (fg #a29d95 bg #ebebec)  diff +0.010
+lmin065-glass-v3.png         btnLabel   measured 14.70 (fg #1c1a17 bg #ececec)  computed 14.63 (fg #1c1a17 bg #ebebec)  diff +0.066
+lmin065-glass-v3.png         readout0   measured  1.04 (fg #dca33a vs panel)            computed  1.03 (fg #dca136 bg #a9a9aa)  diff +0.017
+lmin065-glass-v3.png         glyph      measured  1.19 (fg #f8d58c at offset 0.098)     computed  1.14 (fg #f9da98)  diff +0.047
+lmin065-glass-worst.png      ampName    measured  7.48 (fg #1c1a17 bg #aaaaab)  computed  7.41 (fg #1c1a17 bg #a9a9aa)  diff +0.067
+lmin065-glass-worst.png      ipLine     measured  4.58 (fg #423e37 bg #aaaaab)  computed  4.54 (fg #423e37 bg #a9a9aa)  diff +0.041
+lmin065-glass-worst.png      dB         measured  4.57 (fg #423e39 bg #aaaaab)  computed  4.53 (fg #423e39 bg #a9a9aa)  diff +0.041
+lmin065-glass-worst.png      footer     measured  4.58 (fg #423e37 bg #aaaaab)  computed  4.54 (fg #423e37 bg #a9a9aa)  diff +0.041
+lmin065-glass-worst.png      chipText   measured  9.00 (fg #423e37 bg #ececec)  computed  8.96 (fg #423e37 bg #ebebec)  diff +0.040
+lmin065-glass-worst.png      srcEyebrow measured  9.00 (fg #423e37 bg #ececec)  computed  8.96 (fg #423e37 bg #ebebec)  diff +0.040
+lmin065-glass-worst.png      btnLabel   measured 14.70 (fg #1c1a17 bg #ececec)  computed 14.63 (fg #1c1a17 bg #ebebec)  diff +0.066
+lmin065-glass-worst.png      readout0   measured  1.04 (fg #dca33a vs panel)            computed  1.03 (fg #dca136 bg #a9a9aa)  diff +0.017
+lmin065-glass-worst.png      glyph      measured  1.19 (fg #f8d58c at offset 0.098)     computed  1.14 (fg #f9da98)  diff +0.047
+lmin065-fixedk-v3.png        ampName    measured  7.48 (fg #1c1a17 bg #aaaaab)  computed  7.41 (fg #1c1a17 bg #a9a9aa)  diff +0.067
+lmin065-fixedk-v3.png        ipLine     measured  1.17 (fg #a19c95 bg #aaaaab)  computed  1.15 (fg #a29d95 bg #a9a9aa)  diff +0.024
+lmin065-fixedk-v3.png        dB         measured  2.31 (fg #6e6a64 bg #aaaaab)  computed  2.29 (fg #6e6a64 bg #a9a9aa)  diff +0.021
+lmin065-fixedk-v3.png        footer     measured  1.22 (fg #a39887 bg #aaaaab)  computed  1.15 (fg #a29d95 bg #a9a9aa)  diff +0.072
+lmin065-fixedk-v3.png        chipText   measured  1.27 (fg #a29d95 bg #b2b2b3)  computed  1.27 (fg #a29d95 bg #b2b2b2)  diff +0.003
+lmin065-fixedk-v3.png        srcEyebrow measured  1.27 (fg #a29d95 bg #b2b2b3)  computed  1.27 (fg #a29d95 bg #b2b2b2)  diff +0.003
+lmin065-fixedk-v3.png        btnLabel   measured  8.20 (fg #1c1a17 bg #b2b2b3)  computed  8.18 (fg #1c1a17 bg #b2b2b2)  diff +0.019
+lmin065-fixedk-v3.png        readout0   measured  1.04 (fg #dca33a vs panel)            computed  1.03 (fg #dca136 bg #a9a9aa)  diff +0.017
+lmin065-fixedk-v3.png        glyph      measured  1.51 (fg #f8d58c at offset 0.098)     computed  1.57 (fg #f9da98)  diff -0.062
+lmin065-fixedk-worst.png     ampName    measured  7.48 (fg #1c1a17 bg #aaaaab)  computed  7.41 (fg #1c1a17 bg #a9a9aa)  diff +0.067
+lmin065-fixedk-worst.png     ipLine     measured  4.58 (fg #423e37 bg #aaaaab)  computed  4.54 (fg #423e37 bg #a9a9aa)  diff +0.041
+lmin065-fixedk-worst.png     dB         measured  4.57 (fg #423e39 bg #aaaaab)  computed  4.53 (fg #423e39 bg #a9a9aa)  diff +0.041
+lmin065-fixedk-worst.png     footer     measured  4.58 (fg #423e37 bg #aaaaab)  computed  4.54 (fg #423e37 bg #a9a9aa)  diff +0.041
+lmin065-fixedk-worst.png     chipText   measured  5.02 (fg #423e37 bg #b2b2b3)  computed  5.01 (fg #423e37 bg #b2b2b2)  diff +0.011
+lmin065-fixedk-worst.png     srcEyebrow measured  5.02 (fg #423e37 bg #b2b2b3)  computed  5.01 (fg #423e37 bg #b2b2b2)  diff +0.011
+lmin065-fixedk-worst.png     btnLabel   measured  8.20 (fg #1c1a17 bg #b2b2b3)  computed  8.18 (fg #1c1a17 bg #b2b2b2)  diff +0.019
+lmin065-fixedk-worst.png     readout0   measured  1.04 (fg #dca33a vs panel)            computed  1.03 (fg #dca136 bg #a9a9aa)  diff +0.017
+lmin065-fixedk-worst.png     glyph      measured  1.51 (fg #f8d58c at offset 0.098)     computed  1.57 (fg #f9da98)  diff -0.062
+opaque-glass-v3.png          ampName    measured 17.36 (fg #1c1a17 bg #ffffff)  computed 17.36 (fg #1c1a17 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          ipLine     measured  2.69 (fg #a29d95 bg #ffffff)  computed  2.69 (fg #a29d95 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          dB         measured  5.37 (fg #6e6a64 bg #ffffff)  computed  5.37 (fg #6e6a64 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          footer     measured  2.69 (fg #a29d95 bg #ffffff)  computed  2.69 (fg #a29d95 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          chipText   measured  2.69 (fg #a29d95 bg #ffffff)  computed  2.69 (fg #a29d95 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          srcEyebrow measured  2.69 (fg #a29d95 bg #ffffff)  computed  2.69 (fg #a29d95 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          btnLabel   measured 17.36 (fg #1c1a17 bg #ffffff)  computed 17.36 (fg #1c1a17 bg #ffffff)  diff +0.000
+opaque-glass-v3.png          readout0   measured  2.25 (fg #dca33a vs panel)            computed  2.28 (fg #dca136 bg #ffffff)  diff -0.036
+opaque-glass-v3.png          glyph      measured  1.41 (fg #f8d58c at offset 0.098)     computed  1.35 (fg #f9da98)  diff +0.056
+max |diff| = 0.072 -> PASS (tolerance 0.1)
