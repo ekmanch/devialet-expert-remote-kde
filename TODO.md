@@ -8987,6 +8987,155 @@ architecture decisions; this file is just sequencing and status.
       readout that 17.20.0 plans.
     - The alpha sweep and the Better Blur DX soak are for the owner.
 
+- [x] **Phase 17.19.1 — Light-glass spike (`spike/light-glass`, merged).**
+      Done 2026-09-28. **Outcome: fixed-k light controls adopted (implemented
+      in 17.19.2).** The single opacity slider stays unchanged: no light
+      floor, no per-theme mapping. The light design itself (text tokens,
+      readout, gold marks, how much frost) is being re-iterated by the owner
+      outside Claude Code and will come back as an updated mockup.
+  - Why: after 17.19.0 the light flyout with transparency + Better Blur DX
+    over the owner's dark night wallpaper needed about 20 % opacity to
+    show frost. At that opacity faint text disappeared and the glass
+    controls stood out as grey slabs. Dark at 50 % over the same wallpaper
+    looks right.
+  - The finding adopted: the slabs come from the light controls' glass
+    formula `0.35 + 0.65 x alpha`. Over black, a control is +94 levels
+    above the panel at alpha 0.20 and +66 at 0.65. The dark theme's
+    fixed-k model (white at a fixed alpha k = 0.1 over the panel) gives +20
+    and +9. With fixed k the step stays small on any wallpaper, and the
+    border + card shadow do the separating.
+  - Not adopted (dropped by the owner, kept only as the record in the
+    spike directory): the mockup variants (A/B mapping, light floor
+    Lmin), worst-case text tokens, and the contrast gates.
+    `tools/spike-light-glass/` holds the mockup copy, `contrast.py` /
+    `contrast-tables.md`, `capture.sh` and the black-wallpaper captures
+    behind its +-0.1 check (max diff 0.072). Its measurements (e.g. v3
+    light tokens failing WCAG gates even opaque, the polarity floor of
+    about 0.60 for faint text) are available for the owner's
+    re-iteration. 17.28.0 removes the directory.
+  - **Dim Inactive (kept finding, confirmed 2026-09-28).** KWin's Dim
+    Inactive effect is enabled on the dev machine
+    (`diminactiveEnabled=true`). With it loaded, the #808080 grey backdrop
+    reads 113 behind the flyout. Unloaded at runtime (`qdbus6
+    org.kde.KWin /Effects unloadEffect diminactive`; kwinrc untouched,
+    loaded again afterwards), it reads 129 (128 + Better Blur DX noise).
+    Harness runs `20260928-204404-dimcheck2-on` / `-204410-dimcheck2-off`.
+    This explains the 115-instead-of-128 backdrop in 17.19.0. When the
+    flyout opens over an inactive window, KWin dims that window, so the
+    backdrop gets darker than the window itself. The effect does not
+    touch the wallpaper, which is not a window. Grey-backdrop
+    measurements should either account for it or unload it at runtime.
+    (An earlier pair, `-2043*-dimcheck-*`, ran without the backdrop and
+    is void.)
+  - Better Blur DX settings that change brightness, contrast or saturation
+    behind the widget (v2.5.1, from its `blur.kcfg` and `blur.cpp` on
+    GitHub, plus the config .so's UI strings). Owner's current values are
+    from `~/.config/kwinrc` `[Effect-better-blur-dx]`:
+    - `Saturation`: default 150, owner **110**. The colour matrix applies
+      it to the blurred backdrop. 100 = neutral.
+    - `Brightness`: default 100 (neutral), owner unset = 100.
+    - `Contrast`: default 100 (neutral), owner unset = 100.
+    - `ForceContrastParams`: default false, owner unset = false. When
+      false, a window that sends its own contrast/saturation (Plasma's
+      themed dialogs do) overrides the three globals. When true, the
+      globals apply to every blurred window. The flyout is force-blurred
+      with `NoBackground`, so it most likely sends none and the globals
+      apply either way. Inference, not checked.
+    - `NoiseStrength`: default 5, owner **10**. Added on top of the blur
+      (`GL_ONE, GL_ONE`), so it slightly brightens and grains dark
+      backdrops.
+    - `BlurStrength`: default 15, owner **10**. It changes blur radius,
+      not brightness, but a weaker blur leaves more wallpaper detail
+      under the text.
+    - `Refraction*` (`RefractionStrength` default 0, owner unset = 0): off.
+    - Not Better Blur DX but relevant: KWin's **Dim Inactive** effect is
+      enabled here (`diminactiveEnabled=true`). It may be why the 17.19.0
+      grey test backdrop read 115 instead of 128 behind the flyout (the
+      backdrop window was inactive while the flyout had focus). This is a
+      hypothesis; the spike tests it with one capture with Dim Inactive
+      off. Stock KWin blur (`[Effect-blur] Saturation=186`) is disabled
+      (`blurEnabled=false`) and plays no part.
+  - **Native blur / background contrast from QML: investigated
+    2026-09-27; not feasible for our NoBackground Dialogs.** Source read
+    at the installed tags (libplasma v6.7.5, kwindowsystem v6.30.0, kwin
+    v6.7.5, kirigami v6.30.0; shallow clones in the scratchpad) plus
+    every installed `*.qmltypes`.
+    - Verified:
+      - With `NoBackground`, `DialogPrivate::updateTheme()` actively turns
+        both off: `KWindowEffects::enableBlurBehind(q, false)` and
+        `enableBackgroundContrast(q, false)` (libplasma
+        `src/plasmaquick/dialog.cpp:229-232`). It runs from
+        `componentComplete()` (:1561), the first expose (:1390),
+        `resizeEvent` (:1297), `syncToMainItemSize` (:623, :671),
+        `updateLayoutParameters` (:571), `slotWindowPositionChanged`
+        (:683), every Plasma theme change (:945) and
+        `setBackgroundHints` (:1658). Even if something else set blur on
+        the window, Dialog would clear it at the next of these.
+      - `dialog.h:132` says so: "in case of NoBackground it loses kwin side
+        shadows and blur".
+      - With any other hint, Dialog requests both, but only on the
+        theme's terms. It sets the frame image to `dialogs/background` or
+        `widgets/tooltip` (`dialog.cpp:234-243`, drawn under our content),
+        blur = `theme.blurBehindEnabled()` masked to that frame's shape
+        (:245-247), and contrast/intensity/saturation = the theme's own
+        values (:249-254). Those values come only from the theme's
+        metadata `[ContrastEffect]`/`[BlurBehindEffect]` groups
+        (`src/plasma/private/theme_p.cpp:346-380`). Darkly ships neither
+        group (`/usr/share/plasma/desktoptheme/darkly/` has only
+        `metadata.json`, `dialogs/`, `widgets/`), so under Darkly: blur on,
+        contrast off. No property lets QML pass its own values.
+      - `PlasmaWindow` (the AppletPopup class) does the same from the
+        theme (`plasmawindow.cpp:166-167`), and it has no NoBackground (see
+        CLAUDE.md).
+      - The only setters are C++: `KWindowEffects::enableBlurBehind` /
+        `enableBackgroundContrast` (kwindowsystem `src/kwindoweffects.h:78,
+        106`). Its QML module registers only the `KWindowSystem` and
+        `KX11Extras` singletons (`src/qml/types.h:21-38`; the installed
+        `KWindowSystem.qmltypes` lists nothing else).
+      - A search of all installed qmltypes for blur-behind/contrast setters
+        finds none. The one contrast hit is
+        `org.kde.plasma.private.containmentlayoutmanager`'s
+        `PlasmaBackground` singleton, which only reads the theme's
+        `backgroundContrast/Intensity/Saturation`.
+      - Stock KWin blur blurs a window only if the window asks: the X11
+        atom `_KDE_NET_WM_BLUR_BEHIND_REGION`, the Wayland surface's
+        `blurRegion()`, or a KWin-internal window's `kwin_blur` property
+        (kwin `src/plugins/blur/blur.cpp:270-330`). There is no
+        class-based forcing; that is what Better Blur DX adds.
+        `WindowForceBlurRole` exists only for KWin scripted effects
+        (`src/scripting/scriptedeffect.h:56-57`). It only lifts the
+        "transformed / fullscreen effect" skip in `shouldBlur()`
+        (`blur.cpp:488, 499`) and creates no region, so a KWin script
+        cannot give our window blur either.
+    - Inferred (not verified):
+      - The Wayland blur and contrast objects are created by the client
+        for its own surface, so no other process (e.g. our Rust daemon)
+        can attach them to plasmashell's window.
+      - CLAUDE.md's Better Blur DX note guesses the OSD and tooltip
+        escaped force-blur because they "self-report blur via the themed
+        Dialog background". That can't be the reason: both are
+        `NoBackground` (`VolumeToast.qml:108`, `VolumeHoverTooltip.qml:92`),
+        which turns blur off per the code above. The real reason is
+        probably Better Blur DX's own window matching (window type or
+        class). Not checked; the CLAUDE.md note should be corrected once
+        it is.
+    - Consequences:
+      1. Stock KWin blur without Better Blur DX: not reachable from QML
+         while we keep `NoBackground`. The only QML route is a themed
+         background (`StandardBackground`), which brings back the
+         theme's frame image under our panel (opaque under Darkly: the
+         pre-7.10.0 problem). It also shapes the blur to the theme's
+         frame, not our 16 px corners.
+      2. Our own background contrast / saturation boost: not reachable at
+         all. Even with a themed background the values are the theme's,
+         and Darkly has contrast off.
+      - Both need `KWindowEffects` from C++, which the project rules out.
+        Stop-and-flag per CLAUDE.md; not pursued.
+    - "Blur behind widget" toggle: not sketched, because there is nothing
+      for it to control. What we can offer instead is the existing plan (a
+      short note in the ConfigDialog pointing at the compositor's
+      force-blur option), which a later light-theme phase can include.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9105,200 +9254,8 @@ architecture decisions; this file is just sequencing and status.
     close/reopen and shell-reload steps are not visible in the journal and
     were not observed - still to confirm by the owner if wanted.
 
-- [ ] **Spike (unnumbered, `spike/light-glass`) — light glass that holds up
-      on dark wallpapers. Mockup only, no widget code. Phases 17.20.0 -
-      17.28.0 are paused until the owner approves this spike's mockup.**
-  - Why (owner report, 2026-09-27, after 17.19.0): the light flyout with
-    transparency + Better Blur DX over the owner's dark night wallpaper
-    needed ~20 % opacity to show any frost. At that opacity faint text
-    (chip "Optical 1", "SOURCE", "dB", footer) disappeared, and the glass
-    controls stood out as grey slabs. The dark theme at 50 % over the same
-    wallpaper looks right. The owner's concept image of "porcelain" glass
-    sits on a light desktop.
-  - Diagnosis (analysis, not yet measured; the spike measures it):
-    - Each pixel is about alpha x tint + (1 - alpha) x blurred wallpaper.
-      A white tint at low alpha over a dark scene is a mid-grey, whatever
-      the design.
-    - Dark works for structural reasons. Dark tint over a dark scene stays
-      dark, light text contrasts with anything dark, and dark controls
-      have no fill (v3 `--btn-bg: transparent`), so nothing steps in
-      brightness.
-    - Three causes are ours, not physics:
-      (1) Light controls use `glass = 0.35 + 0.65 x alpha`, which is
-          2.4x the panel alpha at 0.2. Their brightness step over the
-          panel grows as the wallpaper darkens: a few levels on light,
-          about 70 on dark (estimate).
-      (2) Light text tokens (`textFaint #a29d95`, `textDim`, pale golds)
-          were picked against opaque white.
-      (3) One opacity setting serves both themes, so Follow system
-          switches the theme but not the opacity it needs.
-    - QML cannot read the pixels behind its window, so the widget cannot
-      adapt to the wallpaper automatically. Whatever we choose must be
-      safe for the worst case.
-  - Variants to build in a copy of the v3 flyout mockup (same file layout,
-    a variant switcher added):
-    - **A - per-theme opacity.** Two settings, dark % and light %, with a
-      floor for light. Follow system picks the matching one.
-    - **B - one setting, per-palette mapping.** The single Transparency
-      value t (0-100 %) maps into each palette's own alpha range, e.g.
-      dark 1.0 -> ~0.30 and light 1.0 -> ~0.65. Endpoints are set by the
-      spike's measurements, not by these example numbers. Follow system
-      needs nothing extra.
-    - Orthogonal to A/B, both compared: **light controls, current** (glass
-      formula) vs **light controls, restructured** (fill a small fixed
-      delta above the panel, or outline-only like dark, with the border
-      + card shadow doing the separating).
-    - Orthogonal again: **light text tokens, current** vs **light text
-      tokens, worst-case** (below).
-  - Backdrops, every variant judged on both:
-    - the mockup's colourful dark wallpaper (`data-wall="colour"`, v3
-      :153, navy #151731 -> #1d2150 with saturated shapes);
-    - a light wallpaper (the concept image's kind: light grey with pastel
-      shapes; added to the mockup as `data-wall="light"`);
-    - plus, for the measurements only, a flat near-black backdrop
-      (`#0a0a0c`, v3's own desktop floor, :169-170). This is the worst
-      case.
-  - Blur in the mockup matches the owner's compositor, not v3's defaults.
-    v3 has `backdrop-filter: blur(22px) saturate(150%)` (:286). The owner
-    runs Better Blur DX with `Saturation=110` and `BlurStrength=10`, so
-    `saturate(110%)` is used. The blur radius has no exact CSS
-    equivalent; it is matched by eye against one owner screenshot and
-    recorded as approximate.
-  - Worst-case text tokens (the owner's rule):
-    - Light text tokens are chosen at the minimum light alpha the variant
-      allows, over the near-black backdrop, then checked on both
-      wallpapers.
-    - Contrast ratios are measured, not eyeballed. WCAG 2.x relative
-      luminance on pixels from headless Firefox captures of the mockup
-      (`firefox --headless --screenshot`; Firefox renders
-      `backdrop-filter`). Text pixel = the glyph's darkest core (sampled
-      as in 17.19.0); background = the panel pixel beside it.
-    - Targets: 4.5:1 for body text (names, labels, IP line, footer); 3:1
-      for large text (the 26 px readout) and for non-text UI (control
-      borders, glyphs, slider fill and track, WCAG 1.4.11). The gold
-      accents count as text or UI by role, so a gold that fails gets a
-      darker worst-case variant, not an exemption.
-    - Output: a table per variant with token x backdrop x ratio x pass/fail.
-  - Verify / deliverables:
-    - The mockup copy, with a switcher for variant, wallpaper and
-      transparency, for the owner to judge by eye.
-    - The contrast tables, plus the capture script in the scratchpad (not
-      the repo).
-    - A recommendation: A or B, control style, worst-case tokens and the
-      alpha floor/range, each tied to a measurement.
-    - A cost note for porting the winner back into the phases: which of
-      17.20.0-17.28.0 change, plus a follow-up phase to 17.19.0 for
-      tokens and controls.
-    - Stop and report; the owner approves the mockup before any QML.
-  - Better Blur DX settings that change brightness, contrast or saturation
-    behind the widget (v2.5.1, from its `blur.kcfg` and `blur.cpp` on
-    GitHub, plus the config .so's UI strings). Owner's current values are
-    from `~/.config/kwinrc` `[Effect-better-blur-dx]`:
-    - `Saturation`: default 150, owner **110**. The colour matrix applies
-      it to the blurred backdrop. 100 = neutral.
-    - `Brightness`: default 100 (neutral), owner unset = 100.
-    - `Contrast`: default 100 (neutral), owner unset = 100.
-    - `ForceContrastParams`: default false, owner unset = false. When
-      false, a window that sends its own contrast/saturation (Plasma's
-      themed dialogs do) overrides the three globals. When true, the
-      globals apply to every blurred window. The flyout is force-blurred
-      with `NoBackground`, so it most likely sends none and the globals
-      apply either way. Inference, not checked.
-    - `NoiseStrength`: default 5, owner **10**. Added on top of the blur
-      (`GL_ONE, GL_ONE`), so it slightly brightens and grains dark
-      backdrops.
-    - `BlurStrength`: default 15, owner **10**. It changes blur radius,
-      not brightness, but a weaker blur leaves more wallpaper detail
-      under the text.
-    - `Refraction*` (`RefractionStrength` default 0, owner unset = 0): off.
-    - Not Better Blur DX but relevant: KWin's **Dim Inactive** effect is
-      enabled here (`diminactiveEnabled=true`). It may be why the 17.19.0
-      grey test backdrop read 115 instead of 128 behind the flyout (the
-      backdrop window was inactive while the flyout had focus). This is a
-      hypothesis; the spike tests it with one capture with Dim Inactive
-      off. Stock KWin blur (`[Effect-blur] Saturation=186`) is disabled
-      (`blurEnabled=false`) and plays no part.
-  - **Native blur / background contrast from QML: investigated
-    2026-09-27; not feasible for our NoBackground Dialogs.** Source read
-    at the installed tags (libplasma v6.7.5, kwindowsystem v6.30.0, kwin
-    v6.7.5, kirigami v6.30.0; shallow clones in the scratchpad) plus
-    every installed `*.qmltypes`.
-    - Verified:
-      - With `NoBackground`, `DialogPrivate::updateTheme()` actively turns
-        both off: `KWindowEffects::enableBlurBehind(q, false)` and
-        `enableBackgroundContrast(q, false)` (libplasma
-        `src/plasmaquick/dialog.cpp:229-232`). It runs from
-        `componentComplete()` (:1561), the first expose (:1390),
-        `resizeEvent` (:1297), `syncToMainItemSize` (:623, :671),
-        `updateLayoutParameters` (:571), `slotWindowPositionChanged`
-        (:683), every Plasma theme change (:945) and
-        `setBackgroundHints` (:1658). Even if something else set blur on
-        the window, Dialog would clear it at the next of these.
-      - `dialog.h:132` says so: "in case of NoBackground it loses kwin side
-        shadows and blur".
-      - With any other hint, Dialog requests both, but only on the
-        theme's terms. It sets the frame image to `dialogs/background` or
-        `widgets/tooltip` (`dialog.cpp:234-243`, drawn under our content),
-        blur = `theme.blurBehindEnabled()` masked to that frame's shape
-        (:245-247), and contrast/intensity/saturation = the theme's own
-        values (:249-254). Those values come only from the theme's
-        metadata `[ContrastEffect]`/`[BlurBehindEffect]` groups
-        (`src/plasma/private/theme_p.cpp:346-380`). Darkly ships neither
-        group (`/usr/share/plasma/desktoptheme/darkly/` has only
-        `metadata.json`, `dialogs/`, `widgets/`), so under Darkly: blur on,
-        contrast off. No property lets QML pass its own values.
-      - `PlasmaWindow` (the AppletPopup class) does the same from the
-        theme (`plasmawindow.cpp:166-167`), and it has no NoBackground (see
-        CLAUDE.md).
-      - The only setters are C++: `KWindowEffects::enableBlurBehind` /
-        `enableBackgroundContrast` (kwindowsystem `src/kwindoweffects.h:78,
-        106`). Its QML module registers only the `KWindowSystem` and
-        `KX11Extras` singletons (`src/qml/types.h:21-38`; the installed
-        `KWindowSystem.qmltypes` lists nothing else).
-      - A search of all installed qmltypes for blur-behind/contrast setters
-        finds none. The one contrast hit is
-        `org.kde.plasma.private.containmentlayoutmanager`'s
-        `PlasmaBackground` singleton, which only reads the theme's
-        `backgroundContrast/Intensity/Saturation`.
-      - Stock KWin blur blurs a window only if the window asks: the X11
-        atom `_KDE_NET_WM_BLUR_BEHIND_REGION`, the Wayland surface's
-        `blurRegion()`, or a KWin-internal window's `kwin_blur` property
-        (kwin `src/plugins/blur/blur.cpp:270-330`). There is no
-        class-based forcing; that is what Better Blur DX adds.
-        `WindowForceBlurRole` exists only for KWin scripted effects
-        (`src/scripting/scriptedeffect.h:56-57`). It only lifts the
-        "transformed / fullscreen effect" skip in `shouldBlur()`
-        (`blur.cpp:488, 499`) and creates no region, so a KWin script
-        cannot give our window blur either.
-    - Inferred (not verified):
-      - The Wayland blur and contrast objects are created by the client
-        for its own surface, so no other process (e.g. our Rust daemon)
-        can attach them to plasmashell's window.
-      - CLAUDE.md's Better Blur DX note guesses the OSD and tooltip
-        escaped force-blur because they "self-report blur via the themed
-        Dialog background". That can't be the reason: both are
-        `NoBackground` (`VolumeToast.qml:108`, `VolumeHoverTooltip.qml:92`),
-        which turns blur off per the code above. The real reason is
-        probably Better Blur DX's own window matching (window type or
-        class). Not checked; the CLAUDE.md note should be corrected once
-        it is.
-    - Consequences:
-      1. Stock KWin blur without Better Blur DX: not reachable from QML
-         while we keep `NoBackground`. The only QML route is a themed
-         background (`StandardBackground`), which brings back the
-         theme's frame image under our panel (opaque under Darkly: the
-         pre-7.10.0 problem). It also shapes the blur to the theme's
-         frame, not our 16 px corners.
-      2. Our own background contrast / saturation boost: not reachable at
-         all. Even with a themed background the values are the theme's,
-         and Darkly has contrast off.
-      - Both need `KWindowEffects` from C++, which the project rules out.
-        Stop-and-flag per CLAUDE.md; not pursued.
-    - "Blur behind widget" toggle: not sketched, because there is nothing
-      for it to control. What we can offer instead is the existing plan (a
-      short note in the ConfigDialog pointing at the compositor's
-      force-blur option), which the spike's recommendation can include.
-
+- **Phases 17.20.0 - 17.28.0 are paused until the owner brings back an updated
+  light mockup** (re-iterated outside Claude Code after the 17.19.1 spike).
 - [ ] **Phase 17.20.0 — Light readout + wordmark.** Gradient digits
       `#dca136 → #f3cf7c` + glow (flyout v2 :110-115), grey "dB", gold
       eyebrow `#97691f → #cf9c45` (`AmpHeader.qml:100`; :103, :116-119)
