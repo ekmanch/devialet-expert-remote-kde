@@ -9186,10 +9186,11 @@ architecture decisions; this file is just sequencing and status.
   - Left for the owner: the live check with transparency + blur (Better
     Blur DX), and tuning `LightPalette.controlAlphaK` if 0.1 reads too
     faint.
-  - Stale comment, not changed (component comment, and components were out
-    of scope): `CardShadow.qml:10` still says "light controls are glass
-    (TransparencySettings.withGlassAlpha)". The mask it describes is still
-    needed, now that fixed-k controls are even more see-through.
+  - `CardShadow.qml`'s header comment updated (owner request): it said
+    light controls are glass (`TransparencySettings.withGlassAlpha`); it
+    now points at the palette's fixed `controlAlphaK` /
+    `ColorPalette.controlColor()`. Comment only. The mask it describes is
+    still needed, since fixed-k controls are even more see-through.
 
 ## Up next
 

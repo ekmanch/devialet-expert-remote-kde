@@ -7,9 +7,11 @@
 // dark theme (whose cardShadow is transparent anyway).
 //
 // Like CSS box-shadow, nothing is painted under the control itself: the
-// light controls are glass (TransparencySettings.withGlassAlpha), and a
-// shadow left under them showed through the whole face - measured at 50 %
-// opacity as a face 9 levels darker than the glass formula (223 vs 232).
+// light controls are translucent (since Phase 17.19.2 `surface` at the
+// palette's fixed controlAlphaK, see ColorPalette.controlColor()), and a
+// shadow left under them shows through the whole face - measured in 17.19.0
+// (then with 17.19.0's glass alpha) at 50 % opacity as a face 9 levels
+// darker than intended (223 vs 232).
 // So the shadows are drawn into a hidden layer `reach` px larger than the
 // control on every side, and a MultiEffect with an inverted mask (the
 // control's own rounded rect) cuts the control's area out of them. Two
