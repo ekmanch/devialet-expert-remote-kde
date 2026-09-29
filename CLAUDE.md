@@ -766,6 +766,45 @@ rebuild spike.** That surface has more dynamic-content rows than either
 where this lesson needs to actually get applied up front — not
 re-discovered a fourth time after the rebuild ships.
 
+## Executable-engine command strings must come from a fixed set (settled, do not relitigate)
+
+**The pattern**: every command run through `Plasma5Support.DataSource`'s
+executable engine is a *source* named by its exact command string, and the
+engine is shared by the whole plasmashell process. When a command finishes,
+Plasma5Support clears that source name in the `data` map of **every**
+executable DataSource in plasmashell - ours and other widgets'.
+`QQmlPropertyMap::clear()` creates the key where it is missing, and a map
+can never drop a key, so each never-seen command string adds a property to
+every such map and rebuilds its whole metaobject. The cost of a new name
+grows with every name before it and only resets when plasmashell restarts.
+
+**How it showed up (2026-09-29)**: the volume chime passed an
+ever-increasing `--tick N` (and the dB values) in its command line, so every
+chime was a new name. Scrolling got more stuttery the longer the owner
+scrolled, and stayed bad between spins; plasmashell's UI thread sat at
+~95 % CPU. eu-stack samples: 69 of 77 busy samples in
+`DataContainer::becameUnused -> DataEngine::removeSource ->
+QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject`. Reproduced
+standalone with 10 DataSources: unique names -> UI thread blocked 8.9 s per
+10 s after a minute; 16 repeating names -> zero. It looked like a render,
+compositor or mouse problem first; none of those were it (TODO.md "Scroll
+stutter" and "Chime: fixed command names" entries).
+
+**House rule**: a command string passed to `connectSource()` must come from
+a small, fixed set for the life of the shell. Never put counters,
+timestamps, measured values or other ever-changing data in it.
+
+- Need concurrent runs of the same command (the engine collapses identical
+  running commands into one)? Use a counter that wraps at a bound derived
+  from measured overlap - the chime uses `--tick k`, k < 16
+  (`VolumeSettings.chimeArguments()`).
+- Need per-call data? Have the program fetch it itself (the chime reads
+  its volumes from the daemon over D-Bus, `crates/devialet-chime/src/
+  daemon.rs`), or keep the value space small and bounded (e.g.
+  `devialet-ctl ... volume <dB>` - one string per volume step in range).
+- When adding a `connectSource()` call, count the distinct strings it can
+  produce over a long session and say so in a comment.
+
 ## Environment
 
 - OS: CachyOS (Arch-based); Desktop: KDE Plasma.

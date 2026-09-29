@@ -33,10 +33,12 @@ pub const SERVICE: &str = "com.ekmanch.DevialetRemote";
 pub const PATH: &str = "/com/ekmanch/DevialetRemote/Amp";
 pub const INTERFACE: &str = "com.ekmanch.DevialetRemote.Amp1";
 
-/// PROVISIONAL (2026-09-29): the plan's cap. Replaced by a value derived
-/// from measured `read_ms` (about 10x the observed p99, never above 50 ms)
-/// once the widget passes no dB arguments and real reads can be timed.
-pub const DAEMON_READ_TIMEOUT: Duration = Duration::from_millis(50);
+/// About 10x the measured p99, never above 50 ms (owner rule). Measured
+/// 2026-09-29 over 1,135 real chimes from the widget (whole read: thread,
+/// bus connect, GetAll): p50 0.48 ms, p99 0.60 ms, max 0.76 ms. A read that
+/// takes longer plays at the zero-delta default loudness, logged as
+/// `source=default(timeout)`, rather than delaying the chime.
+pub const DAEMON_READ_TIMEOUT: Duration = Duration::from_millis(6);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Reading {

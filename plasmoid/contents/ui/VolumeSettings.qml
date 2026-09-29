@@ -94,8 +94,9 @@ QtObject {
         return " --file " + root.soundThemes.shellQuote(path);
     }
 
-    // devialet-chime's arguments, built so the set of distinct command
-    // strings stays small and fixed (2026-09-29). Every command the
+    // devialet-chime's arguments: only `--tick k`, so the set of distinct
+    // command strings is fixed at chimeSlots (x the rarely changing --file
+    // suffix) for the life of the shell (2026-09-29). Every command the
     // executable engine finishes makes Plasma5Support clear that source
     // name in the `data` map of EVERY executable DataSource in plasmashell;
     // QQmlPropertyMap::clear() creates the key where it is missing and a
@@ -103,24 +104,21 @@ QtObject {
     // every such map and rebuilds its whole metaobject (stack samples:
     // DataContainer::becameUnused -> DataEngine::removeSource ->
     // QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject in 69 of
-    // 77 busy samples). The old `--tick N` made every chime name new, so
-    // each chime cost more than the last: plasmashell's UI thread ended up
-    // ~95% busy after a few minutes of scrolling, until the shell restarted.
+    // 77 busy samples). The old ever-increasing --tick made every chime
+    // name new: plasmashell's UI thread ended up ~95% busy after a few
+    // minutes of scrolling. Passing the dB values (even as a bounded delta,
+    // commit 57073de) still left up to 1,296 names, 437 of them reached in
+    // one 6-minute session, so the binary now reads target (VolumeDb) and
+    // confirmed (VolumeRaw) from the daemon itself in one GetAll
+    // (crates/devialet-chime/src/daemon.rs).
     //
-    // Loudness is unchanged: devialet-chime's gain depends only on
-    // clamp(target - confirmed, -20, +20) (crates/devialet-chime/src/
-    // gain.rs compute(); headroom stays its default, QML never passes it),
-    // so passing that delta as --target-db against --confirmed-db 0 gives
-    // the same volume. The delta is rounded to 0.5 dB (the amp's own
-    // resolution; also bounds names when stepDb isn't a half-dB multiple)
-    // and clamped to the binary's own +-20. --tick wraps at chimeSlots: it
-    // only has to differ between chimes running at the same time (170-260 ms
-    // each, one per wheelStepMinIntervalMs = at most ~13 at once). Result:
-    // at most 81 x 16 distinct names for the life of the shell.
+    // --tick only has to differ between chimes running at the same time:
+    // measured at most 9 at once (170 ms median, 208 ms max each, one per
+    // wheelStepMinIntervalMs); the longest chime seen all day (259 ms) / 20 ms
+    // needs >= 14, hence 16.
     readonly property int chimeSlots: 16
-    function chimeArguments(targetDb, confirmedDb, tick) {
-        const delta = Math.max(-20, Math.min(20, Math.round((targetDb - confirmedDb) * 2) / 2));
-        return " --target-db " + delta.toFixed(1) + " --confirmed-db 0.0 --tick " + (tick % root.chimeSlots);
+    function chimeArguments(tick) {
+        return " --tick " + (tick % root.chimeSlots);
     }
 
     // Reads floorDb/hardLimitDb live on every call (never a cached local),

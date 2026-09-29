@@ -9345,13 +9345,11 @@ architecture decisions; this file is just sequencing and status.
     dB) - and plasmashell has more executable DataSources than the repro
     (13 in this widget alone), so the last new names still cost. Owner
     decision: make the chime's command names fixed by having
-    devialet-chime read target/confirmed from the daemon itself (next
-    item in "## Up next").
+    devialet-chime read target/confirmed from the daemon itself (the
+    "Chime: fixed command names" entry below).
 
-## Up next
-
-- [ ] **Chime: fixed command names - devialet-chime reads the volumes
-  from the daemon** (owner decision 2026-09-29, follow-up to the "Scroll
+- [x] **Chime: fixed command names - devialet-chime reads the volumes
+  from the daemon (2026-09-29).** (Owner decision, follow-up to the "Scroll
   stutter" Done entry). QML runs only `devialet-chime --tick k` (16 names
   for the life of the shell); the binary reads target (`VolumeDb`, the
   daemon's pending/optimistic value) and confirmed (`VolumeRaw`) itself
@@ -9372,8 +9370,7 @@ architecture decisions; this file is just sequencing and status.
     a pair (both, or neither; one alone is a usage error). Neither: new
     `daemon.rs` reads `AmpIp`, `VolumeDb`, `VolumeRaw` in ONE `GetAll`
     (same snapshot) on a helper thread, waiting at most
-    `DAEMON_READ_TIMEOUT` (provisional 50 ms, the plan's cap - set from
-    measurement in (c)); no amp, no daemon, D-Bus error or timeout ->
+    `DAEMON_READ_TIMEOUT` (provisional 50 ms, the plan's cap, until (c)); no amp, no daemon, D-Bus error or timeout ->
     zero delta (the file at its own level) with a logged
     `source=default(<reason>)` warning. Log line gains `source=` and
     `read_ms=`. Hands-free `--dry-run` on a private bus: fakeamp up ->
@@ -9383,6 +9380,30 @@ architecture decisions; this file is just sequencing and status.
     -> `source=args` (the current QML path, unchanged). Against the real
     daemon: `source=daemon`, ~1.1 ms. `cargo test --workspace` 124/124,
     clippy clean.
+  - **(c) done:** QML runs only `devialet-chime --tick k`
+    (`VolumeSettings.chimeArguments(tick)`, 16 slots) plus the unchanged
+    `--file` suffix; both `maybeChime()`s keep their gates and log QML's
+    own target/confirmed next to each command as the timing reference.
+    `tst_VolumeSettings.qml` pins the strings and a 20,000-tick session at
+    exactly 16 names. Installed via `./install.sh`, shell restarted under
+    systemd. Owner's minute of normal + hard scrolling (Optical 1, chime
+    sounding normal), 1,135 chimes:
+    - all `source=daemon`; **16 distinct command strings**;
+    - **timing (owner consideration 1):** the daemon-read target matched
+      QML's notch target in 1,135/1,135 - the daemon has always processed
+      the step's NotifyVolumeCommand before the chime reads. Confirmed
+      matched in 1,089 (96 %); the other 46 differ by 1-10 dB because an
+      amp broadcast landed in between, so the chime used the newer amp
+      value. Resulting loudness identical for 1,110 (97.8 %); 25 played
+      1-9 dB louder (amp had already caught up - less compensation due);
+    - `read_ms` p50 0.48, p99 0.60, max 0.76 -> `DAEMON_READ_TIMEOUT` set
+      to **6 ms** (about 10x p99, owner rule; 8x the max). Stalled-daemon
+      check re-run: `default(timeout)` at 6.08 ms, process 13 ms;
+    - no degradation over the minute: steps 19-23 ms apart 84.4 % in the
+      first third, 84.8 % in the last.
+    `cargo test --workspace`, clippy clean; `scripts/test-qml.sh` 58/58.
+
+## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),

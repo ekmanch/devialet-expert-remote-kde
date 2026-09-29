@@ -139,9 +139,13 @@ MouseArea {
             return;
         }
         const slot = root.chimeTick % root.chimePool.length;
-        const cmd = root.chimeCommand + root.volumeSettings.chimeArguments(targetDb, confirmed, root.chimeTick) + fileArg;
+        // The binary reads target/confirmed from the daemon itself (one
+        // GetAll, see crates/devialet-chime/src/daemon.rs), so the command
+        // is only `--tick k` - a fixed set of strings. QML's own values are
+        // logged as the reference for the notch-vs-read timing comparison.
+        const cmd = root.chimeCommand + root.volumeSettings.chimeArguments(root.chimeTick) + fileArg;
         root.chimeTick += 1;
-        console.log("devialet-chime[" + slot + "] running:", cmd);
+        console.log("devialet-chime[" + slot + "] running:", cmd, "(qml target=" + targetDb.toFixed(1) + " confirmed=" + confirmed.toFixed(1) + ")");
         root.chimePool[slot].connectSource(cmd);
     }
 
