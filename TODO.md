@@ -9368,6 +9368,21 @@ architecture decisions; this file is just sequencing and status.
   - **(a) done:** `devialet_protocol::volume_db_from_raw(raw)` - the
     status-broadcast decode `(raw - 195) / 2` as one function;
     `Status::volume_db()` calls it. No behaviour change; new fixture test.
+  - **(b) done:** `devialet-chime` takes `--target-db`/`--confirmed-db` as
+    a pair (both, or neither; one alone is a usage error). Neither: new
+    `daemon.rs` reads `AmpIp`, `VolumeDb`, `VolumeRaw` in ONE `GetAll`
+    (same snapshot) on a helper thread, waiting at most
+    `DAEMON_READ_TIMEOUT` (provisional 50 ms, the plan's cap - set from
+    measurement in (c)); no amp, no daemon, D-Bus error or timeout ->
+    zero delta (the file at its own level) with a logged
+    `source=default(<reason>)` warning. Log line gains `source=` and
+    `read_ms=`. Hands-free `--dry-run` on a private bus: fakeamp up ->
+    `source=daemon`, read 2.2 ms; no daemon -> `default(ServiceUnknown)`
+    in 1.0 ms; fakeamp SIGSTOPped (owns the name, never replies) ->
+    `default(timeout)` at 50.1 ms, process done in 59 ms; explicit flags
+    -> `source=args` (the current QML path, unchanged). Against the real
+    daemon: `source=daemon`, ~1.1 ms. `cargo test --workspace` 124/124,
+    clippy clean.
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),
