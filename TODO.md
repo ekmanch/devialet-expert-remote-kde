@@ -9362,6 +9362,12 @@ architecture decisions; this file is just sequencing and status.
   2. **Daemon not running** - the chime must still play at a sensible
      default loudness, never fail silently or hang waiting on D-Bus
      (bounded timeout).
+  Split into three commits (owner): (a) refactor, (b) binary reads the
+  daemon with QML unchanged, (c) QML switch; install only via
+  `./install.sh` for this phase so QML is never newer than the binary.
+  - **(a) done:** `devialet_protocol::volume_db_from_raw(raw)` - the
+    status-broadcast decode `(raw - 195) / 2` as one function;
+    `Status::volume_db()` calls it. No behaviour change; new fixture test.
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),

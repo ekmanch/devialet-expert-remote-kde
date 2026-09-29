@@ -32,13 +32,20 @@ pub struct Status {
     pub sources: Vec<Source>,
 }
 
+/// Status-broadcast volume decoding. **Not the inverse of
+/// `command::volume_packet`'s `db_convert`** - two independently
+/// reverse-engineered encodings for two different packet directions, do
+/// not assume symmetry. Ported from `DevialetStatus.volumeDb`. Standalone so
+/// consumers that only hold the raw byte (the daemon's `VolumeRaw`
+/// property, read by `devialet-chime`) decode it with this one formula.
+pub fn volume_db_from_raw(raw: u8) -> f64 {
+    (raw as f64 - 195.0) / 2.0
+}
+
 impl Status {
-    /// Status-broadcast volume decoding. **Not the inverse of
-    /// `command::volume_packet`'s `db_convert`** - two independently
-    /// reverse-engineered encodings for two different packet directions, do
-    /// not assume symmetry. Ported from `DevialetStatus.volumeDb`.
+    /// See [`volume_db_from_raw`].
     pub fn volume_db(&self) -> f64 {
-        (self.volume_raw as f64 - 195.0) / 2.0
+        volume_db_from_raw(self.volume_raw)
     }
 
     pub fn current_source_name(&self) -> Option<&str> {
@@ -168,6 +175,18 @@ mod tests {
 
         let data = FixtureBuilder::new().volume_raw(165).build();
         assert_eq!(parse_status(&data).unwrap().volume_db(), -15.0);
+    }
+
+    #[test]
+    fn volume_db_from_raw_matches_status_decoding() {
+        assert_eq!(volume_db_from_raw(195), 0.0);
+        assert_eq!(volume_db_from_raw(165), -15.0);
+        assert_eq!(volume_db_from_raw(115), -40.0);
+        assert_eq!(volume_db_from_raw(0), -97.5);
+        for raw in [0u8, 1, 100, 115, 164, 165, 194, 195, 255] {
+            let data = FixtureBuilder::new().volume_raw(raw).build();
+            assert_eq!(parse_status(&data).unwrap().volume_db(), volume_db_from_raw(raw));
+        }
     }
 
     #[test]
