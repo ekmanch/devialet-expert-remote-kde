@@ -111,8 +111,8 @@
 // (notifyVolume/notifyMute - panel wheel/middle-click, flyout slider/
 // step/mute, main.qml's settings clamp), which makes it the one place that
 // can tell the daemon's echo of our own call apart from an external one:
-// `ownInFlight` remembers each value we sent, the signal handler consumes
-// a matching entry silently, and only an unmatched signal is re-emitted as
+// `ownInFlight` remembers each call we made, the signal handler consumes
+// an entry with a matching value silently, and only an unmatched signal is re-emitted as
 // `externalVolumeCommand`/`externalMuteCommand` for CompactRepresentation
 // to turn into a toast. Owner decision: every widget-originated call is
 // suppressed (the flyout and the settings clamp never showed the OSD and
@@ -120,7 +120,12 @@
 // The daemon emits the signal inside the method before replying, so the
 // echo normally consumes the entry before the reply callback runs; the
 // callbacks only forget an entry no signal ever matched (unknown-ip no-op,
-// a daemon predating the signal). A sender-based scheme was not possible:
+// a daemon predating the signal). They forget their own call's entry by
+// id, never by value (2026-09-29 fix): with two equal values in flight -
+// fast scrolling past the floor/ceiling re-sends the clamped value - a
+// by-value forget in reply #1 deleted call #2's entry, so call #2's echo
+// went unmatched and showed the OSD from the flyout, stuck on that one
+// value. A sender-based scheme was not possible:
 // QML has no access to plasmashell's own unique bus name to compare with.
 //
 // Plain QtObject root, not `pragma Singleton` - matches Theme.qml's own
@@ -153,19 +158,26 @@ QtObject {
     signal externalVolumeCommand(real db)
     signal externalMuteCommand(bool muted)
 
-    // Values this widget itself has sent to Notify*Command and not yet
-    // seen echoed back as a signal. Plain JS array of {kind, value}
+    // Calls this widget itself has made to Notify*Command and not yet
+    // seen echoed back as a signal. Plain JS array of {id, kind, value}
     // (kind "volume" | "mute"); nothing binds to it, so in-place mutation
-    // is fine. Matching is exact: a double sent as a D-Bus `d` comes back
-    // bit-identical, a bool trivially.
+    // is fine. Signals match by value - exact: a double sent as a D-Bus `d`
+    // comes back bit-identical, a bool trivially - and entries with equal
+    // values are interchangeable there. Reply cleanup matches by id, so a
+    // call only ever removes its own entry (see the header).
     property var ownInFlight: []
+    property int ownNextId: 0
 
+    // Returns the entry's id, for the call's reply callbacks.
     function rememberOwn(kind, value) {
-        root.ownInFlight.push({ kind: kind, value: value });
-        if (root.debugLogging) console.log("[PendingAmpState] remembered own", kind, value);
+        const id = root.ownNextId++;
+        root.ownInFlight.push({ id: id, kind: kind, value: value });
+        if (root.debugLogging) console.log("[PendingAmpState] remembered own", kind, value, "id", id);
+        return id;
     }
 
-    // Removes the oldest matching entry; true if there was one.
+    // Signal-side match: removes the oldest entry with this value; true if
+    // there was one.
     function consumeOwn(kind, value) {
         for (let i = 0; i < root.ownInFlight.length; i++) {
             const entry = root.ownInFlight[i];
@@ -177,10 +189,17 @@ QtObject {
         return false;
     }
 
-    // Reply-time cleanup for an entry no signal matched (see the header).
-    function forgetOwn(kind, value) {
-        if (root.consumeOwn(kind, value) && root.debugLogging) {
-            console.log("[PendingAmpState] forgot unechoed own", kind, value);
+    // Reply-time cleanup for an entry no signal matched (see the header):
+    // removes the entry `rememberOwn` returned `id` for, if its echo has not
+    // already consumed it. Never touches another call's entry.
+    function forgetEntry(id) {
+        for (let i = 0; i < root.ownInFlight.length; i++) {
+            const entry = root.ownInFlight[i];
+            if (entry.id === id) {
+                root.ownInFlight.splice(i, 1);
+                if (root.debugLogging) console.log("[PendingAmpState] forgot unechoed own", entry.kind, entry.value, "id", id);
+                return;
+            }
         }
     }
 
@@ -333,7 +352,7 @@ QtObject {
         }
         const previous = root.volumeDb;
         root.volumeDb = db;
-        root.rememberOwn("volume", db);
+        const ownId = root.rememberOwn("volume", db);
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -343,14 +362,14 @@ QtObject {
                 arguments: [root.ampIp, db]
             }),
             function (reply) {
-                root.forgetOwn("volume", db);
+                root.forgetEntry(ownId);
                 if (reply.isError) {
                     root.volumeDb = previous;
                     console.log("[WARN] NotifyVolumeCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
             },
             function (reply) {
-                root.forgetOwn("volume", db);
+                root.forgetEntry(ownId);
                 root.volumeDb = previous;
                 console.log("[WARN] NotifyVolumeCommand call failed:", JSON.stringify(reply.error));
             }
@@ -361,7 +380,7 @@ QtObject {
         if (root.ampIp === "") return;
         const previous = root.muted;
         root.muted = muted;
-        root.rememberOwn("mute", muted);
+        const ownId = root.rememberOwn("mute", muted);
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -371,14 +390,14 @@ QtObject {
                 arguments: [root.ampIp, muted]
             }),
             function (reply) {
-                root.forgetOwn("mute", muted);
+                root.forgetEntry(ownId);
                 if (reply.isError) {
                     root.muted = previous;
                     console.log("[WARN] NotifyMuteCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
             },
             function (reply) {
-                root.forgetOwn("mute", muted);
+                root.forgetEntry(ownId);
                 root.muted = previous;
                 console.log("[WARN] NotifyMuteCommand call failed:", JSON.stringify(reply.error));
             }

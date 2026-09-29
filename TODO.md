@@ -9192,6 +9192,31 @@ architecture decisions; this file is just sequencing and status.
     `ColorPalette.controlColor()`. Comment only. The mask it describes is
     still needed, since fixed-k controls are even more see-through.
 
+- [x] **Bug fix — OSD shown by fast scrolling on the flyout slider, stuck
+  on one value (2026-09-29).** Owner report: slow scrolling on the flyout
+  slider never showed the OSD, fast scrolling did, and the toast then sat
+  on one value (-20.0, the ceiling) instead of following the volume.
+  - **Root cause:** `PendingAmpState.qml`'s reply callbacks cleaned up
+    `ownInFlight` by *value* (`forgetOwn`), not per call. Fast notches past
+    the floor/ceiling re-send the clamped value (`VolumeSettings.stepped()`),
+    so two equal values are in flight; the daemon emits signal N before
+    reply N, so signal #1 consumed entry #1, reply #1 then deleted entry #2,
+    and call #2's echo went unmatched -> `externalVolumeCommand` -> toast on
+    that one value, while every later echo was still swallowed. Same shape
+    for `mute false` while scrolling fast when muted.
+  - **Fix:** entries carry a unique increasing id (`ownNextId`);
+    `rememberOwn` returns it and the reply callbacks call `forgetEntry(id)`,
+    which removes only that call's entry. The signal side (`consumeOwn`,
+    oldest equal value) is unchanged; panel wheel/middle-click and external
+    (MPV) commands are untouched.
+  - **Verification:** reproduced first against the old code with a scratch
+    QtTest (1 spurious external signal), then four new cases in
+    `tests/qml/tst_PendingAmpState.qml` (duplicate volume, duplicate mute,
+    unechoed call forgotten by its own reply, external value during an own
+    call); `scripts/test-qml.sh` 42/42, qmllint clean. Owner confirmed live
+    (after the rate-limit fix below made fast spins usable): no OSD from the
+    flyout slider; panel-icon scroll still shows it.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9427,6 +9452,18 @@ architecture decisions; this file is just sequencing and status.
 
 
 ## Not yet scoped / parked
+
+- **Fast flyout/panel scrolling can drop or re-send notches** (found while
+  investigating the fast-scroll OSD bug, 2026-09-29; inferred from the
+  code, not measured). `stepVolume()` builds on `pendingAmpState.volumeDb`
+  (`FlyoutContent.qml:284`, same in `CompactRepresentation.qml:185`), but
+  `noteVolumeDb()` (`PendingAmpState.qml`) overwrites it with every daemon
+  `VolumeDb` push. During a fast burst, the push for an earlier call (that
+  call's own, now superseded value) can land between notches and pull the
+  base back, so the next notch recomputes a value already in flight. This
+  is the mid-range source of the duplicate in-flight values the OSD fix
+  above made harmless; the lost/repeated notches themselves are a separate
+  behaviour issue needing its own investigation.
 
 - **OSD + tooltip: follow the desktop's appearance, or the widget's Theme**
   (owner idea, 2026-09-27, not decided). A ConfigDialog option letting the

@@ -32,6 +32,9 @@ TestCase {
 
     property var state: null
 
+    SignalSpy { id: externalVolumeSpy; signalName: "externalVolumeCommand" }
+    SignalSpy { id: externalMuteSpy; signalName: "externalMuteCommand" }
+
     // One PropertiesChanged message carrying one property, as the daemon
     // sends them.
     function push(changed) {
@@ -55,11 +58,15 @@ TestCase {
         compare(state.ampIp, ip);
         compare(state.volumeDb, -25);
         compare(state.bootHoldIp, "");
+        externalVolumeSpy.target = state;
+        externalMuteSpy.target = state;
+        externalVolumeSpy.clear();
+        externalMuteSpy.clear();
     }
 
     function cleanup() {
         // Let any in-flight NotifyVolumeCommand reply land while its
-        // callbacks still have an object to call forgetOwn() on.
+        // callbacks still have an object to call forgetEntry() on.
         wait(100);
         state.destroy();
         state = null;
@@ -188,5 +195,58 @@ TestCase {
         push({ AmpIp: "10.0.0.2" });
         compare(state.bootHoldIp, "");
         verify(!state.bootHoldSent);
+    }
+
+    // 2026-09-29 regression: fast scrolling on the flyout slider past the
+    // ceiling sends the clamped value twice before the first reply lands.
+    // Driven in the real daemon's order (signal N before reply N, measured
+    // in Phase 16.0.0's soak). Reply #1 used to forget by value and so
+    // deleted call #2's entry, and call #2's echo then showed the OSD.
+    function test_duplicate_volume_in_flight_is_not_external() {
+        const e1 = state.rememberOwn("volume", -20);
+        const e2 = state.rememberOwn("volume", -20);
+        state.handleCommandSignal("volume", ip, -20);
+        state.forgetEntry(e1);
+        state.handleCommandSignal("volume", ip, -20);
+        state.forgetEntry(e2);
+        compare(externalVolumeSpy.count, 0, "own echo misattributed as external");
+        compare(state.ownInFlight.length, 0);
+    }
+
+    // Same shape for mute: scrolling fast while muted sends `mute false`
+    // once per notch until the unmute lands.
+    function test_duplicate_mute_in_flight_is_not_external() {
+        const e1 = state.rememberOwn("mute", false);
+        const e2 = state.rememberOwn("mute", false);
+        state.handleCommandSignal("mute", ip, false);
+        state.forgetEntry(e1);
+        state.handleCommandSignal("mute", ip, false);
+        state.forgetEntry(e2);
+        compare(externalMuteSpy.count, 0, "own echo misattributed as external");
+        compare(state.ownInFlight.length, 0);
+    }
+
+    // The case reply cleanup exists for: no echo ever arrives (unknown-ip
+    // no-op, old daemon). The reply removes its own entry, so a later
+    // external command with the same value still shows.
+    function test_unechoed_call_is_forgotten_by_its_own_reply() {
+        const e1 = state.rememberOwn("volume", -30);
+        state.forgetEntry(e1);
+        compare(state.ownInFlight.length, 0);
+        state.handleCommandSignal("volume", ip, -30);
+        compare(externalVolumeSpy.count, 1);
+    }
+
+    // Control: an external command with a different value while our own
+    // call is in flight still shows, and our echo is still swallowed.
+    function test_external_value_during_own_call_is_external() {
+        const e1 = state.rememberOwn("volume", -25);
+        state.handleCommandSignal("volume", ip, -31);
+        compare(externalVolumeSpy.count, 1);
+        compare(externalVolumeSpy.signalArguments[0][0], -31);
+        state.handleCommandSignal("volume", ip, -25);
+        state.forgetEntry(e1);
+        compare(externalVolumeSpy.count, 1);
+        compare(state.ownInFlight.length, 0);
     }
 }
