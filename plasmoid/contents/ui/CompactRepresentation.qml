@@ -366,15 +366,16 @@ MouseArea {
     }
 
     property int wheelDelta: 0
-    // Same notch rate limit as the flyout slider (VolumeBlock.qml) - see
-    // VolumeSettings.wheelStepMinIntervalMs. A dropped notch shows no OSD
-    // either; the next accepted one does.
-    property double lastWheelStepAtMs: 0
+    // Same pacing as the flyout slider (VolumeBlock.qml) - see
+    // WheelStepPacer.qml. Each paced step shows the OSD; a dropped notch
+    // shows nothing of its own.
+    WheelStepPacer {
+        id: wheelPacer
+        intervalMs: root.volumeSettings.wheelStepMinIntervalMs
+        onStep: (direction) => root.stepVolume(direction)
+    }
     function wheelStep(direction) {
-        const now = Date.now();
-        if (now - root.lastWheelStepAtMs < root.volumeSettings.wheelStepMinIntervalMs) return;
-        root.lastWheelStepAtMs = now;
-        root.stepVolume(direction);
+        wheelPacer.notch(direction);
     }
     onWheel: wheel => {
         const delta = (wheel.inverted ? -1 : 1) * (wheel.angleDelta.y ? wheel.angleDelta.y : -wheel.angleDelta.x);

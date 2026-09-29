@@ -49,19 +49,19 @@ QtObject {
     // before building a command, so devialet-chime is never spawned.
     required property bool chimeEnabled
 
-    // Wheel notch rate limit (2026-09-29): both wheel handlers (panel icon,
-    // flyout slider) drop any notch that arrives sooner than this after the
-    // last one they accepted. Every accepted notch spawns a devialet-ctl and
-    // a devialet-chime process and makes a D-Bus call from plasmashell's UI
-    // thread; a free-spinning wheel delivered up to ~300 notches/s (one per
-    // ~3-7 ms), which backed the thread up for 2-10 s - the whole widget
-    // froze, then replayed the backlog at once (floor-to-ceiling in 30 ms,
-    // dozens of chimes together). Measured before and after the OSD-echo
-    // fix: same freeze, so it is this flood, not that change. Started at
-    // 40 ms (25 notches/s, the MPV scroll script's min_interval_ms); the
-    // owner found that slow and is trying 25 ms (40 notches/s). A
-    // constant, not a setting.
-    readonly property int wheelStepMinIntervalMs: 25
+    // Wheel step spacing (2026-09-29): both wheel surfaces (panel icon,
+    // flyout slider) turn notches into volume steps at most this often,
+    // spaced evenly by WheelStepPacer.qml (see its header for why pacing
+    // replaced dropping). Every step spawns a devialet-ctl and a
+    // devialet-chime process and makes a D-Bus call from plasmashell's UI
+    // thread; unlimited, a free-spinning wheel delivered up to ~300
+    // notches/s, which backed the thread up for 2-10 s (widget frozen, then
+    // the backlog replayed at once - floor to ceiling in 30 ms, dozens of
+    // chimes together). Measured before and after the OSD-echo fix: same
+    // freeze, so it was this flood. Started at 40 ms (the MPV scroll
+    // script's min_interval_ms); the owner found that slow, then kept 25 ms,
+    // then moved to 20 ms (50 steps/s). A constant, not a setting.
+    readonly property int wheelStepMinIntervalMs: 20
     // Phase 10.1.3: the chime's sound source (main.xml chimeSourceMode /
     // chimePinnedTheme / chimeSoundFile) plus the pinned theme's resolved
     // file, all bound in main.qml. Paths are RAW here; quoting for the

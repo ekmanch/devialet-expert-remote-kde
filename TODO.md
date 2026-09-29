@@ -9237,7 +9237,22 @@ architecture decisions; this file is just sequencing and status.
     100 ms) untouched. 40 ms first (the MPV script's `min_interval_ms`):
     owner found it slow, dropping notches even on a normal ratcheted
     scroll and a full floor-to-ceiling sweep taking too long; **25 ms**
-    (40 notches/s) kept - "feels great".
+    (40 notches/s) kept - "feels great"; later moved to **20 ms** (50
+    notches/s) at the owner's request (2026-09-29).
+  - **Pacing instead of dropping (same day, owner report: free-spinning
+    felt uneven at 20 ms).** Journal: the owner's wheel delivers notches on
+    a ~7.5 ms grid with skipped slots, so the drop limiter accepted steps
+    22-23 ms apart mostly, but also 30, 37 and 42-45 ms - the step rate
+    jumped between ~44 and ~22 steps/s. Not UI stalls: 190 of 233
+    in-gesture silences >35 ms were plain wheel gaps, 43 short stalls
+    (mean 49 ms, max 89 ms, no backlog; the pre-fix session had the same
+    kind). New `WheelStepPacer.qml` (used by both wheel handlers): the
+    first notch steps at once, further steps are spaced exactly
+    `wheelStepMinIntervalMs` apart by a Timer, at most one notch waits
+    (latest direction wins), the rest are dropped - still no backlog.
+    `tests/qml/tst_WheelStepPacer.qml` feeds the measured gap pattern; its
+    spacing and backlog cases fail against the old drop limiter (max gap
+    31 ms) and pass on the pacer (3 runs). `scripts/test-qml.sh` 53/53.
   - **Verification:** `scripts/test-qml.sh` 42/42, qmllint clean; owner
     confirmed live on the flyout slider and the panel icon (OSD and
     tooltip) - no freeze, no chime pile-up.

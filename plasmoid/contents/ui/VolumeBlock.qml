@@ -328,16 +328,17 @@ ColumnLayout {
                 // physical notch, matching org.kde.desktop's own
                 // Slider.qml convention.
                 property int wheelDelta: 0
-                // Date.now() of the last notch that was let through - see
-                // VolumeSettings.wheelStepMinIntervalMs. Notches inside the
-                // window are consumed and dropped, not queued.
-                property double lastStepAtMs: 0
+
+                // Spaces notches into evenly timed steps - see
+                // WheelStepPacer.qml and VolumeSettings.wheelStepMinIntervalMs.
+                WheelStepPacer {
+                    id: wheelPacer
+                    intervalMs: volumeBlock.volumeSettings.wheelStepMinIntervalMs
+                    onStep: (direction) => volumeBlock.stepRequested(direction)
+                }
 
                 function step(direction) {
-                    const now = Date.now();
-                    if (now - lastStepAtMs < volumeBlock.volumeSettings.wheelStepMinIntervalMs) return;
-                    lastStepAtMs = now;
-                    volumeBlock.stepRequested(direction);
+                    wheelPacer.notch(direction);
                 }
 
                 onWheel: (wheel) => {
