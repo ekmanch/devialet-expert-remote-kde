@@ -94,6 +94,35 @@ QtObject {
         return " --file " + root.soundThemes.shellQuote(path);
     }
 
+    // devialet-chime's arguments, built so the set of distinct command
+    // strings stays small and fixed (2026-09-29). Every command the
+    // executable engine finishes makes Plasma5Support clear that source
+    // name in the `data` map of EVERY executable DataSource in plasmashell;
+    // QQmlPropertyMap::clear() creates the key where it is missing and a
+    // map can never drop a key, so each never-seen name adds a property to
+    // every such map and rebuilds its whole metaobject (stack samples:
+    // DataContainer::becameUnused -> DataEngine::removeSource ->
+    // QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject in 69 of
+    // 77 busy samples). The old `--tick N` made every chime name new, so
+    // each chime cost more than the last: plasmashell's UI thread ended up
+    // ~95% busy after a few minutes of scrolling, until the shell restarted.
+    //
+    // Loudness is unchanged: devialet-chime's gain depends only on
+    // clamp(target - confirmed, -20, +20) (crates/devialet-chime/src/
+    // gain.rs compute(); headroom stays its default, QML never passes it),
+    // so passing that delta as --target-db against --confirmed-db 0 gives
+    // the same volume. The delta is rounded to 0.5 dB (the amp's own
+    // resolution; also bounds names when stepDb isn't a half-dB multiple)
+    // and clamped to the binary's own +-20. --tick wraps at chimeSlots: it
+    // only has to differ between chimes running at the same time (170-260 ms
+    // each, one per wheelStepMinIntervalMs = at most ~13 at once). Result:
+    // at most 81 x 16 distinct names for the life of the shell.
+    readonly property int chimeSlots: 16
+    function chimeArguments(targetDb, confirmedDb, tick) {
+        const delta = Math.max(-20, Math.min(20, Math.round((targetDb - confirmedDb) * 2) / 2));
+        return " --target-db " + delta.toFixed(1) + " --confirmed-db 0.0 --tick " + (tick % root.chimeSlots);
+    }
+
     // Reads floorDb/hardLimitDb live on every call (never a cached local),
     // so any binding that calls this stays a normal reactive QML binding -
     // changing a ConfigDialog value re-evaluates every consumer immediately.

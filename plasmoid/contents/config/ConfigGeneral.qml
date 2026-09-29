@@ -358,15 +358,17 @@ KCM.SimpleKCM {
     // is the amp-latency gain compensation, which has no meaning without
     // a scroll gesture to compensate for. The DEVIALET_PREVIEW_TICK=<n>
     // prefix is a no-op sh environment assignment whose only job is to
-    // make every command string unique - the executable engine is
-    // shared process-wide and keys jobs by command string, so two
+    // keep overlapping presses' command strings distinct - the executable
+    // engine is shared process-wide and keys jobs by command string, so two
     // presses within one sound's duration would otherwise collapse into
     // one process (same reason maybeChime() passes --tick, see
-    // CompactRepresentation.qml).
+    // CompactRepresentation.qml). It wraps at 16 so the set of strings
+    // stays bounded - see VolumeSettings.chimeArguments() for why every
+    // new command string costs plasmashell a little more forever.
     function previewChime() {
         const path = root.chimePreviewPath();
         if (path === "") return;
-        const cmd = "DEVIALET_PREVIEW_TICK=" + root.chimePreviewTick
+        const cmd = "DEVIALET_PREVIEW_TICK=" + (root.chimePreviewTick % 16)
             + " paplay --volume=65536 " + root.soundThemes.shellQuote(path);
         root.chimePreviewTick += 1;
         console.log("[ConfigGeneral] chime preview running:", cmd);

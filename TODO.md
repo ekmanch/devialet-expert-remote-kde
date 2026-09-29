@@ -9253,6 +9253,10 @@ architecture decisions; this file is just sequencing and status.
     `tests/qml/tst_WheelStepPacer.qml` feeds the measured gap pattern; its
     spacing and backlog cases fail against the old drop limiter (max gap
     31 ms) and pass on the pacer (3 runs). `scripts/test-qml.sh` 53/53.
+    The owner still found it uneven after this, and worse the longer they
+    scrolled: the real cause was UI-thread stalls from the chime's
+    ever-new command names (the "Scroll stutter" entry below), which the
+    stall count above had understated.
   - **Verification:** `scripts/test-qml.sh` 42/42, qmllint clean; owner
     confirmed live on the flyout slider and the panel icon (OSD and
     tooltip) - no freeze, no chime pile-up.
@@ -9294,8 +9298,70 @@ architecture decisions; this file is just sequencing and status.
     owner's later scroll sessions (7,596 volume steps from 21:00 on):
     no watchdog reset logged.
 
+- [x] **Bug fix — Scroll stutter that got worse the longer you scrolled:
+  unbounded chime command names (2026-09-29).** Owner report: even with
+  the paced 20 ms steps, scrolling was uneven, and the longer they
+  scrolled back and forth the worse it got - bad from the first notch in
+  a shell that had seen earlier spins.
+  - **Ruled out, by measurement:** the mouse (raw evdev capture:
+    notches <= 15 ms apart inside a spin); render loop and compositor
+    (threaded loop gave the same 67 %/32 % step-gap split; KWin 1-2 % CPU
+    while plasmashell's UI thread sat at ~95 %); the widget's own D-Bus
+    calls and process launches in isolation (3,000 each at 50/s in a
+    standalone Qt process: zero stalls); PipeWire stream churn (1,500
+    silent streams: no growth); journald (no rate limiting); widget state
+    (engine sources, connections, ownInFlight all flat).
+  - **Cause (eu-stack samples of plasmashell's UI thread, 69 of 77 busy
+    samples):** `DataContainer::becameUnused -> DataEngine::removeSource
+    -> QQmlPropertyMap::clear -> QQmlOpenMetaObject::createProperty ->
+    QMetaObjectBuilder::toMetaObject`. Every finished executable-engine
+    command makes every executable DataSource in plasmashell clear that
+    source name in its `data` map; `clear()` creates a missing key and a
+    map never drops one, so each never-seen name adds a property to every
+    such map and rebuilds its metaobject. The chime's `--tick N` made
+    every chime name new, so each cost more than the last until the shell
+    restarted. Reproduced standalone with 10 DataSources: unique names ->
+    UI thread blocked 8.9 s per 10 s after a minute (max stall 113 ms);
+    16 repeating names -> zero stalls.
+  - **Fix:** `VolumeSettings.chimeArguments()` (used by both
+    `maybeChime()`s) passes only `clamp(round(target - confirmed, 0.5),
+    +-20)` as `--target-db` against `--confirmed-db 0`, and `--tick` wraps
+    at `chimeSlots` (16) - at most 81 x 16 names for the life of the
+    shell. Loudness unchanged: devialet-chime's gain depends only on that
+    clamped delta (gain.rs); `--dry-run` gave identical `volume=` for all
+    1,111 old/new combinations checked. The settings page's chime preview
+    counter wraps at 16 for the same reason. New
+    `tests/qml/tst_VolumeSettings.qml`; `scripts/test-qml.sh` 59/59.
+    Owner confirmed after a long session: no worsening over time.
+  - **Bound checked, and why it isn't the end state:** 16 ticks is the
+    smallest safe modulus - 1,583 chimes measured: 170 ms median, 208 ms
+    max start-to-finish, at most 9 running at once, all 9 with the same
+    delta; the longest chime seen all day (259 ms, under load) / 20 ms
+    spacing needs >= 14. The full 81 x 16 = 1,296-name set in the
+    standalone repro (10 DataSources, 50/s, every name new as early as
+    possible): 0 / 1.8 s / 4.9 s blocked per 10 s while it fills (max
+    stall 38 ms), then zero for the remaining 70 s. But real use fills it
+    quickly - 437 distinct names in one 6-minute session (deltas -15..+15
+    dB) - and plasmashell has more executable DataSources than the repro
+    (13 in this widget alone), so the last new names still cost. Owner
+    decision: make the chime's command names fixed by having
+    devialet-chime read target/confirmed from the daemon itself (next
+    item in "## Up next").
 
 ## Up next
+
+- [ ] **Chime: fixed command names - devialet-chime reads the volumes
+  from the daemon** (owner decision 2026-09-29, follow-up to the "Scroll
+  stutter" Done entry). QML runs only `devialet-chime --tick k` (16 names
+  for the life of the shell); the binary reads target (`VolumeDb`, the
+  daemon's pending/optimistic value) and confirmed (`VolumeRaw`) itself
+  over D-Bus. Owner considerations to design for:
+  1. **Timing** - the chime reads the volume when it starts, not when the
+     notch happened; during fast scrolling those can differ by a step or
+     two. Probably inaudible and arguably more accurate - measure it.
+  2. **Daemon not running** - the chime must still play at a sensible
+     default loudness, never fail silently or hang waiting on D-Bus
+     (bounded timeout).
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
       (`ssh://aur@aur.archlinux.org/devialet-expert-remote-kde.git`),

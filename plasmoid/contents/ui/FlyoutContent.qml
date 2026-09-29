@@ -210,10 +210,12 @@ Item {
     // stream per trigger so rapid triggers overlap and mix instead of
     // interrupting each other. Tick N uses chimePool[N % length]. Four
     // slots: the chime is 0.30 s and even ~10 ticks/s leaves at most 3 in
-    // flight. The `--tick` argument makes every command string unique -
-    // Plasma's executable engine is shared process-wide and keys running
-    // jobs by command string, so two ticks with identical dB arguments
-    // would otherwise collapse into one process regardless of the pool.
+    // flight. The `--tick` argument keeps concurrently running chimes'
+    // command strings distinct - Plasma's executable engine is shared
+    // process-wide and keys running jobs by command string, so two ticks
+    // with identical dB arguments would otherwise collapse into one
+    // process regardless of the pool. The set of strings must stay
+    // bounded, though: see VolumeSettings.chimeArguments().
     readonly property var chimePool: [chimeExec0, chimeExec1, chimeExec2, chimeExec3]
     property int chimeTick: 0
 
@@ -244,8 +246,7 @@ Item {
             return;
         }
         const slot = root.chimeTick % root.chimePool.length;
-        const cmd = root.chimeCommand + " --target-db " + targetDb.toFixed(1)
-            + " --confirmed-db " + confirmed.toFixed(1) + " --tick " + root.chimeTick + fileArg;
+        const cmd = root.chimeCommand + root.volumeSettings.chimeArguments(targetDb, confirmed, root.chimeTick) + fileArg;
         root.chimeTick += 1;
         console.log("devialet-chime[" + slot + "] running:", cmd);
         root.chimePool[slot].connectSource(cmd);
