@@ -94,9 +94,13 @@
 //
 // Thin consumer only: the confirmed-vs-expired resolution logic stays
 // entirely in the daemon (Phase 5.0.0's resolve_pending_commands). This
-// file never tracks a deadline or compares against one itself -
-// volumeDb/muted below are already exactly what the daemon currently
-// reports, whether still pending or already confirmed.
+// file never tracks the amp-confirmation deadline itself - volumeDb/muted
+// below are what the daemon currently reports, whether still pending or
+// already confirmed. Exception (2026-09-29): while this widget's own
+// NotifyVolumeCommand calls are unreplied, VolumeDb pushes are only
+// recorded, then reconciled once the last reply lands - see the echo guard
+// next to noteVolumeDb (its watchdog is a stuck-reply guard, not an
+// amp-confirmation deadline).
 //
 // PC-originated-command signal (2026-09-15, unnumbered phase). The daemon
 // now emits `VolumeCommandNotified(ip, db)` / `MuteCommandNotified(ip,
@@ -287,10 +291,84 @@ QtObject {
     }
 
     // VolumeDb push from the daemon: always remembered, applied only when
-    // not held (the hold is the whole point - see header).
+    // not held (the hold is the whole point - see header) and when no own
+    // volume call is awaiting its reply (echo guard below).
     function noteVolumeDb(db) {
         root.lastRealVolumeDb = db;
-        if (root.bootHoldIp === "") root.volumeDb = db;
+        if (root.bootHoldIp === "" && root.ownVolumeCallsPending === 0) root.volumeDb = db;
+    }
+
+    // Echo guard (2026-09-29, the parked "dropped/repeated notch" item).
+    // NotifyVolumeCommand makes the daemon push VolumeDb = that call's own
+    // value before it replies (interface.rs notify_volume_command). When a
+    // later notch has already gone out, call N's push used to rewind
+    // volumeDb - the base both stepVolume()s build the next notch on - to
+    // N, so the next notch repeated or lost a step (14 direction reversals
+    // measured in one pre-rate-limit burst). While any own volume call is
+    // unreplied, pushes are therefore only recorded (lastRealVolumeDb);
+    // once the last reply lands - after every push of those calls, since
+    // the daemon emits them inside the method - volumeDb is reconciled
+    // with the daemon's latest value once, which also picks up a genuine
+    // change (physical remote) that arrived meanwhile.
+    //
+    // The count must never stick (owner requirement): the callbacks
+    // decrement before anything else; a watchdog resets it if the latest
+    // send has gone ownVolumeWatchdogMs without every reply (round trip
+    // measured ~1 ms; QtDBus's own call timeout is 25 s); the daemon's
+    // bus name vanishing or reappearing resets it too. A reset bumps the
+    // epoch, so late replies from abandoned calls can't lower a newer
+    // burst's count.
+    property int ownVolumeCallsPending: 0
+    property int ownVolumeEpoch: 0
+    property int ownVolumeWatchdogMs: 3000
+
+    readonly property Timer ownVolumeWatchdog: Timer {
+        interval: root.ownVolumeWatchdogMs
+        repeat: false
+        onTriggered: {
+            if (root.ownVolumeCallsPending > 0) root.resetOwnVolumeCalls("no reply within " + root.ownVolumeWatchdogMs + " ms");
+        }
+    }
+
+    // Plasma's DBusServiceWatcher (org.kde.plasma.workspace.dbus,
+    // dbusplugin.qmltypes: busType/watchedService/registered). Either
+    // direction resets: replies to calls made to a vanished daemon will
+    // never come, and a restarted one knows nothing of them.
+    readonly property Dbus.DBusServiceWatcher daemonWatcher: Dbus.DBusServiceWatcher {
+        busType: Dbus.BusType.Session
+        watchedService: root.serviceName
+        onRegisteredChanged: {
+            if (root.ownVolumeCallsPending > 0) root.resetOwnVolumeCalls("daemon bus name " + (registered ? "reappeared" : "vanished"));
+        }
+    }
+
+    // Returns the epoch the call's callbacks hand back to endOwnVolumeCall.
+    function beginOwnVolumeCall() {
+        root.ownVolumeCallsPending += 1;
+        root.ownVolumeWatchdog.restart();
+        return root.ownVolumeEpoch;
+    }
+
+    // First statement of both reply callbacks. True when this reply
+    // brought the count to 0 - the caller then reconciles last.
+    function endOwnVolumeCall(epoch) {
+        if (epoch !== root.ownVolumeEpoch || root.ownVolumeCallsPending === 0) return false;
+        root.ownVolumeCallsPending -= 1;
+        if (root.ownVolumeCallsPending > 0) return false;
+        root.ownVolumeWatchdog.stop();
+        return true;
+    }
+
+    function resetOwnVolumeCalls(reason) {
+        console.log("[WARN] [PendingAmpState] resetting", root.ownVolumeCallsPending, "unreplied volume call(s):", reason);
+        root.ownVolumeCallsPending = 0;
+        root.ownVolumeEpoch += 1;
+        root.ownVolumeWatchdog.stop();
+        root.reconcileVolume();
+    }
+
+    function reconcileVolume() {
+        if (root.bootHoldIp === "" && root.lastRealVolumeDb !== undefined) root.volumeDb = root.lastRealVolumeDb;
     }
 
     // AmpIp from the daemon: a *change* while held ends the hold (the
@@ -353,6 +431,7 @@ QtObject {
         const previous = root.volumeDb;
         root.volumeDb = db;
         const ownId = root.rememberOwn("volume", db);
+        const epoch = root.beginOwnVolumeCall();
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -362,16 +441,20 @@ QtObject {
                 arguments: [root.ampIp, db]
             }),
             function (reply) {
+                const settled = root.endOwnVolumeCall(epoch);
                 root.forgetEntry(ownId);
                 if (reply.isError) {
                     root.volumeDb = previous;
                     console.log("[WARN] NotifyVolumeCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
+                if (settled) root.reconcileVolume();
             },
             function (reply) {
+                const settled = root.endOwnVolumeCall(epoch);
                 root.forgetEntry(ownId);
                 root.volumeDb = previous;
                 console.log("[WARN] NotifyVolumeCommand call failed:", JSON.stringify(reply.error));
+                if (settled) root.reconcileVolume();
             }
         );
     }

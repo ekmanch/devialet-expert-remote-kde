@@ -146,7 +146,9 @@ TestCase {
         pushPacket(115, -40);
         compare(state.bootHoldIp, "");
         pushPacket(125, -35);   // physical remote afterwards
-        compare(state.volumeDb, -35);
+        // Delivered before the send's reply here, so the echo guard holds
+        // it until that reply lands, then reconciles to it.
+        tryCompare(state, "volumeDb", -35);
     }
 
     // Fallback with nothing ever sent: bounded from arming.
@@ -248,5 +250,67 @@ TestCase {
         state.forgetEntry(e1);
         compare(externalVolumeSpy.count, 1);
         compare(state.ownInFlight.length, 0);
+    }
+
+    // Parked item fixed 2026-09-29: the daemon pushes VolumeDb = each
+    // call's own value inside NotifyVolumeCommand, before replying. When a
+    // later notch has already been sent, call 1's echo used to rewind
+    // volumeDb (the base the next step builds on) to call 1's value -
+    // measured as 14 direction reversals in a pre-rate-limit burst. Both
+    // pushes are delivered here before either reply can land.
+    function test_own_echo_does_not_rewind_a_newer_optimistic_value() {
+        state.notifyVolume(-30);
+        state.notifyVolume(-29);
+        push({ VolumeDb: -30 });   // call 1's echo
+        compare(state.volumeDb, -29, "call 1's echo must not pull the base back");
+        push({ VolumeDb: -29 });   // call 2's echo
+        compare(state.volumeDb, -29);
+        wait(100);                 // both replies land; reconcile
+        compare(state.volumeDb, -29);
+        compare(state.ownVolumeCallsPending, 0);
+    }
+
+    // A genuine change (physical remote) during a burst: held while the
+    // own call is unreplied, applied by the reconcile at its reply.
+    function test_genuine_push_during_own_call_applies_at_the_reply() {
+        state.notifyVolume(-30);
+        push({ VolumeDb: -35 });
+        compare(state.volumeDb, -30, "held while our call is unreplied");
+        tryCompare(state, "volumeDb", -35);
+        compare(state.ownVolumeCallsPending, 0);
+    }
+
+    // Owner requirement: a reply that never arrives must not leave pushes
+    // ignored forever. beginOwnVolumeCall() alone is such a call (the fake
+    // daemon always replies, so this is the only way to get one).
+    function test_reply_that_never_arrives_is_reset_by_the_watchdog() {
+        state.ownVolumeWatchdogMs = 300;
+        const epoch = state.beginOwnVolumeCall();
+        push({ VolumeDb: -33 });
+        compare(state.volumeDb, -25, "held while the call looks in flight");
+        tryCompare(state, "ownVolumeCallsPending", 0, 600);
+        compare(state.volumeDb, -33, "reconciled to the daemon's value");
+        push({ VolumeDb: -31 });
+        compare(state.volumeDb, -31, "pushes are followed again");
+        verify(!state.endOwnVolumeCall(epoch));
+        compare(state.ownVolumeCallsPending, 0, "a late reply can't go below 0");
+    }
+
+    function test_late_reply_does_not_lower_a_newer_burst() {
+        const epochA = state.beginOwnVolumeCall();
+        state.resetOwnVolumeCalls("test");
+        state.beginOwnVolumeCall();
+        verify(!state.endOwnVolumeCall(epochA));
+        compare(state.ownVolumeCallsPending, 1);
+        state.resetOwnVolumeCalls("test cleanup");
+    }
+
+    function test_daemon_name_change_resets_the_count() {
+        state.beginOwnVolumeCall();
+        push({ VolumeDb: -37 });
+        compare(state.volumeDb, -25);
+        state.daemonWatcher.registeredChanged();
+        compare(state.ownVolumeCallsPending, 0);
+        compare(state.volumeDb, -37);
     }
 }

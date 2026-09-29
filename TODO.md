@@ -9245,6 +9245,41 @@ architecture decisions; this file is just sequencing and status.
     in that terminal's cgroup (closing it kills the panel) - restart with
     `systemctl --user restart plasma-plasmashell.service` instead.
 
+- [x] **Bug fix — Daemon echoes pulled the volume step base back during
+  fast scrolling (2026-09-29).** Parked while investigating the OSD bug
+  above, fixed the same day at the owner's request.
+  - **Mechanism:** both `stepVolume()`s build on `pendingAmpState.volumeDb`
+    (`FlyoutContent.qml`, `CompactRepresentation.qml`); the daemon pushes
+    `VolumeDb` = each call's own value inside `NotifyVolumeCommand`, before
+    replying, and `noteVolumeDb()` applied every push. With notch N+1
+    already sent, call N's push rewound the base to N and the next notch
+    repeated or lost a step.
+  - **Measured:** 14 direction reversals in the pre-rate-limit bursts
+    (e.g. -46 then -41 at 20:11:16); 0 in 1,028 steps after the 25 ms
+    rate limit (echo round trip ~1 ms lands before the next notch). So the
+    rate limit already made it unreachable in normal use; this closes it
+    for any UI-thread stall.
+  - **Fix (`PendingAmpState.qml`):** while any own volume call is
+    unreplied (`ownVolumeCallsPending`), pushes only update
+    `lastRealVolumeDb`; when the last reply lands, `reconcileVolume()` sets
+    `volumeDb` to the daemon's latest value once (also picks up a genuine
+    physical-remote change from meanwhile). Never stuck (owner
+    requirement): callbacks decrement first; a 3 s watchdog from the latest
+    send resets the count; a `DBusServiceWatcher` on the daemon's bus name
+    resets it when the name vanishes or reappears; a reset bumps an epoch
+    so late replies can't lower a newer burst's count. Mute unchanged (a
+    toggle doesn't re-derive from a stale base).
+  - **Verification:** new `tst_PendingAmpState.qml` pullback test failed on
+    the pre-fix file (-30 instead of -29), passes now; plus cases for a
+    genuine push during a call, a reply that never arrives (watchdog, then
+    pushes followed again), a late reply after a reset, and the bus-name
+    reset. One existing case now `tryCompare`s (its physical-remote push
+    lands before the send's reply). `scripts/test-qml.sh` 47/47, qmllint
+    clean; installed, loads without errors. Installed through all of the
+    owner's later scroll sessions (7,596 volume steps from 21:00 on):
+    no watchdog reset logged.
+
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9480,18 +9515,6 @@ architecture decisions; this file is just sequencing and status.
 
 
 ## Not yet scoped / parked
-
-- **Fast flyout/panel scrolling can drop or re-send notches** (found while
-  investigating the fast-scroll OSD bug, 2026-09-29; inferred from the
-  code, not measured). `stepVolume()` builds on `pendingAmpState.volumeDb`
-  (`FlyoutContent.qml:284`, same in `CompactRepresentation.qml:185`), but
-  `noteVolumeDb()` (`PendingAmpState.qml`) overwrites it with every daemon
-  `VolumeDb` push. During a fast burst, the push for an earlier call (that
-  call's own, now superseded value) can land between notches and pull the
-  base back, so the next notch recomputes a value already in flight. This
-  is the mid-range source of the duplicate in-flight values the OSD fix
-  above made harmless; the lost/repeated notches themselves are a separate
-  behaviour issue needing its own investigation.
 
 - **OSD + tooltip: follow the desktop's appearance, or the widget's Theme**
   (owner idea, 2026-09-27, not decided). A ConfigDialog option letting the
