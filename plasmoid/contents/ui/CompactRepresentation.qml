@@ -366,6 +366,16 @@ MouseArea {
     }
 
     property int wheelDelta: 0
+    // Same notch rate limit as the flyout slider (VolumeBlock.qml) - see
+    // VolumeSettings.wheelStepMinIntervalMs. A dropped notch shows no OSD
+    // either; the next accepted one does.
+    property double lastWheelStepAtMs: 0
+    function wheelStep(direction) {
+        const now = Date.now();
+        if (now - root.lastWheelStepAtMs < root.volumeSettings.wheelStepMinIntervalMs) return;
+        root.lastWheelStepAtMs = now;
+        root.stepVolume(direction);
+    }
     onWheel: wheel => {
         const delta = (wheel.inverted ? -1 : 1) * (wheel.angleDelta.y ? wheel.angleDelta.y : -wheel.angleDelta.x);
         if ((root.wheelDelta > 0 && delta < 0) || (root.wheelDelta < 0 && delta > 0)) {
@@ -377,11 +387,11 @@ MouseArea {
         // https://doc.qt.io/qt-6/qml-qtquick-wheelevent.html#angleDelta-prop
         while (root.wheelDelta >= 120) {
             root.wheelDelta -= 120;
-            root.stepVolume(1);
+            root.wheelStep(1);
         }
         while (root.wheelDelta <= -120) {
             root.wheelDelta += 120;
-            root.stepVolume(-1);
+            root.wheelStep(-1);
         }
     }
 

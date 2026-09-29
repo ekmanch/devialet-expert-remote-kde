@@ -9217,6 +9217,34 @@ architecture decisions; this file is just sequencing and status.
     (after the rate-limit fix below made fast spins usable): no OSD from the
     flyout slider; panel-icon scroll still shows it.
 
+- [x] **Bug fix — Fast wheel spin froze the widget; wheel notch rate
+  limit (2026-09-29).** Found while testing the entry above: a hard
+  free-spin froze the widget for 2-10 s (the flyout would not even close),
+  then replayed the backlog at once (e.g. -21 -> -50 sent within 30 ms,
+  dozens of chimes together).
+  - **Cause:** up to ~300 notches/s (bursts of 160-296), each spawning a
+    `devialet-ctl` and a `devialet-chime` process plus a D-Bus call from
+    plasmashell's UI thread; chime finishes trailed starts by 2-10 s.
+    **Pre-existing, not caused by the fix above** - A/B on the owner's
+    hands with the shell under `plasma-plasmashell.service`: A (the fix)
+    bursts up to 161, B (the pre-fix `PendingAmpState.qml`, packaged from a
+    scratch copy) bursts up to 257, same freeze both times. The earlier
+    session never exceeded 53-notch bursts, which is why it hadn't shown.
+  - **Fix (owner's proposal):** both wheel handlers (`VolumeBlock.qml`'s
+    slider MouseArea, `CompactRepresentation.qml` `wheelStep()`) drop a
+    notch arriving within `VolumeSettings.wheelStepMinIntervalMs` of the
+    last accepted one - dropped, not queued. +/- buttons (autoRepeat
+    100 ms) untouched. 40 ms first (the MPV script's `min_interval_ms`):
+    owner found it slow, dropping notches even on a normal ratcheted
+    scroll and a full floor-to-ceiling sweep taking too long; **25 ms**
+    (40 notches/s) kept - "feels great".
+  - **Verification:** `scripts/test-qml.sh` 42/42, qmllint clean; owner
+    confirmed live on the flyout slider and the panel icon (OSD and
+    tooltip) - no freeze, no chime pile-up.
+  - Side note: a `plasmashell --replace` run from a terminal puts the shell
+    in that terminal's cgroup (closing it kills the panel) - restart with
+    `systemctl --user restart plasma-plasmashell.service` instead.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo

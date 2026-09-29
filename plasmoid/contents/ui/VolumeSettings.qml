@@ -48,6 +48,20 @@ QtObject {
     // path. Read live by both maybeChime()s - when false they return
     // before building a command, so devialet-chime is never spawned.
     required property bool chimeEnabled
+
+    // Wheel notch rate limit (2026-09-29): both wheel handlers (panel icon,
+    // flyout slider) drop any notch that arrives sooner than this after the
+    // last one they accepted. Every accepted notch spawns a devialet-ctl and
+    // a devialet-chime process and makes a D-Bus call from plasmashell's UI
+    // thread; a free-spinning wheel delivered up to ~300 notches/s (one per
+    // ~3-7 ms), which backed the thread up for 2-10 s - the whole widget
+    // froze, then replayed the backlog at once (floor-to-ceiling in 30 ms,
+    // dozens of chimes together). Measured before and after the OSD-echo
+    // fix: same freeze, so it is this flood, not that change. Started at
+    // 40 ms (25 notches/s, the MPV scroll script's min_interval_ms); the
+    // owner found that slow and is trying 25 ms (40 notches/s). A
+    // constant, not a setting.
+    readonly property int wheelStepMinIntervalMs: 25
     // Phase 10.1.3: the chime's sound source (main.xml chimeSourceMode /
     // chimePinnedTheme / chimeSoundFile) plus the pinned theme's resolved
     // file, all bound in main.qml. Paths are RAW here; quoting for the
