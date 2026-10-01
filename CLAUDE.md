@@ -1271,3 +1271,24 @@ corner pixels then match the sharp wallpaper (bottom-left error 72 -> 0.7).
 On System Settings the blur arc falls just inside Darkly's smaller corner,
 leaving a thin unblurred sliver visible only at 10x with contrast boosted.
 12 would bring back ~45% of the flyout's leak to shrink that sliver.
+
+***  automatic text colour from the wallpaper was prototyped and dropped (owner decision 2026-10-01, do not re-propose) ***
+
+A spike on 2026-09-30 made the light theme's text flip between dark ink and
+light text by sampling the wallpaper behind the flyout and scoring both text
+sets with APCA at the current opacity. It worked end to end, but needed
+open-ended calibration, and the owner judged it out of scope for a widget
+that sends a few UDP commands. Nothing from it was kept: no code, no tests,
+no tooling, and its branch was deleted without a commit. The widget instead
+ships fixed text colours per theme, chosen to read at full opacity and with
+transparency and blur when the theme matches the wallpaper (light theme on a
+light wallpaper, dark on dark).
+
+Findings worth keeping if anything like it comes up again: plasmashell 6.7+
+can render the desktop containment to a PNG
+(`org.kde.PlasmaShell.grabContainmentImage`), but the call stalls the whole
+shell for its duration (about one frame at a 240 px request, a full second at
+1920) and cannot be made from the widget's own QML ("local-loop message
+cannot have delayed replies"), so it needs an external process. Plasma emits
+no signal when the wallpaper is changed from its settings dialog or by a
+slideshow.
