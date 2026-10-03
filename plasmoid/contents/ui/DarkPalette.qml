@@ -129,5 +129,11 @@ ColorPalette {
     readoutGlow: "transparent"
     eyebrowGradientStart: "#5c5c60"
     eyebrowGradientEnd: "#5c5c60"
+    // Phase 17.22.0: gold text is unused in dark (flat copperBright);
+    // mutedFill is the value the bars already painted (= textFaint).
+    goldTextStart: "#e3a06a"
+    goldTextMid: "#e3a06a"
+    goldTextEnd: "#e3a06a"
+    mutedFill: "#5c5c60"
     controlAlphaK: 0.1                             // Phase 9.1.1 value, unchanged (moved from TransparencySettings in 17.19.2)
 }

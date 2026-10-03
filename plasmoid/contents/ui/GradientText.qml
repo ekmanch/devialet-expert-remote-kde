@@ -1,7 +1,7 @@
 // Promoted from tools/spike-gradient-rendering/ (Phase 17.0.2) in Phase
 // 17.20.0: gradient-filled text with an optional soft glow, for the light
 // theme's volume readout and "DEVIALET" wordmark (flyout mockup v22
-// :109-120).
+// :109-120), and since 17.22.0/17.23.0 the OSD toast's and tooltip's values.
 //
 // A hidden Label is the alpha mask; GradientMask.qml paints a horizontal
 // gradient through it. Size this item like the text it replaces (the
@@ -20,6 +20,9 @@ Item {
     property alias font: label.font
     required property color startColor
     required property color endColor
+    // Middle stop; by default the midpoint of a two-colour sweep.
+    property color midColor: Qt.rgba((root.startColor.r + root.endColor.r) / 2, (root.startColor.g + root.endColor.g) / 2, (root.startColor.b + root.endColor.b) / 2, 1)
+    property real midPos: 0.5
     property bool glow: false
     property color glowColor: "#c79a2e"
     property real glowOpacity: 0.35
@@ -28,6 +31,7 @@ Item {
 
     implicitWidth: label.implicitWidth
     implicitHeight: label.implicitHeight
+    baselineOffset: label.baselineOffset
 
     Label {
         id: label
@@ -42,8 +46,8 @@ Item {
         anchors.fill: parent
         maskSource: label
         stop0Color: root.startColor
-        stop1Pos: 0.5
-        stop1Color: Qt.rgba((root.startColor.r + root.endColor.r) / 2, (root.startColor.g + root.endColor.g) / 2, (root.startColor.b + root.endColor.b) / 2, 1)
+        stop1Pos: root.midPos
+        stop1Color: root.midColor
         stop2Color: root.endColor
         shadowEnabled: root.glow
         shadowColor: root.glowColor

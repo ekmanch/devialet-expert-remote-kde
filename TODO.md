@@ -9533,6 +9533,67 @@ architecture decisions; this file is just sequencing and status.
     v22's legend (:611) says the readout stays near-black while its CSS
     paints the gold gradient; the CSS was followed.
 
+- [x] **Phase 17.22.0 — Light OSD.** Done 2026-10-03.
+      `ThemeSettings.osdPalette` now follows the theme (`osdResolvedDark ?
+      dark : light`), so the toast and the tooltip paint `LightPalette` when
+      the widget is light. `VolumeToast.qml` in light (OSD mockup v4):
+      - Opaque white card (:100, :121-131), no border.
+      - Icon key (:134-141): white face, `controlBorder`, `CardShadow`.
+        Muted (:142-150): `copperDim` border and the mute glyph as the mask
+        of the glyphGold radial gradient with the warm drop shadow (a hidden
+        `Image` as `GradientMask`'s mask). The copper glow stays dark-only.
+      - Value (:158-169): the number in the readout sweep `#dca136 →
+        #f3cf7c` with a 9 px glow (`glowBlur` 0.58) and a small grey "dB"
+        (10 px, `textDim`), right-aligned; "Muted" in the three-stop gold
+        text sweep `#a8710b → #d99a1f 55 % → #efc36a` (:105, :107-110);
+        "Unmuted" plain text. All painted over the existing Label, which
+        keeps the layout, so the toast's geometry is the dark theme's
+        (340 x 79 in both).
+      - Bar (:171-178): fill `accentFill` (`#e2b865`), muted fill the new
+        token `mutedFill` (`#d8d3cb`; dark carries `#5c5c60`, the value it
+        already painted).
+      - New palette tokens: `goldTextStart/Mid/End`, `mutedFill`.
+        `GradientText` gained an optional middle stop and a baseline.
+  - **Decision taken, owner to confirm:** OSD v4 and tooltip v5 list the
+    pre-v21 dim/faint text (`#6e6a64` / `#a29d95`); both surfaces use the
+    flyout's darker pair (`#3f3a33` / `#524c45`) from the one shared
+    `LightPalette`. Following the mockups literally would be a two-line
+    override on `osdPalette`.
+  - Not changed, noted: in dark the toast's " dB" is part of the 15 px
+    copper value, while the mockup draws a small grey unit in both themes
+    (:162). Dark was left as it is.
+  - Verified: qmllint VolumeToast 2 → 1, VolumeHoverTooltip 3 → 3 (the
+    rest are the existing width/height-in-layout notes), other touched
+    files 0; QML suite 62/62. Standalone sheet on Wayland (both Dialogs'
+    mainItems over #808080, four toast states and two tooltip states per
+    theme, old code vs new): the dark half is pixel-identical to HEAD
+    (0 differing px). Light samples: card `#ffffff`, key face `#ffffff`,
+    track `#ece9e4`, fill `#e2b865`, muted fill `#d8d3cb`, number starts
+    `#dda43a`, "Muted" `#ab730c` → `#e2ac3f` at its last letter, "dB"
+    `#3f3a33`, source line `#524c45`. The sheet changes the light toast's
+    value after creation ("-25.0" → "-5.5" → "Muted" → "-30.0") and the
+    tooltip's ("-25.0" → "-7.5"): both render correctly (the 17.20.0
+    resize case). Real toast in plasmashell via `fakeamp.py --ui
+    themeOverride=light --notify volume=-22.0` and `--notify mute=true`,
+    captured with spectacle: light card 340 x 79, gold number + grey dB,
+    gold "Muted" and gold mute glyph. Daemon active on 192.168.0.22
+    afterwards, theme pin cleared.
+  - Left for the owner: the toast and tooltip have no shadow or border of
+    their own (KWin draws none for these Dialogs, D2), so on a white
+    window they are white on white - whether that needs a hairline.
+
+- [x] **Phase 17.23.0 — Light tooltip.** Done 2026-10-03.
+      `VolumeHoverTooltip.qml` in light (tooltip mockup v5): opaque white
+      card (:100, :120-128); the dot is the gold sphere (7 px, shadow
+      0 1px 2px, :98-99, :132-134); the value, "Muted" included, in the
+      readout sweep with a 7 px glow (`glowBlur` 0.45, :145-150) over the
+      existing Label; bar fill `accentFill`, muted `mutedFill`; "dB" and
+      the hints from `textDim` / `textFaint`.
+  - Verified with 17.22.0 on the same sheet (dark half identical to HEAD;
+    light tooltip card `#ffffff`, fill `#e2b865`, hints `#3f3a33` /
+    `#524c45`). Not captured in the real shell: the tooltip needs a real
+    hover - owner check.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9655,26 +9716,8 @@ architecture decisions; this file is just sequencing and status.
   tooltip v5, configDialog v30.** Only the flyout changed; the other three
   are byte-identical renames of the files the entries below were written
   against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
-  17.21.1 (the flyout) are in "## Done". One thing to settle in 17.22.0/
-  17.23.0: OSD v4 and tooltip v5 still use the old dim/faint text
-  (`#6e6a64` / `#a29d95`), while the shared `LightPalette` now carries the
-  flyout's darker pair (`#3f3a33` / `#524c45`, 17.19.3).
-- [ ] **Phase 17.22.0 — Light OSD.** Opaque white (OSD v4 :118), gradient
-      readout (:161-166), gold muted glyph (:144-148), gold-gradient
-      "Muted" (`.gold-text` :104-110), flat `#e2b865` bar (:95), muted bar
-      `#d8d3cb` (:103).
-  - Verify: toast capture via `--notify`.
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
-- [ ] **Phase 17.23.0 — Light tooltip.** Opaque white (tooltip v5 :121),
-      gold sphere dot (:97, :133), gradient value incl. the "Muted" word
-      (:145-150), flat gold bar (:95).
-  - Verify: owner hover; driver instantiating the tooltip's mainItem for
-    pixel checks.
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
+  17.21.1 (the flyout) and 17.22.0 / 17.23.0 (OSD toast, tooltip) are in
+  "## Done".
 - [ ] **Phase 17.24.0 — Brand mark.** Ring + disk filling a 37 px tile
       (`ConfigGeneral.qml:411-429`; configDialog v30 :236-249): dark ring
       `#654c3a`, disk `#e3a06a`; light ring sweep `#ecd3a0 → #dcb068 →

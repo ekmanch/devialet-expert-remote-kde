@@ -14,7 +14,7 @@
 // key and one binding here, with no consumer changes.
 //
 // Since 17.19.0 the flyout paints LightPalette when the theme resolves light;
-// osdPalette stays dark until 17.22.0/17.23.0.
+// since 17.22.0/17.23.0 the OSD toast and tooltip do too.
 
 import QtQuick
 
@@ -73,9 +73,8 @@ QtObject {
                     "systemDark", ts.systemDark, "resolvedDark", ts.resolvedDark);
     }
 
-    // Phase 17.19.0: the flyout follows the resolved theme. The OSD toast
-    // and tooltip stay dark until their light phases (17.22.0/17.23.0) make
-    // this `ts.osdResolvedDark ? ts.dark : ts.light`.
+    // Phase 17.19.0: the flyout follows the resolved theme. Phase 17.22.0/
+    // 17.23.0: so do the OSD toast and the tooltip, through their own seam.
     readonly property ColorPalette flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
-    readonly property ColorPalette osdPalette: ts.dark
+    readonly property ColorPalette osdPalette: ts.osdResolvedDark ? ts.dark : ts.light
 }

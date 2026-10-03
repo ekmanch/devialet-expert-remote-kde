@@ -4,9 +4,12 @@
 // :95-107) unless noted. Pure white surfaces,
 // near-black text, gold accents; see ColorPalette.qml for each token.
 //
-// Light OSD/tooltip (17.22.0/17.23.0) and the light settings page
-// (17.25.0-17.27.0) build on these same tokens; until those phases only the
-// flyout paints this palette (ThemeSettings.flyoutPalette).
+// The flyout (ThemeSettings.flyoutPalette) and, since 17.22.0/17.23.0, the
+// OSD toast and hover tooltip (osdPalette) paint this palette; the light
+// settings page (17.25.0-17.27.0) builds on the same tokens. The OSD and
+// tooltip mockups (v4/v5) still list the pre-v21 dim/faint text (#6e6a64 /
+// #a29d95); they get the flyout's darker pair below, one palette for all
+// three surfaces.
 
 import QtQuick
 
@@ -67,5 +70,11 @@ ColorPalette {
     readoutGlow: Qt.rgba(199 / 255, 154 / 255, 46 / 255, 0.35)   // text-shadow 0 0 14px (v22 :115)
     eyebrowGradientStart: "#97691f"                              // --eyebrow (v22 :104)
     eyebrowGradientEnd: "#cf9c45"
+
+    // ---- Phase 17.22.0: OSD toast + tooltip (OSD mockup v4 :104-105) ----
+    goldTextStart: "#a8710b"                                     // --gold-text, stops 0 / 55 % / 100 %
+    goldTextMid: "#d99a1f"
+    goldTextEnd: "#efc36a"
+    mutedFill: "#d8d3cb"                                         // --muted-fill
     controlAlphaK: 0.1                                           // 17.19.2 starting value (fixed-k, as dark); tune live
 }

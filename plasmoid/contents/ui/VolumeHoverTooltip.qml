@@ -63,6 +63,8 @@
 // match VolumeToast.qml's OSD-toast look (colors.osdGradientTop/Bottom,
 // radiusLg) - only the icon was reverted, nothing else from that round.
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -141,7 +143,18 @@ PlasmaCore.Dialog {
                     id: dot
                     width: 7; height: 7
                     radius: 3.5
-                    color: tooltip.colors.copperBright
+                    color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
+                    // Phase 17.23.0: the gold sphere in light (tooltip
+                    // mockup v5 :98-99, :132-134; shadow 0 1px 2px).
+                    Loader {
+                        anchors.centerIn: parent
+                        active: tooltip.colors.isLight
+                        sourceComponent: GoldSphere {
+                            diameter: 7
+                            shadowVerticalOffset: 1
+                            shadowBlur: 0.25
+                        }
+                    }
                 }
 
                 Label {
@@ -232,6 +245,7 @@ PlasmaCore.Dialog {
                 Item { Layout.fillWidth: true }
 
                 Label {
+                    id: valueLabel
                     Layout.alignment: Qt.AlignVCenter
                     text: {
                         if (!tooltip.hasAmp) return "—";
@@ -241,7 +255,26 @@ PlasmaCore.Dialog {
                     font.family: tooltip.isWordValue ? tooltip.theme.fontDisplay : tooltip.theme.fontMono
                     font.weight: tooltip.isWordValue ? Font.DemiBold : Font.Medium
                     font.pixelSize: tooltip.isWordValue ? 12 : 13
-                    color: tooltip.colors.copperBright
+                    // Phase 17.23.0: in light the Label holds the layout and
+                    // the readout's gold sweep with a 7 px glow is painted
+                    // over it, "Muted" included (tooltip mockup v5 :145-150).
+                    color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
+
+                    Loader {
+                        anchors.fill: parent
+                        active: tooltip.colors.isLight
+                        sourceComponent: GradientText {
+                            text: valueLabel.text
+                            font: valueLabel.font
+                            startColor: tooltip.colors.readoutGradientStart
+                            endColor: tooltip.colors.readoutGradientEnd
+                            glow: true
+                            glowColor: Qt.rgba(tooltip.colors.readoutGlow.r, tooltip.colors.readoutGlow.g, tooltip.colors.readoutGlow.b, 1)
+                            glowOpacity: tooltip.colors.readoutGlow.a
+                            // 7 px against the flyout readout's 14 px (0.9).
+                            glowBlur: 0.45
+                        }
+                    }
                 }
                 Label {
                     Layout.alignment: Qt.AlignVCenter
@@ -265,7 +298,9 @@ PlasmaCore.Dialog {
                     height: parent.height
                     width: parent.width * tooltip.volumeFraction
                     radius: 999
-                    color: tooltip.muted ? tooltip.colors.textFaint : tooltip.colors.copper
+                    // Phase 17.23.0: palette tokens (same values as before
+                    // in dark; flat gold / #d8d3cb in light).
+                    color: tooltip.muted ? tooltip.colors.mutedFill : tooltip.colors.accentFill
                 }
             }
 

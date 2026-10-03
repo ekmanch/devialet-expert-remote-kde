@@ -93,6 +93,15 @@ QtObject {
     required property color eyebrowGradientStart
     required property color eyebrowGradientEnd
 
+    // ---- Phase 17.22.0: light OSD toast + tooltip ----
+    // The three-stop sweep of the toast's "Muted" word (`--gold-text`; the
+    // ConfigDialog headings use the same one in 17.26.0). Light only.
+    required property color goldTextStart
+    required property color goldTextMid
+    required property color goldTextEnd
+    // Fill of the toast/tooltip bar while muted.
+    required property color mutedFill
+
     // ---- Phase 17.19.2: control alpha, per palette ----
     // Phase 9.1.1 REVISION 4 (moved here from TransparencySettings.qml in
     // Phase 17.19.2; "controlAlpha" below is this palette's controlAlphaK):
