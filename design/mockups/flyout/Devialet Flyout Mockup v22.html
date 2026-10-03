@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Devialet Flyout Mockup v20 — dark matched to live, light theme</title>
+<title>Devialet Flyout Mockup v22 — light-theme secondary text legibility</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -64,13 +64,17 @@
     --fly-border:rgba(28,24,18,0.09);
     --fly-shadow:0 26px 56px -18px rgba(20,16,10,0.32), 0 3px 10px -3px rgba(20,16,10,0.10);
     --nub-bg:rgba(255,255,255,var(--panel-alpha,1));
-    --glass:calc(0.35 + 0.65 * var(--panel-alpha,1));
+    --ctl-k:0.10; /* fixed control fill, same k as dark (was the glass formula) */
     --surface:#ffffff; --surface-2:#ffffff;
-    --text:#1c1a17; --text-dim:#6e6a64; --text-faint:#a29d95;
+    /* v21: dim/faint darkened for legibility over a translucent, blurred
+       backdrop on medium-to-light wallpapers. Old faint #a29d95 was
+       1.1–2.4:1 there (2.7:1 even on solid white); faint #524c45 is
+       ≥4.6:1 at 50% opacity over a mid-grey wallpaper, 8.5:1 on white. */
+    --text:#1c1a17; --text-dim:#3f3a33; --text-faint:#524c45;
     --divider:rgba(28,24,18,0.09);
     --card-shadow:0 2px 8px -3px rgba(20,16,10,0.10), 0 1px 2px rgba(20,16,10,0.05);
-    --btn-bg:rgba(255,255,255,var(--glass)); --btn-border:rgba(28,24,18,0.10); --btn-shadow:var(--card-shadow);
-    --chip-bg:rgba(255,255,255,var(--glass)); --icon-well:transparent;
+    --btn-bg:rgba(255,255,255,var(--ctl-k)); --btn-border:rgba(28,24,18,0.10); --btn-shadow:var(--card-shadow);
+    --chip-bg:rgba(255,255,255,var(--ctl-k)); --icon-well:transparent;
     --header-hover:rgba(28,24,18,0.025); --row-hover:rgba(28,24,18,0.045);
     --popup-bg:#ffffff; --popup-border:rgba(28,24,18,0.09);
     --popup-shadow:0 22px 48px -14px rgba(20,16,10,0.26), 0 2px 6px rgba(20,16,10,0.06);
@@ -82,10 +86,7 @@
   /* alpha-dependent tokens must be declared where --panel-alpha lives
      (custom properties resolve var() where they're declared) */
   body[data-mode="light"] .flyout-wrap{
-    --glass:calc(0.35 + 0.65 * var(--panel-alpha));
     --nub-bg:rgba(255,255,255,var(--panel-alpha));
-    --btn-bg:rgba(255,255,255,var(--glass));
-    --chip-bg:rgba(255,255,255,var(--glass));
   }
 
   /* ---- Light accent: restrained gold. Gold as trim: slider, thumb, status dot,
@@ -148,6 +149,13 @@
     background:var(--active-bg); border-color:var(--active-border); color:var(--active-color); box-shadow:none;
   }
   body[data-mode="light"] .vol-source-chip{ box-shadow:var(--card-shadow); }
+  /* v21: the four small mono secondary labels go one weight heavier in
+     light — thin dark strokes thin out further against a blurred backdrop */
+  body[data-mode="light"] .header-sub,
+  body[data-mode="light"] .vol-source-chip,
+  body[data-mode="light"] .source-eyebrow,
+  body[data-mode="light"] .footer-status{ font-weight:500; }
+  body[data-mode="light"] .vol-source-chip{ border-color:rgba(28,24,18,0.16); }
 
   /* colourful wallpaper, to judge transparency + blur */
   body[data-wall="colour"]{
@@ -396,10 +404,6 @@
     font-size:14px; color:var(--text); cursor:default; flex-shrink:0;
   }
   .step-btn:hover{border-color:var(--copper-dim); color:var(--copper-bright);}
-  .scroll-hint{
-    font-family:var(--font-mono); font-size:10px; color:var(--text-faint);
-    margin:18px 0 0; text-align:center; letter-spacing:0.04em; font-size:10.5px;
-  }
 
   /* fixed columns, never content-sized, so nothing moves when labels
      change (Mute/Unmute, Power Off/Power On/Powering on…). Power gets
@@ -439,7 +443,7 @@
   .source-name{font-family:var(--font-display); font-size:13.5px; font-weight:600; margin:0; color:var(--text);}
   .source-caret{color:var(--text-faint); font-size:11px; transition:transform .16s ease;}
   .source-caret.open{transform:rotate(180deg); color:var(--copper-bright);}
-  .source-list.overlay-popup{ top:auto; bottom:72px; max-height:252px; }
+  .source-list.overlay-popup{ top:auto; bottom:66px; max-height:264px; } /* v22: was bottom 72px / max 252px — six sources (256px + 2px border) overflowed by 6px and drew a scrollbar; anchored 6px lower so the taller list still clears the flyout top */
   .source-option{
     display:flex; align-items:center; gap:9px; padding:8px 10px; margin:4px;
     border-radius:9px; font-size:12.5px; cursor:default; color:var(--text-dim);
@@ -457,11 +461,18 @@
     height:34px; padding:0 16px; border-top:1px solid var(--divider);
     display:flex; align-items:center; justify-content:center;
   }
-  .footer-status{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); letter-spacing:0.03em;}
+  .footer-status{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); letter-spacing:0.03em;
+    display:inline-flex; align-items:center;}
+  /* v21: dot scaled to the amp card's proportion — header is a 10px dot
+     beside 14px text with a 10px gap; 10.5px text here gives ~7px dot,
+     ~8px gap (was 4px dot, 11px gap) */
   .footer-status.ok::before{
-    content:''; display:inline-block; width:4px; height:4px; border-radius:50%;
-    background:var(--dot-bg); margin-right:11px; box-shadow:var(--dot-glow);
-    vertical-align:1px;
+    content:''; display:block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+    background:var(--dot-bg); margin-right:8px; box-shadow:var(--dot-glow);
+  }
+  /* same glyphGold sphere + warm drop shadow as the header dot, scaled */
+  body[data-mode="light"] .footer-status.ok::before{
+    box-shadow:none; filter:drop-shadow(0 1.5px 2px rgba(160,110,10,0.35));
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -480,7 +491,7 @@
   <div class="panel-icon"></div>
   <div class="panel-clock">14:32</div>
 </div>
-<div class="mockup-tag">MOCKUP · FLYOUT V20 · DARK MATCHED TO LIVE</div>
+<div class="mockup-tag">MOCKUP · FLYOUT V22 · LIGHT SECONDARY TEXT</div>
 
 <!-- ============ PREVIEW SWITCHER (mockup-only) ============ -->
 <div class="preview-switcher">
@@ -496,8 +507,8 @@
   </div>
 
   <div class="ps-group">
-    <p class="ps-label"><span>Transparency</span><span id="alphaVal">0%</span></p>
-    <input type="range" id="alphaSlider" min="0" max="90" value="0" oninput="setAlpha(this.value)" style="width:100%; accent-color:#9a9a9f;">
+    <p class="ps-label"><span>Opacity (widget setting: alpha = value/100)</span><span id="alphaVal">100%</span></p>
+    <input type="range" id="alphaSlider" min="0" max="100" value="100" oninput="setAlpha(this.value)" style="width:100%; accent-color:#9a9a9f;">
   </div>
 
   <div class="ps-group">
@@ -616,7 +627,7 @@
   function setWall(v){ wall = v; applyTheme(); }
   function setAlpha(t){
     document.getElementById('alphaVal').textContent = t + '%';
-    document.getElementById('flyoutWrap').style.setProperty('--panel-alpha', (1 - t/100).toFixed(2));
+    document.getElementById('flyoutWrap').style.setProperty('--panel-alpha', (t/100).toFixed(2));
   }
 
   // ================= widget behavior (v14, unchanged except slider fill) =================
