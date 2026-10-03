@@ -19,9 +19,11 @@ ColumnLayout {
     property bool showDivider: true
     // Phase 10.1.1: the mockup's per-row padding overrides (e.g. the
     // "Chime sound" row's inline `padding-top:0`, v16 mockup line 481).
-    // Defaults are the .kcm-row's own 14px, so no existing row moves.
-    property int topPadding: 14
-    property int bottomPadding: 14
+    // Defaults are the .kcm-row's own padding: 16px since 2026-10-03
+    // (configDialog mockup v30 :267, owner decision to match the mockup's
+    // spacing; they were 14).
+    property int topPadding: 16
+    property int bottomPadding: 16
     // Phase 11.0.0: optional one-line message under the row, between the
     // name/control line and the divider - the mockup's .limit-warning
     // (v16 mockup lines 297-301: mono 10px, danger-bright, right-aligned,
@@ -50,7 +52,8 @@ ColumnLayout {
         ColumnLayout {
             Layout.maximumWidth: 440
             Layout.alignment: Qt.AlignVCenter
-            spacing: 2
+            // `.kcm-row-text{gap:4px}` (mockup v30 :271); was 2.
+            spacing: 4
 
             Label {
                 Layout.fillWidth: true

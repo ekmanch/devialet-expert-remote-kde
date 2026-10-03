@@ -65,7 +65,9 @@ RowLayout {
             radius: root.theme.radiusSm
             color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.colors.copperDim : root.colors.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
+            // Phase 17.25.0: light-theme card shadow.
+            Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
             text: parent.text
@@ -82,7 +84,9 @@ RowLayout {
         radius: root.theme.radiusSm
         color: root.colors.surface
         border.width: 1
-        border.color: root.colors.divider
+        border.color: root.colors.controlBorder
+        // Phase 17.25.0: light-theme card shadow (`--val-shadow`).
+        Ui.CardShadow { colors: root.colors; radius: parent.radius }
         implicitWidth: valueLabel.implicitWidth + 20
         implicitHeight: 26
 
@@ -92,7 +96,8 @@ RowLayout {
             text: Math.round(root.value) + " dB"
             font.family: root.theme.fontMono
             font.pixelSize: 12
-            color: root.colors.copperBright
+            // Phase 17.27.0: neutral in light (configDialog mockup v30 :107).
+            color: root.colors.controlValueText
             wrapMode: Text.NoWrap
         }
     }
@@ -112,7 +117,9 @@ RowLayout {
             radius: root.theme.radiusSm
             color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.colors.copperDim : root.colors.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
+            // Phase 17.25.0: light-theme card shadow.
+            Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
             text: parent.text

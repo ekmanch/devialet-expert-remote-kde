@@ -67,10 +67,21 @@ KCM.SimpleKCM {
     // Phase 17.14.0: the page's palette, forwarded to every settings
     // component below. This page follows the desktop's colour scheme, not
     // the widget's Theme setting (and cannot reach main.qml's ThemeSettings
-    // anyway), so it reads the scheme itself through pageScheme. Until
-    // LightPalette.qml exists (17.19.0) both answers paint the dark palette:
-    // 17.19.0 makes this `root.pageScheme.dark ? darkColors : lightColors`.
-    readonly property Ui.ColorPalette colors: Ui.DarkPalette {}
+    // anyway), so it reads the scheme itself through pageScheme. Since
+    // Phase 17.25.0 a light desktop paints LightPalette.
+    readonly property Ui.ColorPalette darkColors: Ui.DarkPalette {}
+    readonly property Ui.ColorPalette lightColors: Ui.LightPalette {}
+    readonly property Ui.ColorPalette colors: root.pageScheme.dark ? root.darkColors : root.lightColors
+
+    // Owner decision 2026-10-03: the light page is pure white like the
+    // mockup (`--win-bg:#ffffff`, configDialog mockup v30 :34), not the
+    // desktop scheme's window colour (#eff0f1 under Breeze Light). Dark
+    // keeps the scheme's colour, which is what the page's default
+    // background paints. Plasma's own header strip and button bar around
+    // the page stay in the scheme's colour.
+    background: Rectangle {
+        color: root.colors.isLight ? root.colors.surface : Kirigami.Theme.backgroundColor
+    }
 
     // Phase 17.15.0: the desktop's colour scheme, as seen from this dialog
     // (also what the Follow-system status line, 17.18.0, will report).
@@ -432,29 +443,20 @@ KCM.SimpleKCM {
         Layout.fillWidth: true
         spacing: 0
 
+        // Spacing per the mockup's `.brand-header` (gap 9px, margin-bottom
+        // 22px, configDialog mockup v30 :235) and `.brand-sub` (4px above,
+        // letter-spacing 0.2em, :257) - owner decision 2026-10-03 to match
+        // the mockup's spacing in both themes.
         RowLayout {
             Layout.fillWidth: true
-            Layout.bottomMargin: Kirigami.Units.largeSpacing * 2
-            spacing: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: 22
+            spacing: 9
 
-            Rectangle {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                radius: 9
-                color: root.colors.surface
-                border.width: 1
-                border.color: root.colors.copperDim
-
-                Label {
-                    anchors.centerIn: parent
-                    text: "◉"
-                    font.pixelSize: 14
-                    color: root.colors.copperBright
-                }
-            }
+            // Phase 17.24.0: the app icon's ring + disk (BrandMark.qml).
+            BrandMark { colors: root.colors }
 
             ColumnLayout {
-                spacing: 2
+                spacing: 4
 
                 Label {
                     text: "Devialet Expert Remote"
@@ -468,7 +470,7 @@ KCM.SimpleKCM {
                     text: "WIDGET SETTINGS"
                     font.family: root.theme.fontMono
                     font.pixelSize: 10
-                    font.letterSpacing: 1.2
+                    font.letterSpacing: 2
                     color: root.colors.textFaint
                 }
             }
@@ -522,24 +524,19 @@ KCM.SimpleKCM {
                 Layout.leftMargin: 2
                 spacing: 9
 
-                Rectangle {
-                    Layout.preferredWidth: 6
-                    Layout.preferredHeight: 6
+                StatusDot {
                     Layout.alignment: Qt.AlignVCenter
-                    radius: 3
-                    color: root.colors.copperBright
+                    colors: root.colors
                 }
 
-                Label {
+                // Phase 17.26.0: the value is gold-gradient in light
+                // (FollowStatusText.qml).
+                FollowStatusText {
                     objectName: "themeFollowLabel"
                     Layout.alignment: Qt.AlignVCenter
-                    textFormat: Text.StyledText
-                    text: "Following your desktop's color scheme — currently <font color=\""
-                        + root.colors.copperBright + "\"><b>"
-                        + (root.pageScheme.dark ? "Dark" : "Light") + "</b></font>"
-                    font.family: root.theme.fontMono
-                    font.pixelSize: 11
-                    color: root.colors.textDim
+                    colors: root.colors
+                    prefix: "Following your desktop's color scheme — currently "
+                    value: root.pageScheme.dark ? "Dark" : "Light"
                 }
             }
 
@@ -622,17 +619,38 @@ KCM.SimpleKCM {
                         width: transparencySlider.visualPosition * parent.width
                         height: parent.height
                         radius: 999
-                        color: root.colors.copper
+                        // Phase 17.25.0: accentFill (= copper in dark, flat
+                        // gold in light), as the flyout's slider.
+                        color: root.colors.accentFill
                     }
                 }
 
-                handle: Rectangle {
+                // Phase 17.25.0: an Item holding the dark disc or the light
+                // gold sphere (15 px, 3 px halo; configDialog mockup v30
+                // :87-88), the flyout slider's pattern (VolumeBlock.qml).
+                handle: Item {
                     x: transparencySlider.leftPadding + transparencySlider.visualPosition * (transparencySlider.availableWidth - width)
                     y: transparencySlider.topPadding + transparencySlider.availableHeight / 2 - height / 2
                     width: 15
                     height: 15
-                    radius: 999
-                    color: root.colors.copperBright
+
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: !root.colors.isLight
+                        radius: 999
+                        color: root.colors.copperBright
+                    }
+                    Loader {
+                        anchors.fill: parent
+                        active: root.colors.isLight
+                        sourceComponent: Ui.GoldSphere {
+                            diameter: 15
+                            haloWidth: 3
+                            shadowColor: "#6e480a"
+                            shadowVerticalOffset: 1
+                            shadowBlur: 0.2
+                        }
+                    }
                 }
 
                 // Scroll-to-adjust, same mechanism as VolumeBlock.qml's
@@ -680,7 +698,8 @@ KCM.SimpleKCM {
                 text: Math.round(transparencySlider.value) + "%"
                 font.family: root.theme.fontMono
                 font.pixelSize: 11
-                color: root.colors.copperBright
+                // Phase 17.25.0: neutral in light (mockup v30 :108).
+                color: root.colors.controlValueText
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
             }
@@ -857,23 +876,16 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 9
 
-                        Rectangle {
-                            Layout.preferredWidth: 6
-                            Layout.preferredHeight: 6
+                        StatusDot {
                             Layout.alignment: Qt.AlignVCenter
-                            radius: 3
-                            color: root.colors.copperBright
+                            colors: root.colors
                         }
 
-                        Label {
+                        FollowStatusText {
                             Layout.alignment: Qt.AlignVCenter
-                            textFormat: Text.StyledText
-                            text: "Following your desktop's sound theme — currently <font color=\""
-                                + root.colors.copperBright + "\"><b>"
-                                + root.escapeStyledText(root.soundThemes.followDisplayName()) + "</b></font>"
-                            font.family: root.theme.fontMono
-                            font.pixelSize: 11
-                            color: root.colors.textDim
+                            colors: root.colors
+                            prefix: "Following your desktop's sound theme — currently "
+                            value: root.soundThemes.followDisplayName()
                         }
                     }
 
@@ -969,7 +981,9 @@ KCM.SimpleKCM {
                             radius: root.theme.radiusSm
                             color: root.colors.surface
                             border.width: 1
-                            border.color: root.colors.divider
+                            border.color: root.colors.controlBorder
+                            // Phase 17.25.0: light-theme card shadow.
+                            Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                             readonly property bool hasFile: root.cfg_chimeSoundFile !== ""
 
@@ -1066,7 +1080,9 @@ KCM.SimpleKCM {
                 implicitHeight: defaultsLabel.implicitHeight + 14
                 color: root.colors.surface
                 border.width: 1
-                border.color: defaultsArea.containsMouse ? root.colors.copperDim : root.colors.divider
+                border.color: defaultsArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
+                // Phase 17.25.0: light-theme card shadow.
+                Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                 Label {
                     id: defaultsLabel

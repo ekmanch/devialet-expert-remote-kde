@@ -45,8 +45,7 @@
     <!-- Phase 17.12.0: colour theme for the flyout, OSD toast and hover
          tooltip - "dark", "light" or "system" (follow the desktop's colour
          scheme). Read by ThemeSettings.qml; the ConfigDialog page itself
-         follows its window's scheme, not this setting. Until Phase 17.19.0
-         every value paints the dark palette. -->
+         follows its window's scheme, not this setting. -->
     <entry name="theme" type="String">
       <default>system</default>
     </entry>

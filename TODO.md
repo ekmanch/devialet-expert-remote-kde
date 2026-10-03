@@ -9594,6 +9594,120 @@ architecture decisions; this file is just sequencing and status.
     `#524c45`). Not captured in the real shell: the tooltip needs a real
     hover - owner check.
 
+- [x] **Phases 17.24.0 - 17.27.0 — Light settings page (one batch).** Done
+      2026-10-03. Spec: configDialog mockup v30. The page follows the
+      **desktop's** colour scheme (17.14.0), so it turns light only on a
+      light desktop: `ConfigGeneral.qml`'s `colors` is now
+      `pageScheme.dark ? darkColors : lightColors` (it was hard-wired to
+      `DarkPalette`). One shared `LightPalette`: the page gets the flyout's
+      darker dim/faint text, not the mockup's pre-v21 pair (:84).
+      - **17.25.0 page base.** Resting control borders use `controlBorder`
+        and controls get `CardShadow` (stepper buttons and value, chime
+        buttons, dropdown field, file chip, Defaults, the segmented
+        control; :73-74, :115). Slider fill `accentFill`, thumb the
+        `GoldSphere` (15 px, 3 px halo) in light, percent label
+        `controlValueText`. Status dots: new `StatusDot.qml` (gold sphere
+        in light). Dropdown list: `listBackground` / `listHover` (light
+        `surface2` is a translucent hover fill, not a card colour).
+      - **Sidebar icon (owner decision 2026-10-03: scheme-aware).**
+        `config.qml` picks `devialet_config_general_icon_white.svg` on a
+        dark window and the new `..._dark.svg` (same paths, stroke
+        `#1c1a17`) on a light one, from `SystemPalette.window`'s lightness.
+        Not `SystemScheme.qml`: the value must be right when the sidebar
+        first reads it (the portal reply is asynchronous), and a
+        `ConfigModel` is not an Item, so Kirigami's attached Theme is not
+        available there.
+      - **17.24.0 brand mark.** New `BrandMark.qml`: 37 px tile, 25 px
+        ring, 15 px disk (:236-255). Dark: ring `#654c3a` over `#262221`,
+        disk `#e3a06a`. Light: white tile with the card shadow, ring and
+        disk in 145 degree gold sweeps (the ring is a gradient disc with an
+        inner disc inset 2.5 px; Shapes has no stroke gradient). **Changes
+        dark too** (the tile was 36 px with a "◉" character); the rows
+        below did not move (first section label still at y 62).
+      - **17.26.0 gold headings and status values.** `SectionLabel.qml`:
+        Bold with the three-stop gold sweep over the word in light
+        (:99-105). New `FollowStatusText.qml` for the two "Following your
+        desktop's ..." lines: one StyledText Label as before; in light the
+        bold value is drawn transparent and a `GradientText` paints it at
+        the prefix's advance width (:109-114).
+      - **17.27.0 switches, steppers, segments.** `SettingsSwitch.qml`
+        paints from `switch*` tokens (the hardcoded `#e8e6e1` knob is now
+        `switchKnobOff`); in light the "on" track is the gold sweep with a
+        sheen, the knob white with a shadow (:76-77, :91-93). Stepper
+        values neutral (:107). Selected segment in light: white, 1 px
+        outline and DemiBold label in the text colour (:95, :106).
+      - 21 new typed tokens in `ColorPalette.qml` (`listBackground`,
+        `listHover`, `controlValueText`, `brandRing*`, `brandDisk*`,
+        `switch*`, `segmentActive*`); every dark value is what dark painted
+        before, apart from the brand mark.
+  - **Follow-up after the owner's first look at the real light dialog
+    (2026-10-03, three decisions):**
+    - **White page in light.** `ConfigGeneral.qml` sets the page's
+      `background` to white in light (`--win-bg`, mockup :34); dark keeps
+      the scheme's colour (driver, Breeze Dark: `#202326` for HEAD and for
+      the new code). Plasma's header strip and button bar around the page
+      stay in the scheme's colour.
+    - **Secondary text stays the darker pair** (`#3f3a33` / `#524c45`), not
+      the mockup's lighter greys.
+    - **Spacing matched to the mockup, both themes:** row padding 14 → 16
+      and name/description gap 2 → 4 (`.kcm-row`, `.kcm-row-text`,
+      :267-271), section label margins 28/6 → 40/10 (:261-265), brand
+      header gap 9 and 22 below, sub-title 4 below the title with 2 px
+      letter-spacing (:235, :257). In the driver a row grows 66 → 72 px and
+      the page 1103 → 1253 px. Font sizes (mockup 14.5 / 11.5 px) were not
+      changed. QML suite 62/62 after the change; lint counts as at HEAD.
+    - **Second look (same day), two more decisions, no code change:** the
+      "General" header strip, the button bar and the other two tabs
+      (Keyboard Shortcuts, About) stay in the scheme's grey - they are
+      Plasma's (`AppletConfiguration.qml` sets
+      `pageStack.globalToolBar.colorSet: Kirigami.Theme.Window`, and the
+      dialog's root Rectangle and footer Pane paint the window colour).
+      Recolouring the toolbar from our page through the page stack was
+      offered and declined: the white page stays, the rest is left alone.
+      The About icon stays one dark tile for both themes (D6 stands).
+  - **Evaluate findings:**
+    - Page background: by default the page paints none; under a Breeze
+      Light `kdeglobals` the driver measured `#eff0f1` (Kirigami's window
+      colour), not the mockup's pure white - hence the white background
+      above.
+    - CardShadow: page creation measured 40-41 ms for HEAD and for the new
+      code (dark). The light Loaders are created after the scheme is read
+      and were not timed separately; nothing visible in the driver.
+      Component unchanged (the flyout's shadow values, slightly smaller
+      than the page mockup's :73).
+  - Verified (standalone page driver on Wayland, real page in a plain
+    Window, `QT_QUICK_CONTROLS_STYLE=org.kde.desktop`):
+    - qmllint equal to HEAD on every touched file (config.qml 4 → 3), new
+      files 0; QML suite 62/62.
+    - **Dark unchanged:** old-vs-new sheet differs only in the brand mark
+      tile (rows 14-87) plus about 820 px of 1 level in text; rendering
+      HEAD twice gives the same kind of noise (709 px, max 1).
+    - **Light** (Breeze Light `kdeglobals` via `XDG_CONFIG_HOME`,
+      `pageScheme.dark` pinned false): heading sweep `#a9720b` → `#ebbb5c`,
+      status value "Light" `#ae760d` → `#e7b44e`, status prefix `#3f3a33`,
+      slider fill `#e2b865`, track `#ece9e4`, stepper value / percent /
+      segment outline `#1c1a17`, brand tile `#ffffff`. Row, switch,
+      segment and stepper positions identical in dark and light.
+    - **Scheme flip in one session** (light → dark → light): the second
+      light capture is pixel-identical to the first.
+    - **Behaviour:** the same driver clicks (Theme: Dark, Transparency
+      switch, step 2 dB, startup +, Chime: Choose theme, back to Follow
+      system, dropdown open) give identical `cfg_*` values on HEAD, new
+      dark and new light; the light capture after the clicks shows the off
+      switch, the hidden status line and the white dropdown list.
+    - Sidebar icon: loading `config.qml` in the driver gives the white SVG
+      under the dark scheme (`window` `#151515`) and the dark one under
+      Breeze Light (`#eff0f1`).
+    - Installed; flyout harness `20261003-152028-after-17.27.0-dark`
+      (smoke) and `-152048-after-17.27.0-light` (`theme,amp`) exit 0;
+      daemon active on 192.168.0.22.
+  - Left for the owner (cannot be scripted): the real dialog under a light
+    desktop scheme and under dark - page look, the sidebar icon in both,
+    Apply/OK persistence (also closes 17.17.0's check).
+  - Not done, noted: the dropdown list's shadow (`--list-shadow`) is still
+    the approximation `ThemeDropdown.qml` already flags; the driver's row
+    labels use the scratch config's default font, not the owner's.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9716,40 +9830,9 @@ architecture decisions; this file is just sequencing and status.
   tooltip v5, configDialog v30.** Only the flyout changed; the other three
   are byte-identical renames of the files the entries below were written
   against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
-  17.21.1 (the flyout) and 17.22.0 / 17.23.0 (OSD toast, tooltip) are in
-  "## Done".
-- [ ] **Phase 17.24.0 — Brand mark.** Ring + disk filling a 37 px tile
-      (`ConfigGeneral.qml:411-429`; configDialog v30 :236-249): dark ring
-      `#654c3a`, disk `#e3a06a`; light ring sweep `#ecd3a0 → #dcb068 →
-      #cfa052`, disk `#efc977 → #e0aa4b → #cf9738`, no sphere (:250-255).
-  - Verify: driver, both schemes.
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
-- [ ] **Phase 17.25.0 — ConfigDialog light page base.** White background,
-      text/divider/control tokens, card shadows (configDialog v30 :71-82,
-      :83-98).
-  - Verify: driver with light kdeglobals (memory recipe).
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
-- [ ] **Phase 17.26.0 — Gradient section headings + status values.**
-      `#a8710b → #d99a1f → #efc36a` clipped per word (`SectionLabel.qml`;
-      configDialog v30 :90, :101-105) and bold gradient resolved values in
-      status lines (:111-114).
-  - Verify: driver crops at 2×.
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
-- [ ] **Phase 17.27.0 — Light switches, steppers, segments.** Gold
-      gradient switch track + sheen, white knob (`SettingsSwitch.qml`;
-      configDialog v30 :93, :76, :97), neutral stepper values (:107),
-      selected segment outlined in text colour (:95, :315).
-  - Verify: driver crops; owner opens the real dialog under a light
-    scheme.
-  - Captures per the arc's capture rule: any standalone driver grab runs
-    on Wayland (not offscreen) and is composited on a solid backdrop
-    before judging.
+  17.21.1 (the flyout), 17.22.0 / 17.23.0 (OSD toast, tooltip) and
+  17.24.0 - 17.27.0 (the settings page) are in "## Done". Only 17.28.0
+  (wrap-up) and 17.17.0's owner check remain.
 - [ ] **Phase 17.28.0 — Wrap-up.** CLAUDE.md (Theme.qml = fonts/sizes
       only; typed ColorPalette/`colors` rule; portal reader contract; harness `theme`
       dim), README settings section, PKGBUILD dependency check (none

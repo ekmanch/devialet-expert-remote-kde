@@ -68,7 +68,9 @@ Rectangle {
     radius: root.theme.radiusSm
     color: root.colors.surface
     border.width: 1
-    border.color: fieldArea.containsMouse ? root.colors.copperDim : root.colors.divider
+    border.color: fieldArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
+    // Phase 17.25.0: light-theme card shadow.
+    Ui.CardShadow { colors: root.colors; radius: root.radius }
 
     RowLayout {
         id: fieldRow
@@ -137,7 +139,9 @@ Rectangle {
 
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.colors.surface2
+            // Phase 17.25.0: own tokens - light `surface2` is a translucent
+            // hover fill, not a card colour.
+            color: root.colors.listBackground
             border.width: 1
             border.color: root.colors.divider
         }
@@ -162,7 +166,7 @@ Rectangle {
                     implicitWidth: rowContent.implicitWidth + 16
                     implicitHeight: rowContent.implicitHeight + 12
                     radius: 6
-                    color: rowArea.containsMouse ? root.colors.surface3 : "transparent"
+                    color: rowArea.containsMouse ? root.colors.listHover : "transparent"
 
                     RowLayout {
                         id: rowContent

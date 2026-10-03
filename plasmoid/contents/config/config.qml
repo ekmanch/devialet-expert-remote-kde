@@ -47,6 +47,7 @@
 // its own `contents/ui/config/`), just adapted for this project's layout
 // where `config/` is a sibling of `ui/`, not nested under it.
 
+import QtQuick
 import org.kde.plasma.configuration
 
 // Phase 4.4.0.1: General's own copper glow-dot icon, replacing the
@@ -86,10 +87,27 @@ import org.kde.plasma.configuration
 
 import org.kde.plasma.configuration
 
+// Phase 17.25.0: the icon follows the dialog's colour scheme - the white
+// stroke on a dark sidebar (unchanged), a dark-ink copy of the same SVG
+// (devialet_config_general_icon_dark.svg, stroke #1c1a17) on a light one,
+// where the white one would be invisible. Read from the application
+// palette's window colour through SystemPalette, not from SystemScheme.qml
+// like the page: this value has to be right when the sidebar first reads
+// it (the portal reply arrives later), and a ConfigModel is not an Item, so
+// Kirigami's attached Theme is not available here either. The desktop
+// scheme sets that palette, and the XDG portal's color-scheme the page
+// follows is computed from the same window colour.
 ConfigModel {
+    id: configModel
+
+    readonly property SystemPalette systemPalette: SystemPalette {}
+    readonly property bool darkWindow: configModel.systemPalette.window.hslLightness < 0.5
+
     ConfigCategory {
         name: i18n("General")
-        icon: Qt.resolvedUrl("../icons/devialet_config_general_icon_white.svg")
+        icon: Qt.resolvedUrl(configModel.darkWindow
+            ? "../icons/devialet_config_general_icon_white.svg"
+            : "../icons/devialet_config_general_icon_dark.svg")
         source: "../config/ConfigGeneral.qml"
     }
 }

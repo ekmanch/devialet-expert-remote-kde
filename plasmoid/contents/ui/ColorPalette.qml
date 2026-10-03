@@ -102,6 +102,39 @@ QtObject {
     // Fill of the toast/tooltip bar while muted.
     required property color mutedFill
 
+    // ---- Phase 17.24.0-17.27.0: settings page (ConfigGeneral.qml) ----
+    // Every dark value below is what the dark page painted before these
+    // tokens existed; the light values are the configDialog mockup's (v30).
+    // Sound-theme dropdown list: card and row hover.
+    required property color listBackground
+    required property color listHover
+    // Value text inside controls (slider percent, dB stepper value).
+    required property color controlValueText
+    // Brand mark (BrandMark.qml): ring sweep, the ring's inside, disk sweep.
+    // 145 degree sweeps in light, one flat colour per shape in dark.
+    required property color brandRingStart
+    required property color brandRingMid
+    required property color brandRingEnd
+    required property color brandRingInner
+    required property color brandDiskStart
+    required property color brandDiskMid
+    required property color brandDiskEnd
+    // Switch (SettingsSwitch.qml): off track, border, knob per state, knob
+    // shadow, and the "on" track (left -> right sweep in light).
+    required property color switchOff
+    required property color switchBorder
+    required property color switchKnobOff
+    required property color switchKnobOn
+    required property color switchKnobShadow
+    required property color switchOnStart
+    required property color switchOnMid
+    required property color switchOnEnd
+    // Selected segment (SegmentedControl.qml): fill, 1 px outline (light
+    // only), label.
+    required property color segmentActiveFill
+    required property color segmentActiveBorder
+    required property color segmentActiveText
+
     // ---- Phase 17.19.2: control alpha, per palette ----
     // Phase 9.1.1 REVISION 4 (moved here from TransparencySettings.qml in
     // Phase 17.19.2; "controlAlpha" below is this palette's controlAlphaK):

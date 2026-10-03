@@ -69,7 +69,9 @@ Item {
             ? Qt.rgba(root.colors.copper.r, root.colors.copper.g, root.colors.copper.b, 0.18)
             : root.colors.surface
         border.width: 1
-        border.color: root.hot ? root.colors.copperDim : root.colors.divider
+        border.color: root.hot ? root.colors.copperDim : root.colors.controlBorder
+        // Phase 17.25.0: light-theme card shadow.
+        Ui.CardShadow { colors: root.colors; radius: parent.radius; visible: root.colors.isLight && !root.playing }
 
         Shape {
             id: glyph

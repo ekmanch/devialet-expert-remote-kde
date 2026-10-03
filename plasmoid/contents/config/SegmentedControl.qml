@@ -40,6 +40,8 @@ Rectangle {
     color: seg.colors.surface
     border.width: 1
     border.color: seg.colors.divider
+    // Phase 17.25.0: light-theme card shadow (configDialog mockup v30 :115).
+    Ui.CardShadow { colors: seg.colors; radius: seg.radius }
     implicitWidth: segRow.implicitWidth + 6
     implicitHeight: segRow.implicitHeight + 6
 
@@ -58,7 +60,13 @@ Rectangle {
                 readonly property bool active: seg.activeIndex === segment.index
 
                 radius: 6
-                color: segment.active ? seg.colors.surface3 : "transparent"
+                // Phase 17.27.0: in light the selected segment is white
+                // with a 1 px outline and label in the text colour, DemiBold
+                // (configDialog mockup v30 :95, :106). JetBrains Mono has
+                // one advance for every weight, so widths do not change.
+                color: segment.active ? seg.colors.segmentActiveFill : "transparent"
+                border.width: segment.active && seg.colors.isLight ? 1 : 0
+                border.color: seg.colors.segmentActiveBorder
                 implicitWidth: segmentLabel.implicitWidth + 22
                 implicitHeight: segmentLabel.implicitHeight + 10
 
@@ -68,8 +76,9 @@ Rectangle {
                     text: segment.modelData
                     font.family: seg.theme.fontMono
                     font.pixelSize: 11
-                    color: segment.active || segmentArea.containsMouse
-                        ? seg.colors.copperBright : seg.colors.textDim
+                    font.weight: segment.active && seg.colors.isLight ? Font.DemiBold : Font.Normal
+                    color: segment.active ? seg.colors.segmentActiveText
+                        : (segmentArea.containsMouse ? seg.colors.copperBright : seg.colors.textDim)
                 }
 
                 MouseArea {

@@ -4,12 +4,12 @@
 // :95-107) unless noted. Pure white surfaces,
 // near-black text, gold accents; see ColorPalette.qml for each token.
 //
-// The flyout (ThemeSettings.flyoutPalette) and, since 17.22.0/17.23.0, the
-// OSD toast and hover tooltip (osdPalette) paint this palette; the light
-// settings page (17.25.0-17.27.0) builds on the same tokens. The OSD and
-// tooltip mockups (v4/v5) still list the pre-v21 dim/faint text (#6e6a64 /
+// The flyout (ThemeSettings.flyoutPalette), the OSD toast and hover tooltip
+// (osdPalette, 17.22.0/17.23.0) and the settings page on a light desktop
+// (ConfigGeneral.qml, 17.24.0-17.27.0) paint this palette. The OSD, tooltip
+// and configDialog mockups still list the pre-v21 dim/faint text (#6e6a64 /
 // #a29d95); they get the flyout's darker pair below, one palette for all
-// three surfaces.
+// four surfaces.
 
 import QtQuick
 
@@ -76,5 +76,28 @@ ColorPalette {
     goldTextMid: "#d99a1f"
     goldTextEnd: "#efc36a"
     mutedFill: "#d8d3cb"                                         // --muted-fill
+
+    // ---- Phase 17.24.0-17.27.0: settings page (configDialog mockup v30) ----
+    listBackground: "#ffffff"                                    // --list-bg (:80)
+    listHover: Qt.rgba(24 / 255, 20 / 255, 15 / 255, 0.04)       // --list-hover
+    controlValueText: "#1c1a17"                                  // --val-color / .kcm-slider-value (:96, :108)
+    brandRingStart: "#ecd3a0"                                    // .bm-ring, 145deg, stops 0 / 60 % / 100 % (:250-254)
+    brandRingMid: "#dcb068"
+    brandRingEnd: "#cfa052"
+    brandRingInner: "#ffffff"
+    brandDiskStart: "#efc977"                                    // .bm-disk, 145deg, stops 0 / 55 % / 100 % (:255)
+    brandDiskMid: "#e0aa4b"
+    brandDiskEnd: "#cf9738"
+    switchOff: "#e6e2dc"                                         // --switch-off (:92)
+    switchBorder: Qt.rgba(24 / 255, 20 / 255, 15 / 255, 0.08)    // --switch-border (:77)
+    switchKnobOff: "#ffffff"                                     // --knob-off / --knob-on (:76, :97)
+    switchKnobOn: "#ffffff"
+    switchKnobShadow: Qt.rgba(24 / 255, 20 / 255, 15 / 255, 0.30)   // --knob-shadow 0 1px 3px (:76)
+    switchOnStart: "#b07a27"                                     // --switch-on, 90deg, stops 0 / 60 % / 100 % (:93)
+    switchOnMid: "#dcaa4f"
+    switchOnEnd: "#efc36a"
+    segmentActiveFill: "#ffffff"                                 // --seg-active-bg (:95)
+    segmentActiveBorder: "#1c1a17"                               // --seg-active-shadow inset 0 0 0 1px
+    segmentActiveText: "#1c1a17"                                 // --seg-active-color
     controlAlphaK: 0.1                                           // 17.19.2 starting value (fixed-k, as dark); tune live
 }

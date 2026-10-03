@@ -135,5 +135,29 @@ ColorPalette {
     goldTextMid: "#e3a06a"
     goldTextEnd: "#e3a06a"
     mutedFill: "#5c5c60"
+
+    // ---- Phase 17.24.0-17.27.0: settings page (values it already painted,
+    // apart from the brand mark's ring and disk, new in 17.24.0) ----
+    listBackground: "#1b1b1b"                      // = surface2
+    listHover: "#1e1e1e"                           // = surface3
+    controlValueText: "#e3a06a"                    // = copperBright
+    brandRingStart: "#654c3a"                      // configDialog mockup v30 :246
+    brandRingMid: "#654c3a"
+    brandRingEnd: "#654c3a"
+    brandRingInner: "#262221"
+    brandDiskStart: "#e3a06a"                      // :249
+    brandDiskMid: "#e3a06a"
+    brandDiskEnd: "#e3a06a"
+    switchOff: "#1e1e1e"                           // = surface3
+    switchBorder: Qt.rgba(1, 1, 1, 0.08)           // = divider
+    switchKnobOff: "#e8e6e1"                       // was hardcoded in SettingsSwitch.qml
+    switchKnobOn: "#e3a06a"                        // = copperBright
+    switchKnobShadow: "transparent"
+    switchOnStart: "#8a5c39"                       // = copperDim (flat)
+    switchOnMid: "#8a5c39"
+    switchOnEnd: "#8a5c39"
+    segmentActiveFill: "#1e1e1e"                   // = surface3
+    segmentActiveBorder: "transparent"
+    segmentActiveText: "#e3a06a"                   // = copperBright
     controlAlphaK: 0.1                             // Phase 9.1.1 value, unchanged (moved from TransparencySettings in 17.19.2)
 }
