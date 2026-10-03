@@ -4,10 +4,13 @@
 // but item positions and sizes are exact there.
 //
 // The overlay is parented to a stand-in source row placed where the real
-// one sits since Phase 17.1.0 removed the scroll hint: 217 px of room above
-// it (SourceListOverlay's spaceAbove = row top - gap 6 - margin 8), which
-// is less than the six-source list needs (244 px), so the list scrolls.
-// Guards the two 17.1.1 regressions measured on the harness:
+// one sits since Phase 17.1.0 removed the scroll hint. Since Phase 17.21.1
+// the card overlaps the row's top 33 px (flyout mockup v22 :446), leaving
+// 256 px (SourceListOverlay's spaceAbove = row top 231 + overlap 33 -
+// margin 8): the real amp's six sources (244 px) fit without scrolling,
+// and a longer list (eight here, 324 px) is capped and scrolls.
+// Guards the two 17.1.1 regressions measured on the harness, on the list
+// that still scrolls:
 //   - the selected source must be fully visible when the list opens, even
 //     when it is the last row (the real amp's AIR slot, index 14);
 //   - rows must be exactly as wide as the scroll viewport, so the scrollbar
@@ -34,6 +37,11 @@ TestCase {
         { name: "AIR", index: 14, enabled: true, selected: false }
     ]
     readonly property var threeSources: sixSources.slice(0, 3)
+    // More sources than fit (Phase 17.21.1): the list that still scrolls.
+    readonly property var eightSources: sixSources.concat([
+        { name: "Coaxial 1", index: 15, enabled: true, selected: false },
+        { name: "Phono", index: 16, enabled: true, selected: false }
+    ])
 
     Theme { id: testTheme }
     DarkPalette { id: testColors }
@@ -96,17 +104,27 @@ TestCase {
         overlay = null;
     }
 
-    function test_six_sources_scroll_in_the_post_17_1_0_space() {
-        const flick = openWith(sixSources, 0);
-        compare(overlay.height, 217, "capped to the room above the row");
+    function test_six_sources_fit_without_scrolling() {
+        const flick = openWith(sixSources, 14);
+        compare(overlay.height, 244, "six rows: 6 x 36 + 5 x 4 + 2 x 4");
+        verify(flick.contentHeight <= flick.height, "content fits the viewport, so no scrollbar");
+        compare(flick.contentY, 0, "no scroll when everything fits");
+        compare(overlay.y + overlay.height, 33, "card bottom 33 px below the row's top edge");
+        const rowItem = findByName(overlay.contentItem, "sourceOption:0");
+        compare(rowItem.width, 260, "rows span the card (268 - 2 x 4), no scrollbar gutter");
+    }
+
+    function test_eight_sources_are_capped_and_scroll() {
+        const flick = openWith(eightSources, 0);
+        compare(overlay.height, 256, "capped to the room above the card's bottom edge");
         verify(flick.contentHeight > flick.height, "content taller than the viewport, so it scrolls");
     }
 
     function test_selected_source_is_fully_visible_on_open_data() {
-        return sixSources.map(function (s) { return { tag: s.name, sourceIndex: s.index }; });
+        return eightSources.map(function (s) { return { tag: s.name, sourceIndex: s.index }; });
     }
     function test_selected_source_is_fully_visible_on_open(data) {
-        const flick = openWith(sixSources, data.sourceIndex);
+        const flick = openWith(eightSources, data.sourceIndex);
         const rowItem = findByName(overlay.contentItem, "sourceOption:" + data.sourceIndex);
         verify(rowItem, "selected row exists");
         const top = rowItem.mapToItem(flick, 0, 0).y;
@@ -121,7 +139,8 @@ TestCase {
 
     function test_rows_fill_exactly_the_viewport_width_data() {
         return [
-            { tag: "six sources, scrolling", sources: sixSources },
+            { tag: "eight sources, scrolling", sources: eightSources },
+            { tag: "six sources, no scrollbar", sources: sixSources },
             { tag: "three sources, no scrollbar", sources: threeSources }
         ];
     }
@@ -141,7 +160,7 @@ TestCase {
     }
 
     function test_first_source_selected_keeps_the_list_at_the_top() {
-        const flick = openWith(sixSources, 0);
+        const flick = openWith(eightSources, 0);
         compare(flick.contentY, 0, "already visible, so no scroll");
     }
 }

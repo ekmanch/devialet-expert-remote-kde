@@ -145,7 +145,7 @@ GridLayout {
                 // Phase 17.19.0: light-theme card shadow (hidden in dark).
                 CardShadow { colors: actionRow.colors; radius: parent.radius; visible: actionRow.colors.isLight && !actionRow.muted }
             border.width: 1
-            border.color: actionRow.muted ? actionRow.colors.copperDim : (parent.hovered ? actionRow.colors.copperDim : actionRow.colors.divider)
+            border.color: actionRow.muted ? actionRow.colors.copperDim : (parent.hovered ? actionRow.colors.copperDim : actionRow.colors.controlBorder)
         }
         contentItem: RowLayout {
             id: muteContentRow
@@ -231,7 +231,7 @@ GridLayout {
             // unconditionally while booting.
             border.color: actionRow.powerState === "Booting"
                 ? actionRow.colors.warning
-                : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.success) : actionRow.colors.divider)
+                : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.success) : actionRow.colors.controlBorder)
         }
         contentItem: RowLayout {
             id: powerContentRow

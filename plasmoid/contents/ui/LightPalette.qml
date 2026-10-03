@@ -1,6 +1,7 @@
-// Phase 17.19.0 - the light palette. Values from the v3 flyout mockup
-// (design/mockups/flyout/... v3.html, `body[data-mode="light"]` and
-// `body[data-theme="gold"]` blocks) unless noted. Pure white surfaces,
+// Phase 17.19.0 - the light palette. Values from the flyout mockup, v22
+// since Phase 17.19.3 (design/mockups/flyout/Devialet Flyout Mockup
+// v22.html, `body[data-mode="light"]` :61-84 and `body[data-theme="gold"]`
+// :95-107) unless noted. Pure white surfaces,
 // near-black text, gold accents; see ColorPalette.qml for each token.
 //
 // Light OSD/tooltip (17.22.0/17.23.0) and the light settings page
@@ -25,8 +26,10 @@ ColorPalette {
 
     // ---- Text ----
     text: "#1c1a17"
-    textDim: "#6e6a64"
-    textFaint: "#a29d95"
+    // Phase 17.19.3: darkened in mockup v21 (v22 :69-73) so they stay
+    // legible over a translucent, blurred backdrop; were #6e6a64 / #a29d95.
+    textDim: "#3f3a33"
+    textFaint: "#524c45"
 
     // ---- Status ----
     danger: "#b23b30"
@@ -55,5 +58,14 @@ ColorPalette {
     headerHover: Qt.rgba(28 / 255, 24 / 255, 18 / 255, 0.025)    // --header-hover
     activeFill: Qt.rgba(195 / 255, 148 / 255, 67 / 255, 0.10)    // --active-bg
     cardShadow: Qt.rgba(20 / 255, 16 / 255, 10 / 255, 0.10)      // --card-shadow
+    controlBorder: Qt.rgba(28 / 255, 24 / 255, 18 / 255, 0.10)   // --btn-border (v22 :76)
+    chipBorder: Qt.rgba(28 / 255, 24 / 255, 18 / 255, 0.16)      // .vol-source-chip border (v22 :158)
+
+    // ---- Phase 17.20.0: gradient text ----
+    readoutGradientStart: "#dca136"                              // .vol-value (v22 :111)
+    readoutGradientEnd: "#f3cf7c"
+    readoutGlow: Qt.rgba(199 / 255, 154 / 255, 46 / 255, 0.35)   // text-shadow 0 0 14px (v22 :115)
+    eyebrowGradientStart: "#97691f"                              // --eyebrow (v22 :104)
+    eyebrowGradientEnd: "#cf9c45"
     controlAlphaK: 0.1                                           // 17.19.2 starting value (fixed-k, as dark); tune live
 }

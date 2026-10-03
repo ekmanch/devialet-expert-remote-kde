@@ -9403,6 +9403,136 @@ architecture decisions; this file is just sequencing and status.
       first third, 84.8 % in the last.
     `cargo test --workspace`, clippy clean; `scripts/test-qml.sh` 58/58.
 
+- [x] **Phase 17.19.3 — Light flyout re-based on mockup v22 (tokens).** Done
+      2026-10-03. New entry: the v21/v22 mockup changes no earlier entry
+      covered. Colours and weights only.
+      - `LightPalette.qml`: `textDim` `#6e6a64` → `#3f3a33`, `textFaint`
+        `#a29d95` → `#524c45` (v22 :69-73).
+      - Two new typed tokens in `ColorPalette.qml`: `controlBorder` (resting
+        border of mute, power, -/+, source row; light `rgba(28,24,18,0.10)`,
+        `--btn-border` :76) and `chipBorder` (light `rgba(28,24,18,0.16)`,
+        :158). Dark carries the `divider` value in both, so dark is unchanged.
+        This closes 17.19.0's open item about the button border.
+      - `Font.Medium` in light on the four small mono labels (v22 :152-157):
+        ampSub, sourceChipLabel, the "SOURCE" eyebrow, footerLabel.
+  - Verified: qmllint counts equal to HEAD for every file under
+    `contents/ui/`; QML suite 58/58. Harness against `expected-17.json`,
+    exit 0: before `20261003-140526-before-17.19.3-dark`, `-140545-...-light-a`
+    (`--vary theme,mute,slist`), `-140605-...-light-b` (`theme,list`),
+    `-140618-...-light-c` (`theme,src`); after `-140743`, `-140803`,
+    `-140823`, `-140835`. Light coordinates identical before/after (the
+    heavier weight moves nothing). Dark before vs after: every pixel above 2
+    levels lies in the four corner squares (the panel icon sat 30 px further
+    right after the restart, so the desktop behind the rounded corners
+    differs); the panel itself reads 20 vs 21. Transparency off (the owner's
+    current setting).
+
+- [x] **Phase 17.20.0 — Light readout + wordmark.** Done 2026-10-03.
+      `GradientText.qml` promoted from `tools/spike-gradient-rendering/`.
+      In light the volume readout is the gold sweep `#dca136 → #f3cf7c` with
+      its glow (v22 :109-116; `shadowBlur` 0.9 / `blurMax` 32, the 17.0.2
+      pick, colour `rgba(199,154,46,0.35)`), and "DEVIALET" is DemiBold with
+      the sweep `#97691f → #cf9c45` over the word's own width (:104,
+      :117-120). "dB" stays `textDim`. Stop colours are palette tokens
+      (`readoutGradientStart/End`, `readoutGlow`, `eyebrowGradientStart/End`).
+      - Both Labels stay in the layout with transparent text in light and
+        the gradient is painted over them from a `Loader` that is active only
+        in light (layers built from the start, the CardShadow lesson).
+      - **Mask edges (found on the real flyout, not in the spike):**
+        `MultiEffect`'s default mask (threshold 0, spread 0) makes every
+        pixel with any coverage fully opaque, so text and glyph strokes came
+        out about a device pixel fatter per side and jagged (runs
+        `20261003-141153`, `-141717`). `GradientMask.qml` now sets
+        `maskThresholdMin` 0.5 / `maskSpreadAtMin` 1.0, which keeps the
+        mask's antialiased edges (run `-141804-tune2`). Ruled out first: the
+        layers are already rendered at device pixels (dpr 2 logged from
+        inside the flyout); forcing `layer.textureSize` made it worse and
+        was reverted.
+      - **Garbled readout after a resize (owner report, same day; fixed).**
+        With the light theme set at shell start the readout showed a long
+        dash and a skewed fragment instead of digits. Cause: a
+        `MultiEffect` with a shadow keeps the padded shadow geometry of the
+        size it was created at, so when the readout grew from the "—"
+        placeholder (16 px) to "-25.0" (78 px) the glow stage painted the
+        old texture stretched. The mask stage alone resizes correctly
+        (standalone driver, glow off). `GradientMask.qml` now switches its
+        shadow off and back on (`Qt.callLater`) whenever its size changes.
+        Missed at first because the harness created the gold readout at its
+        final width (theme flipped per state) and the `theme,vol` values are
+        all five characters; the `theme,amp` run that did show it
+        (`20261003-142827`) was only measured for the footer, not looked at.
+        Verified: driver sequence "—" → "-40.0" → "0.0" → "—" → "-25.0"
+        correct with glow each time; harness `--vary theme,amp`
+        (`20261003-143511-readout-fix-amp`, placeholder ↔ value four times)
+        and `theme,vol` (`-143540-readout-fix-vol`), all readouts correct,
+        exit 0; QML suite 62/62.
+  - Verified: readout row Δy 0 (dbValueLabel, dbUnitLabel, dbValueRow and
+    ampEyebrow have identical coordinates in dark and light). Opaque samples:
+    wordmark `#986a20` at the D → `#c99741` at the T, readout `#dda33a` at
+    the minus → `#efc770` in the last digit, "dB" `#3f3a33`, IP line / chip /
+    "SOURCE" / footer text `#524c45`.
+
+- [x] **Phase 17.21.0 — Light gold glyphs and dots.** Done 2026-10-03.
+      - Glyphs: new `ThemedSourceGlyph.qml` (flat `SourceGlyph` in dark; in
+        light the same glyph as the mask of the glyphGold radial gradient,
+        centre 32 % / 28 %, radius 0.775 x size per v22 :485, with the
+        17.0.2 shadow 0.3 / 16, opacity 0.35, offset 0/2). Used by the
+        source row (20 px) and the source list (17 px).
+      - Dots: `GoldSphere` in light for the connected header dot (10 px),
+        the connected amp in the amp list (10 px) and the footer dot.
+        Booting, not responding, powered-off opacity and the no-amp ring
+        are unchanged.
+      - Footer dot 5 → 7 px, gap to the label 10 → 8 px, **in both themes**
+        (v22 :466-472 is not light-scoped). Light shadow per :474-476.
+      - **Ticks stay flat** `copperBright`: v22 :455-457 paints the tick in
+        `currentColor`. The old entry's "and ticks" is dropped.
+      - Header dot lifted 1 px too (owner question, same day): centred on
+        the three-line block, its disc spanned rows 62-81 against the amp
+        name's capital "D" at 60-79, i.e. 1 px low with its bottom under
+        the baseline. With `Layout.bottomMargin: 2` disc and "D" both span
+        60-79 in dark and light (run `20261003-144133-header-dot-lift`,
+        exit 0; only ampDot and its children moved, dy -1). The amp list's
+        dots sit beside two-line rows and were left centred on the pair.
+      - Footer dot lifted 1 px (owner report, same day: the dot shared the
+        text's baseline and read low). It was centred on the label's 14 px
+        line box; on the 2x capture its disc spanned rows 618-631 against
+        the text's 616-630. With `Layout.bottomMargin: 2` it spans 616-629
+        (run `20261003-142827-footer-dot-lift`, both themes, exit 0).
+  - Verified: dark final vs dark after-17.19.3: outside the corner squares
+    the only pixels above 7 levels are the footer dot's 14 x 14 px box
+    (114 px), plus the Booting animation and the source list (17.21.1).
+  - Layer count: the light flyout with the source list open reported at
+    the harness's normal 1.5 s per state with no probe timeouts. The open
+    latency by eye is for the owner.
+
+- [x] **Phase 17.21.1 — Six sources without a scrollbar.** Done 2026-10-03.
+      New entry (v22 :446). `SourceListOverlay.qml`: the card is anchored
+      like the mockup's `bottom:66px`, which in our geometry (row top at
+      y 231 of 330, harness coords) means it covers the row's top 33 px
+      (`rowOverlap`), and `maxListHeight` is 264. Before, the card stopped
+      6 px above the row: 217 px for a list that needs 244. Applies to both
+      themes. This retires 17.19.0's open item (dark scrollbar on the white
+      card) for the real amp's six sources.
+  - `tests/qml/tst_SourceListOverlay.qml`: six sources now fit (height 244,
+    no scroll, rows 260 px wide); the scrolling guards run on an
+    eight-source list (capped at 256).
+  - Verified for 17.20.0-17.21.1 together (they were installed and gated
+    as one build after 17.19.3): qmllint equal to HEAD, new files 0; QML
+    suite 62/62; harness exit 0 for `20261003-141928-final-17.21.1-dark`,
+    `-141949-...-light-a`, `-142010-...-light-b`, `-142023-...-light-c` and
+    `-142101-...-light-transp50` (transparency 50 %, `theme,slist`).
+    `expected-17.json` gained five narrow rules for the light-only Loader
+    subtrees. Installed; daemon active on 192.168.0.22; transparency back
+    to off, theme `light` as the owner had it.
+  - Left for the owner: the look on the real panel with transparency +
+    Better Blur DX (the wordmark is the faintest gold item at 50 %), hover
+    states, open latency with the source list expanded, and whether the
+    glyph shadow should be lighter.
+  - Not changed, noted: the mockup's list rows are 12.5 px regular body
+    font; ours are Space Grotesk DemiBold 13 in both themes since 7.14.0.
+    v22's legend (:611) says the readout stays near-black while its CSS
+    paints the gold gradient; the CSS was followed.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9413,8 +9543,8 @@ architecture decisions; this file is just sequencing and status.
     separate/clean Arch system.
       
 - [ ] **Phase 17 — Light theme arc (header; branch `feature/light-theme`,
-      plan approved 2026-09-26).** Spec: the four **v2** mockups under
-      `design/mockups/{configDialog,flyout,OSD,tooltip}/` (commit 8526a10).
+      plan approved 2026-09-26).** Spec: the four mockups under
+      `design/mockups/{configDialog,flyout,OSD,tooltip}/` (v2 at commit 8526a10; since 2026-10-03 flyout v22, OSD v4, tooltip v5, configDialog v30, commit 3de775c - only the flyout changed).
       Full investigation report + design:
       `docs/context-on-light-theme-arc-phase-17.md` (saved from the approved
       rev 3 plan; same location/naming as the Phase 7 investigation
@@ -9521,40 +9651,15 @@ architecture decisions; this file is just sequencing and status.
     close/reopen and shell-reload steps are not visible in the journal and
     were not observed - still to confirm by the owner if wanted.
 
-- **Phases 17.20.0 - 17.28.0 are paused until the owner brings back an updated
-  light mockup** (re-iterated outside Claude Code after the 17.19.1 spike).
-- [ ] **Phase 17.20.0 — Light readout + wordmark.** Gradient digits
-      `#dca136 → #f3cf7c` + glow (flyout v2 :110-115), grey "dB", gold
-      eyebrow `#97691f → #cf9c45` (`AmpHeader.qml:100`; :103, :116-119)
-      (`GradientText` from the merged spike).
-  - Verify: light crops; Δy 0 on the readout row (AlignBaseline house
-    rule).
-  - Promotes `GradientText.qml` from `tools/spike-gradient-rendering/`.
-    Readout glow default **0.9 `shadowBlur` / `blurMax` 32**
-    (provisional, owner's pick from the 17.0.2 sheet; the four candidates
-    were 0.35/32, 0.6/32, 0.9/32, 0.6/64). Tune live against the v2
-    mockup's `text-shadow: 0 0 14px rgba(199,154,46,.35)` on the real
-    flyout, not on the driver sheet. Captures per the arc's capture rule.
-- [ ] **Phase 17.21.0 — Light gold glyphs, dots, ticks.** `glyphGold`
-      radial + warm drop shadow on source glyphs (flyout v2 :134-136),
-      header/list dots (:101, :141-146; header dot is 10 px, not the
-      mockup's 12 - owner follow-up to 17.6.0) and ticks (`GradientMask` from the
-      merged spike).
-  - Verify: `--vary theme,src,slist,list`.
-  - Uses `GradientMask.qml` (promoted in 17.19.0) with the glyph Shapes
-    from 17.7.0 as mask sources. Glyph drop shadow starts at the 17.0.2
-    values (`shadowBlur` 0.3 / `blurMax` 16, opacity 0.35, offset 0/2),
-    which read slightly heavier than the mockup's `drop-shadow(0 2px
-    2.5px rgba(160,110,10,.35))` - tune live against the v2 mockup.
-  - **Layer-count check**: every gold item is two `MultiEffect` stages,
-    i.e. two offscreen buffers each, and the light flyout has many
-    (readout, wordmark, header dot, source-row glyph, 6 list glyphs, 6
-    ticks, list dots, thumb). Verify the flyout still opens with no
-    visible delay with the source list expanded (harness `--vary theme`
-    with `slist=open`, plus the owner's eye on the real panel); if it
-    lags, share one mask stage per glyph list or drop the shadow stage
-    on the smallest items. Captures per the arc's capture rule.
-- [ ] **Phase 17.22.0 — Light OSD.** Opaque white (OSD v2 :118), gradient
+- **Mockups came back 2026-10-03 (commit 3de775c): flyout v22, OSD v4,
+  tooltip v5, configDialog v30.** Only the flyout changed; the other three
+  are byte-identical renames of the files the entries below were written
+  against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
+  17.21.1 (the flyout) are in "## Done". One thing to settle in 17.22.0/
+  17.23.0: OSD v4 and tooltip v5 still use the old dim/faint text
+  (`#6e6a64` / `#a29d95`), while the shared `LightPalette` now carries the
+  flyout's darker pair (`#3f3a33` / `#524c45`, 17.19.3).
+- [ ] **Phase 17.22.0 — Light OSD.** Opaque white (OSD v4 :118), gradient
       readout (:161-166), gold muted glyph (:144-148), gold-gradient
       "Muted" (`.gold-text` :104-110), flat `#e2b865` bar (:95), muted bar
       `#d8d3cb` (:103).
@@ -9562,7 +9667,7 @@ architecture decisions; this file is just sequencing and status.
   - Captures per the arc's capture rule: any standalone driver grab runs
     on Wayland (not offscreen) and is composited on a solid backdrop
     before judging.
-- [ ] **Phase 17.23.0 — Light tooltip.** Opaque white (tooltip v2 :121),
+- [ ] **Phase 17.23.0 — Light tooltip.** Opaque white (tooltip v5 :121),
       gold sphere dot (:97, :133), gradient value incl. the "Muted" word
       (:145-150), flat gold bar (:95).
   - Verify: owner hover; driver instantiating the tooltip's mainItem for
@@ -9571,7 +9676,7 @@ architecture decisions; this file is just sequencing and status.
     on Wayland (not offscreen) and is composited on a solid backdrop
     before judging.
 - [ ] **Phase 17.24.0 — Brand mark.** Ring + disk filling a 37 px tile
-      (`ConfigGeneral.qml:411-429`; configDialog v2 :236-249): dark ring
+      (`ConfigGeneral.qml:411-429`; configDialog v30 :236-249): dark ring
       `#654c3a`, disk `#e3a06a`; light ring sweep `#ecd3a0 → #dcb068 →
       #cfa052`, disk `#efc977 → #e0aa4b → #cf9738`, no sphere (:250-255).
   - Verify: driver, both schemes.
@@ -9579,7 +9684,7 @@ architecture decisions; this file is just sequencing and status.
     on Wayland (not offscreen) and is composited on a solid backdrop
     before judging.
 - [ ] **Phase 17.25.0 — ConfigDialog light page base.** White background,
-      text/divider/control tokens, card shadows (configDialog v2 :71-82,
+      text/divider/control tokens, card shadows (configDialog v30 :71-82,
       :83-98).
   - Verify: driver with light kdeglobals (memory recipe).
   - Captures per the arc's capture rule: any standalone driver grab runs
@@ -9587,7 +9692,7 @@ architecture decisions; this file is just sequencing and status.
     before judging.
 - [ ] **Phase 17.26.0 — Gradient section headings + status values.**
       `#a8710b → #d99a1f → #efc36a` clipped per word (`SectionLabel.qml`;
-      configDialog v2 :90, :101-105) and bold gradient resolved values in
+      configDialog v30 :90, :101-105) and bold gradient resolved values in
       status lines (:111-114).
   - Verify: driver crops at 2×.
   - Captures per the arc's capture rule: any standalone driver grab runs
@@ -9595,7 +9700,7 @@ architecture decisions; this file is just sequencing and status.
     before judging.
 - [ ] **Phase 17.27.0 — Light switches, steppers, segments.** Gold
       gradient switch track + sheen, white knob (`SettingsSwitch.qml`;
-      configDialog v2 :93, :76, :97), neutral stepper values (:107),
+      configDialog v30 :93, :76, :97), neutral stepper values (:107),
       selected segment outlined in text colour (:95, :315).
   - Verify: driver crops; owner opens the real dialog under a light
     scheme.

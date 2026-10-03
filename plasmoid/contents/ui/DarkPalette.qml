@@ -121,5 +121,13 @@ ColorPalette {
     headerHover: Qt.rgba(1, 1, 1, 0.02)            // AmpHeader hover
     activeFill: Qt.rgba(193 / 255, 127 / 255, 78 / 255, 0.14)   // copper at 0.14, muted button
     cardShadow: "transparent"                      // no control shadows in dark
+    controlBorder: Qt.rgba(1, 1, 1, 0.08)          // = divider (Phase 17.19.3)
+    chipBorder: Qt.rgba(1, 1, 1, 0.08)             // = divider (Phase 17.19.3)
+    // Phase 17.20.0: unused in dark (flat text); the flat colours.
+    readoutGradientStart: "#e3a06a"
+    readoutGradientEnd: "#e3a06a"
+    readoutGlow: "transparent"
+    eyebrowGradientStart: "#5c5c60"
+    eyebrowGradientEnd: "#5c5c60"
     controlAlphaK: 0.1                             // Phase 9.1.1 value, unchanged (moved from TransparencySettings in 17.19.2)
 }

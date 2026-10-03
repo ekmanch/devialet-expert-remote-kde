@@ -120,7 +120,7 @@ ColumnLayout {
         // Phase 17.19.0: light-theme card shadow (hidden in dark).
         CardShadow { colors: sourceSelector.colors; radius: parent.radius }
         border.width: 1
-        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.divider
+        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.controlBorder
 
         RowLayout {
             anchors.left: parent.left
@@ -142,11 +142,12 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: 24
                 Layout.preferredHeight: 24
-                SourceGlyph {
+                // Phase 17.21.0: gold gradient + warm shadow in light.
+                ThemedSourceGlyph {
                     anchors.centerIn: parent
+                    colors: sourceSelector.colors
                     sourceName: sourceSelector.ampIp === "" ? "" : sourceSelector.displayName
                     size: 20
-                    color: sourceSelector.colors.copperBright
                 }
             }
 
@@ -161,6 +162,8 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: "SOURCE"
                     font.family: sourceSelector.theme.fontMono
+                    // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                    font.weight: sourceSelector.colors.isLight ? Font.Medium : Font.Normal
                     font.pixelSize: 10
                     font.letterSpacing: 1
                     color: sourceSelector.colors.textFaint

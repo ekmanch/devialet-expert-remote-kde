@@ -146,8 +146,28 @@ ColumnLayout {
                 font.family: volumeBlock.theme.fontMono
                 font.weight: Font.Medium
                 font.pixelSize: 26
-                color: volumeBlock.colors.copperBright
+                // Phase 17.20.0: in light the Label only holds the layout
+                // (transparent text) and the gold gradient + glow is
+                // painted over it, so the row's geometry is the same in
+                // both themes.
+                color: volumeBlock.colors.isLight ? "transparent" : volumeBlock.colors.copperBright
                 wrapMode: Text.NoWrap
+
+                Loader {
+                    anchors.fill: parent
+                    active: volumeBlock.colors.isLight
+                    sourceComponent: GradientText {
+                        text: dbValueLabel.text
+                        font: dbValueLabel.font
+                        startColor: volumeBlock.colors.readoutGradientStart
+                        endColor: volumeBlock.colors.readoutGradientEnd
+                        glow: true
+                        // The token carries the CSS alpha; MultiEffect
+                        // takes colour and opacity separately.
+                        glowColor: Qt.rgba(volumeBlock.colors.readoutGlow.r, volumeBlock.colors.readoutGlow.g, volumeBlock.colors.readoutGlow.b, 1)
+                        glowOpacity: volumeBlock.colors.readoutGlow.a
+                    }
+                }
             }
             Label {
                 id: dbUnitLabel
@@ -180,7 +200,7 @@ ColumnLayout {
             // Phase 17.19.0: light-theme card shadow (hidden in dark).
             CardShadow { colors: volumeBlock.colors; radius: parent.radius }
             border.width: 1
-            border.color: volumeBlock.colors.divider
+            border.color: volumeBlock.colors.chipBorder
             implicitWidth: sourceChipLabel.implicitWidth + 18
             implicitHeight: sourceChipLabel.implicitHeight + 6
 
@@ -192,6 +212,8 @@ ColumnLayout {
                 horizontalAlignment: Text.AlignHCenter
                 text: volumeBlock.activeSourceName !== "" ? volumeBlock.activeSourceName : "—"
                 font.family: volumeBlock.theme.fontMono
+                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                font.weight: volumeBlock.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
                 color: volumeBlock.colors.textFaint
                 wrapMode: Text.NoWrap
@@ -227,7 +249,7 @@ ColumnLayout {
                 // Phase 17.19.0: light-theme card shadow (hidden in dark).
                 CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder
             }
             contentItem: Label {
                 text: parent.text
@@ -381,7 +403,7 @@ ColumnLayout {
                 // Phase 17.19.0: light-theme card shadow (hidden in dark).
                 CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder
             }
             contentItem: Label {
                 text: parent.text

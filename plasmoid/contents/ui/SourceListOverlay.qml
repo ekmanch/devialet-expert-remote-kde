@@ -56,18 +56,22 @@ Popup {
     x: 0
     width: parent ? parent.width : 0
 
-    // Opens upward: card bottom `gap` px above the row's top edge. The
-    // mockup pins `bottom:72px` from the flyout's bottom, which lands the
-    // card just above the row; 6px is the closest clean reading (verify
-    // live - assumption, not a measured mockup value).
-    readonly property int gap: 6
-    y: -overlay.height - overlay.gap
+    // Opens upward, its bottom edge over the row's top part. Phase 17.21.1:
+    // the mockup pins the card `bottom:66px` above the flyout's bottom and
+    // caps it at 264 px so six sources fit without a scrollbar (flyout
+    // mockup v22 :446). Measured on the live flyout (harness coords,
+    // 2026-10-03): the row's top is 99 px above the flyout's bottom (y 231
+    // of 330), so the card covers the row's top 33 px. Before, the card
+    // stopped 6 px above the row, which left 217 px for a list that needs
+    // 244 (6 x 36 + 5 x 4 + 2 x 4).
+    readonly property int rowOverlap: 33
+    y: -overlay.height + overlay.rowOverlap
 
     // `.source-option{margin:4px}` - CSS vertical margins collapse between
     // siblings, so rows are 4px apart and 4px in from the card edge.
     padding: 4
     readonly property int rowSpacing: 4
-    readonly property int maxListHeight: 252
+    readonly property int maxListHeight: 264
 
     // The row's top edge in window coordinates, as a LIVE binding (QML
     // tracks every `y`/`parent` read in the loop - same technique as
@@ -83,7 +87,7 @@ Popup {
         }
         return y;
     }
-    readonly property real spaceAbove: overlay.rowTopInWindow - overlay.gap - 8
+    readonly property real spaceAbove: overlay.rowTopInWindow + overlay.rowOverlap - 8
 
     height: Math.max(
         2 * overlay.padding + 36,
@@ -195,11 +199,13 @@ Popup {
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
-                            SourceGlyph {
+                            // Phase 17.21.0: gold gradient + warm
+                            // shadow in light.
+                            ThemedSourceGlyph {
                                 anchors.centerIn: parent
+                                colors: overlay.colors
                                 sourceName: sourceOption.modelData.name
                                 size: 17
-                                color: overlay.colors.copperBright
                             }
                         }
 

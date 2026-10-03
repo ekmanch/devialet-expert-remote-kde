@@ -84,7 +84,24 @@ Rectangle {
             width: 10
             height: 10
             radius: 5
-            color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.colors.warningBright : (ampHeaderBg.online ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint))
+            // Lifted 1 px (2 px bottom margin on a vertically centred item)
+            // so the disc is centred on the amp name's capital height:
+            // centred on the three-line block it sat 1 px below that and
+            // its bottom edge 1 px under the name's baseline (2x capture
+            // 20261003-143540: disc rows 62-81, "D" rows 60-79). Same
+            // correction as Footer.qml's dot.
+            Layout.bottomMargin: 2
+            // Phase 17.21.0: in light the connected dot is the gold sphere
+            // (flyout mockup v22 :143-147); booting, not responding and
+            // the no-amp ring stay flat.
+            readonly property bool gold: ampHeaderBg.colors.isLight && ampHeaderBg.ampIp !== "" && ampHeaderBg.powerState !== "Booting" && ampHeaderBg.online
+            color: ampHeaderBg.ampIp === "" || ampDot.gold ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.colors.warningBright : (ampHeaderBg.online ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint))
+            Loader {
+                anchors.centerIn: parent
+                active: ampHeaderBg.colors.isLight
+                visible: ampDot.gold
+                sourceComponent: GoldSphere { diameter: 10 }
+            }
             border.width: ampHeaderBg.ampIp === "" ? 1.5 : 0
             border.color: ampHeaderBg.colors.textFaint
             property real pulseOpacity: 1.0
@@ -102,16 +119,34 @@ Rectangle {
             spacing: 2
 
             Label {
+                id: ampEyebrow
                 objectName: "ampEyebrow"
                 Layout.fillWidth: true
                 text: "DEVIALET"
                 font.family: ampHeaderBg.theme.fontMono
+                // Phase 17.20.0: semibold gold wordmark in light (flyout
+                // mockup v22 :117-120); the Label holds the layout and the
+                // gradient is painted over the word itself (contentWidth,
+                // the mockup's `width:fit-content`).
+                font.weight: ampHeaderBg.colors.isLight ? Font.DemiBold : Font.Normal
                 font.pixelSize: 10
                 font.letterSpacing: 1.2
-                color: ampHeaderBg.colors.textFaint
+                color: ampHeaderBg.colors.isLight ? "transparent" : ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
+
+                Loader {
+                    width: ampEyebrow.contentWidth
+                    height: ampEyebrow.height
+                    active: ampHeaderBg.colors.isLight
+                    sourceComponent: GradientText {
+                        text: ampEyebrow.text
+                        font: ampEyebrow.font
+                        startColor: ampHeaderBg.colors.eyebrowGradientStart
+                        endColor: ampHeaderBg.colors.eyebrowGradientEnd
+                    }
+                }
             }
 
             Label {
@@ -132,6 +167,8 @@ Rectangle {
                 Layout.fillWidth: true
                 text: ampHeaderBg.headerSub
                 font.family: ampHeaderBg.theme.fontMono
+                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                font.weight: ampHeaderBg.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
                 color: ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap

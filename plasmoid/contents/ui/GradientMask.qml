@@ -1,5 +1,6 @@
 // Promoted from tools/spike-gradient-rendering/ (Phase 17.0.2) in Phase
-// 17.19.0 alongside GoldSphere; used from 17.20.0/17.21.0, unchanged apart from this header.
+// 17.19.0 alongside GoldSphere; used from 17.20.0/17.21.0 (which set the
+// mask's edge handling, see maskThreshold below).
 //
 // Spike (spike/gradient-rendering): paint a gradient through the alpha of
 // another item. This is the one mechanism the light theme needs for
@@ -55,6 +56,33 @@ Item {
     // padded area (spike sheet 1), so two stages is the default.
     property bool twoStage: true
 
+    // Phase 17.20.0: MultiEffect's defaults (threshold 0, spread 0) cut the
+    // mask hard - every pixel with any coverage becomes fully opaque, so
+    // text and glyph strokes came out about a device pixel fatter per side
+    // and jagged in the real flyout (harness runs 20261003-141153 and
+    // -141717). Threshold 0.5 with spread 1 maps the mask's alpha
+    // linearly, which keeps its antialiased edges.
+    readonly property real maskThreshold: 0.5
+    readonly property real maskSpread: 1.0
+
+    // Phase 17.20.0 fix (2026-10-03): a MultiEffect with a shadow keeps its
+    // padded shadow geometry from the size it was created at. When this
+    // item is resized afterwards (the readout's "—" placeholder becoming
+    // "-25.0" once the amp answers, or the value changing length), the
+    // shadow stage painted the old texture stretched over the new size -
+    // a long dash and a skewed fragment instead of digits. Reproduced in a
+    // standalone driver; the mask stage alone resizes correctly. Switching
+    // the shadow off and on again after a resize rebuilds it.
+    property bool shadowRefreshing: false
+    function refreshShadow() { root.shadowRefreshing = false; }
+    function sizeChanged() {
+        if (!root.shadowEnabled) return;
+        root.shadowRefreshing = true;
+        Qt.callLater(root.refreshShadow);
+    }
+    onWidthChanged: root.sizeChanged()
+    onHeightChanged: root.sizeChanged()
+
     // ---- gradient painters (hidden; only sampled by the effects) ----
     Rectangle {
         id: linearPaint
@@ -100,6 +128,8 @@ Item {
         source: root.radial ? radialPaint : linearPaint
         maskEnabled: true
         maskSource: root.maskSource
+        maskThresholdMin: root.maskThreshold
+        maskSpreadAtMin: root.maskSpread
         shadowEnabled: root.shadowEnabled
         shadowColor: root.shadowColor
         shadowOpacity: root.shadowOpacity
@@ -119,6 +149,8 @@ Item {
         source: root.radial ? radialPaint : linearPaint
         maskEnabled: true
         maskSource: root.maskSource
+        maskThresholdMin: root.maskThreshold
+        maskSpreadAtMin: root.maskSpread
         layer.enabled: root.twoStage
     }
     MultiEffect {
@@ -126,7 +158,7 @@ Item {
         anchors.fill: parent
         visible: root.twoStage
         source: masked
-        shadowEnabled: root.shadowEnabled
+        shadowEnabled: root.shadowEnabled && !root.shadowRefreshing
         shadowColor: root.shadowColor
         shadowOpacity: root.shadowOpacity
         shadowBlur: root.shadowBlur

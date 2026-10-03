@@ -108,5 +108,30 @@
   "key": "CardShadow\\[0\\]/QQuickLoader\\[0\\]/",
   "dim": "theme",
   "note": "Phase 17.19.0: CardShadow builds its masked shadow (Loader -> shadow layer, hole mask, MultiEffect and its internal sources) only while the light theme shows it, so that subtree appears on dark -> light flips."
+ },
+ {
+  "key": "QQuickLoader\\[0\\]/(GradientText|GoldSphere)\\[0\\]",
+  "dim": "theme",
+  "note": "Phase 17.20.0/17.21.0: the light-only gold text (readout, DEVIALET wordmark) and gold status dots (header, footer, amp list) are built by a Loader that is active only in light, so the GradientText/GoldSphere subtree appears on dark -> light flips. The Label/Rectangle that holds each one keeps its geometry."
+ },
+ {
+  "key": "ThemedSourceGlyph\\[0\\]/",
+  "dim": "theme",
+  "note": "Phase 17.21.0: ThemedSourceGlyph shows its flat SourceGlyph in dark and builds the gold GradientMask (Loader) in light, so its children swap on a theme flip. The 24/20 px slot that holds it does not move."
+ },
+ {
+  "key": "VolumeBlock\\[0\\]/QQuickRowLayout\\[0\\]/QQuickRowLayout\\[0\\]/Label\\[0\\]/QQuickLoader\\[0\\]",
+  "dim": "vol",
+  "note": "Phase 17.20.0: the readout's gradient overlay (Loader, empty in dark) fills dbValueLabel, so it resizes with the label exactly as the dbValueLabel rule above allows (text length)."
+ },
+ {
+  "key": "VolumeBlock\\[0\\]/QQuickRowLayout\\[0\\]/QQuickRowLayout\\[0\\]/Label\\[0\\]/QQuickLoader\\[0\\]",
+  "dim": "amp",
+  "note": "Phase 17.20.0: same overlay, resizing with dbValueLabel's placeholder width when amp collapses to not-connected."
+ },
+ {
+  "key": "Footer\\[0\\]/QQuickRectangle\\[0\\]/QQuickLoader\\[0\\]",
+  "dim": "amp",
+  "note": "Phase 17.21.0: the footer dot's gold-sphere Loader is a child of footerDot and recentres with the footer row as the footer rule above allows (status text length)."
  }
 ]

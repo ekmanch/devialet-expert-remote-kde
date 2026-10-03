@@ -216,13 +216,24 @@ Popup {
                         spacing: 9
 
                         Rectangle {
+                            id: ampOptionDot
                             Layout.alignment: Qt.AlignVCenter
                             // Phase 17.6.0: 7 -> 10 px (flyout mockup v2
                             // :141, `.amp-option-dot`).
                             width: 10
                             height: 10
                             radius: 5
-                            color: ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint
+                            // Phase 17.21.0: the connected amp's dot is the
+                            // gold sphere in light (flyout mockup v22
+                            // :144-146).
+                            readonly property bool gold: overlay.colors.isLight && ampOption.isCurrent
+                            color: ampOptionDot.gold ? "transparent" : (ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint)
+                            Loader {
+                                anchors.centerIn: parent
+                                active: overlay.colors.isLight
+                                visible: ampOptionDot.gold
+                                sourceComponent: GoldSphere { diameter: 10 }
+                            }
                             opacity: ampOption.modelData.online ? 1.0 : 0.5
                         }
 

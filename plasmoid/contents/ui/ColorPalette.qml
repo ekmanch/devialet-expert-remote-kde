@@ -74,6 +74,25 @@ QtObject {
     // transparent in dark, which has no control shadows.
     required property color cardShadow
 
+    // ---- Phase 17.19.3: resting borders of controls (flyout mockup v22) ----
+    // Mute, power, -/+ and the source row (`--btn-border`). Dark: same
+    // value as `divider`.
+    required property color controlBorder
+    // The source chip, drawn stronger in light (v22 :158). Dark: same value
+    // as `divider`.
+    required property color chipBorder
+
+    // ---- Phase 17.20.0: light-theme gradient text (GradientText.qml) ----
+    // Left -> right sweep of the volume readout and of the "DEVIALET"
+    // wordmark, and the readout's glow. Light only; dark paints these texts
+    // flat (copperBright / textFaint) and carries the flat colour in both
+    // stops.
+    required property color readoutGradientStart
+    required property color readoutGradientEnd
+    required property color readoutGlow
+    required property color eyebrowGradientStart
+    required property color eyebrowGradientEnd
+
     // ---- Phase 17.19.2: control alpha, per palette ----
     // Phase 9.1.1 REVISION 4 (moved here from TransparencySettings.qml in
     // Phase 17.19.2; "controlAlpha" below is this palette's controlAlphaK):

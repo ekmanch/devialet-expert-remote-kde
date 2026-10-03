@@ -62,19 +62,45 @@ RowLayout {
     Layout.alignment: Qt.AlignHCenter
 
     Rectangle {
+        id: footerDot
         objectName: "footerDot"
         Layout.alignment: Qt.AlignVCenter
-        width: 5
-        height: 5
-        radius: 2.5
-        color: footer.online ? footer.colors.copperBright : footer.colors.textFaint
+        // Phase 17.21.0: 5 -> 7 px and the gap to the label 10 -> 8 px in
+        // both themes (flyout mockup v22 :466-472, the header's dot-to-text
+        // proportion); in light the connected dot is the gold sphere with
+        // the header dot's shadow scaled down (:474-476).
+        width: 7
+        height: 7
+        radius: 3.5
+        // Centred on the label's capital height, not on its 14 px line box
+        // (which includes the descender space): measured on the 2x capture
+        // 20261003-141949, the box-centred disc sat 0.75 px below the
+        // centre of "Connected" and shared its baseline, and the light
+        // sphere's shadow below it made it read lower still. A 2 px bottom
+        // margin lifts the vertically centred dot by 1 px.
+        Layout.bottomMargin: 2
+        readonly property bool gold: footer.colors.isLight && footer.online
+        color: footerDot.gold ? "transparent" : (footer.online ? footer.colors.copperBright : footer.colors.textFaint)
+        Loader {
+            anchors.centerIn: parent
+            active: footer.colors.isLight
+            visible: footerDot.gold
+            sourceComponent: GoldSphere {
+                diameter: 7
+                shadowVerticalOffset: 1.5
+                shadowBlur: 0.25
+            }
+        }
     }
 
     Label {
         objectName: "footerLabel"
-        Layout.leftMargin: 5
+        // 3 + the row's 5 px spacing = the 8 px gap.
+        Layout.leftMargin: 3
         text: footer.ampIp === "" ? "Not connected" : (footer.online ? "Connected" : "Not responding")
         font.family: footer.theme.fontMono
+        // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+        font.weight: footer.colors.isLight ? Font.Medium : Font.Normal
         font.pixelSize: 10
         color: footer.colors.textFaint
         wrapMode: Text.NoWrap
