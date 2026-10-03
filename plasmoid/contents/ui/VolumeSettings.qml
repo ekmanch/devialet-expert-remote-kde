@@ -48,6 +48,20 @@ QtObject {
     // path. Read live by both maybeChime()s - when false they return
     // before building a command, so devialet-chime is never spawned.
     required property bool chimeEnabled
+
+    // Wheel step spacing (2026-09-29): both wheel surfaces (panel icon,
+    // flyout slider) turn notches into volume steps at most this often,
+    // spaced evenly by WheelStepPacer.qml (see its header for why pacing
+    // replaced dropping). Every step spawns a devialet-ctl and a
+    // devialet-chime process and makes a D-Bus call from plasmashell's UI
+    // thread; unlimited, a free-spinning wheel delivered up to ~300
+    // notches/s, which backed the thread up for 2-10 s (widget frozen, then
+    // the backlog replayed at once - floor to ceiling in 30 ms, dozens of
+    // chimes together). Measured before and after the OSD-echo fix: same
+    // freeze, so it was this flood. Started at 40 ms (the MPV scroll
+    // script's min_interval_ms); the owner found that slow, then kept 25 ms,
+    // then moved to 20 ms (50 steps/s). A constant, not a setting.
+    readonly property int wheelStepMinIntervalMs: 20
     // Phase 10.1.3: the chime's sound source (main.xml chimeSourceMode /
     // chimePinnedTheme / chimeSoundFile) plus the pinned theme's resolved
     // file, all bound in main.qml. Paths are RAW here; quoting for the
@@ -78,6 +92,33 @@ QtObject {
         const path = root.chimeSourceMode === "theme" ? root.chimePinnedThemePath : root.chimeSoundFile;
         if (path === "") return null;
         return " --file " + root.soundThemes.shellQuote(path);
+    }
+
+    // devialet-chime's arguments: only `--tick k`, so the set of distinct
+    // command strings is fixed at chimeSlots (x the rarely changing --file
+    // suffix) for the life of the shell (2026-09-29). Every command the
+    // executable engine finishes makes Plasma5Support clear that source
+    // name in the `data` map of EVERY executable DataSource in plasmashell;
+    // QQmlPropertyMap::clear() creates the key where it is missing and a
+    // map can never drop a key, so each never-seen name adds a property to
+    // every such map and rebuilds its whole metaobject (stack samples:
+    // DataContainer::becameUnused -> DataEngine::removeSource ->
+    // QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject in 69 of
+    // 77 busy samples). The old ever-increasing --tick made every chime
+    // name new: plasmashell's UI thread ended up ~95% busy after a few
+    // minutes of scrolling. Passing the dB values (even as a bounded delta,
+    // commit 57073de) still left up to 1,296 names, 437 of them reached in
+    // one 6-minute session, so the binary now reads target (VolumeDb) and
+    // confirmed (VolumeRaw) from the daemon itself in one GetAll
+    // (crates/devialet-chime/src/daemon.rs).
+    //
+    // --tick only has to differ between chimes running at the same time:
+    // measured at most 9 at once (170 ms median, 208 ms max each, one per
+    // wheelStepMinIntervalMs); the longest chime seen all day (259 ms) / 20 ms
+    // needs >= 14, hence 16.
+    readonly property int chimeSlots: 16
+    function chimeArguments(tick) {
+        return " --tick " + (tick % root.chimeSlots);
     }
 
     // Reads floorDb/hardLimitDb live on every call (never a cached local),

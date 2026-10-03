@@ -65,6 +65,8 @@ GridLayout {
     objectName: "actionRow"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     required property bool muted
     required property bool power
@@ -86,43 +88,24 @@ GridLayout {
     // last-known Mute/Unmute text, only dimmed.
     readonly property bool muteInteractive: actionRow.ampIp !== "" && actionRow.powerState === "On"
 
-    // 2026-09-12 follow-up (owner request): a fixed, unequal split with
-    // equal worst-case margins. Two plain fillWidth columns shared the
-    // row in proportion to each Button's content width, so "Unmute"
-    // grew the mute button by 14 px on every toggle; pinning both to
-    // the same preferredWidth (the mockup's `1fr 1fr`) stopped the
-    // motion but left "Powering on…" nearly touching its borders while
-    // "Unmute" sat in ~33 px of air per side. So: measure each button's
-    // widest content (icon + gap + widest label, in the labels' own
-    // font via TextMetrics, not hardcoded pixel counts), give both
-    // buttons the same margin around that worst case, and split what
-    // the row has accordingly. Static - the widths never follow the
-    // current label. actionRow.width comes from mainColumn, anchored to
-    // FlyoutContent's constant-width root, so deriving preferredWidth
-    // from it can't loop back into the flyout's own implicit width.
-    // Measured live (harness run 20260912-130939, all mute x pow
-    // states): content 63 / 106 px, row 260 px -> buttons 108 / 152 px
-    // in every state, worst-case margins 22-23 px per side on both
-    // ("Unmute" 23/22, "Powering on…" 23/23).
-    TextMetrics {
-        id: muteWorstCase
-        font: muteLabel.font
-        text: "Unmute"
-    }
-    TextMetrics {
-        id: powerWorstCase
-        font: powerLabel.font
-        text: "Powering on…"
-    }
-    readonly property real iconAndGap: 13 + muteContentRow.spacing
-    readonly property real muteContentMax: actionRow.iconAndGap + muteWorstCase.advanceWidth
-    readonly property real powerContentMax: actionRow.iconAndGap + powerWorstCase.advanceWidth
+    // Phase 17.4.0: a fixed 11:14 split (flyout mockup v2 :403-408,
+    // `grid-template-columns: 11fr 14fr`): never content-sized, so nothing
+    // moves when a label changes (Mute/Unmute, Power Off/Power On/
+    // Powering on…), and Power gets the larger share so "Powering on…"
+    // plus its spinner has room. Replaces the 2026-09-12 split (Phase
+    // 12.0.0), which measured each button's widest content with
+    // TextMetrics and gave both equal worst-case margins (108 / 152 px);
+    // the mockup now fixes the ratio instead. actionRow.width comes from
+    // mainColumn, anchored to FlyoutContent's constant-width root, so
+    // deriving preferredWidth from it can't loop back into the flyout's
+    // own implicit width. At the 300 px panel: row 268 px (16 px side
+    // margins), minus the 8 px column spacing = 260 px -> 114 / 146 px
+    // (the mockup's 259.5 px -> 114.2 / 145.3).
     readonly property real buttonsAvailable: actionRow.width - actionRow.columnSpacing
-    readonly property real equalMargin: Math.max(0, (actionRow.buttonsAvailable - actionRow.muteContentMax - actionRow.powerContentMax) / 4)
     // Whole pixels: the mute button rounds, the power button takes the
     // exact remainder so the two always sum to the row (no sub-pixel
     // borders on either).
-    readonly property int muteButtonWidth: Math.round(actionRow.muteContentMax + 2 * actionRow.equalMargin)
+    readonly property int muteButtonWidth: Math.round(actionRow.buttonsAvailable * 11 / 25)
     readonly property int powerButtonWidth: actionRow.buttonsAvailable - actionRow.muteButtonWidth
 
     Layout.fillWidth: true
@@ -157,10 +140,12 @@ GridLayout {
         background: Rectangle {
             radius: actionRow.theme.radiusMd
             color: actionRow.muted
-                ? Qt.rgba(actionRow.theme.copper.r, actionRow.theme.copper.g, actionRow.theme.copper.b, 0.14)
-                : actionRow.transparencySettings.withControlAlpha(actionRow.theme.surface)
+                ? actionRow.colors.activeFill
+                : actionRow.colors.controlColor(actionRow.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: actionRow.colors; radius: parent.radius; visible: actionRow.colors.isLight && !actionRow.muted }
             border.width: 1
-            border.color: actionRow.muted ? actionRow.theme.copperDim : (parent.hovered ? actionRow.theme.copperDim : actionRow.theme.divider)
+            border.color: actionRow.muted ? actionRow.colors.copperDim : (parent.hovered ? actionRow.colors.copperDim : actionRow.colors.controlBorder)
         }
         contentItem: RowLayout {
             id: muteContentRow
@@ -187,24 +172,20 @@ GridLayout {
                 Layout.alignment: Qt.AlignVCenter
                 implicitWidth: 13
                 implicitHeight: 13
-                // 2026-09-12 (flyout mockup v11 -> v12): the glyph follows
-                // the mute state like the mockup's muteIconOn/muteIconOff
-                // swap - a speaker with a sound wave while audible, the
-                // theme's muted speaker while muted (v11 drew the
-                // muted-speaker glyph in both states). Theme icon names,
-                // not the mockup's Lucide paths, like every other icon in
-                // this flyout (system-shutdown-symbolic beside it). Why
-                // "medium" and not "low" for the mockup's single-wave
-                // glyph: measured under Tela (the dev machine's theme) at
-                // this 13 px size, low draws both arcs at 35% opacity so
-                // it reads as a bare speaker, while medium is one solid
-                // arc plus a faint outer one - the mockup's look. Breeze
-                // uses the same convention (low: both arcs at 35%,
-                // medium: one solid, one faint), so the choice holds
-                // there too. The icon stays 13x13 in both states, so
-                // muteContentRow's measured height pin below is unaffected.
-                source: actionRow.muted ? "audio-volume-muted-symbolic" : "audio-volume-medium-symbolic"
-                color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
+                // Phase 17.3.0 (owner decision D7): the button shows the
+                // ACTION a click performs, like its label - while audible,
+                // "Mute" with the muted speaker (X); while muted, "Unmute"
+                // with the speaker and waves (flyout mockup v2 :565-566,
+                // toggleMute()). The OSD is not interactive and keeps
+                // showing the STATE instead (VolumeToast.qml). Bundled SVGs
+                // since 17.2.0 (Theme.volumeIconSources, the v2 mockup's
+                // filled speaker): identical under every icon theme and a
+                // mask source for the light theme's gold glyph. isMask so
+                // `color` paints it. 13x13 in both states, so
+                // muteContentRow's height pin is unaffected.
+                source: actionRow.theme.volumeIconSources[actionRow.muted ? "high" : "mute"]
+                isMask: true
+                color: actionRow.muted ? actionRow.colors.copperBright : actionRow.colors.text
             }
             Label {
                 id: muteLabel
@@ -213,7 +194,7 @@ GridLayout {
                 text: actionRow.muted ? "Unmute" : "Mute"
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
-                color: actionRow.muted ? actionRow.theme.copperBright : actionRow.theme.text
+                color: actionRow.muted ? actionRow.colors.copperBright : actionRow.colors.text
                 wrapMode: Text.NoWrap
             }
             Item { Layout.fillWidth: true }
@@ -240,15 +221,17 @@ GridLayout {
         // TransparencySettings.qml's controlAlpha comment.
         background: Rectangle {
             radius: actionRow.theme.radiusMd
-            color: actionRow.transparencySettings.withControlAlpha(actionRow.theme.surface)
+            color: actionRow.colors.controlColor(actionRow.transparencySettings)
+            // Phase 17.19.0: light-theme card shadow (hidden in dark).
+            CardShadow { colors: actionRow.colors; radius: parent.radius }
             border.width: 1
             // Booting takes priority over the hover colors below it,
             // which stay completely untouched - the mockup's
             // .state-booting rule isn't a :hover variant, it applies
             // unconditionally while booting.
             border.color: actionRow.powerState === "Booting"
-                ? actionRow.theme.warning
-                : (powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.success) : actionRow.theme.divider)
+                ? actionRow.colors.warning
+                : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.success) : actionRow.colors.controlBorder)
         }
         contentItem: RowLayout {
             id: powerContentRow
@@ -274,7 +257,7 @@ GridLayout {
                 implicitWidth: 13
                 implicitHeight: 13
                 source: "system-shutdown-symbolic"
-                color: powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.successBright) : actionRow.theme.text
+                color: powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.successBright) : actionRow.colors.text
                 visible: actionRow.powerState !== "Booting"
             }
 
@@ -296,7 +279,7 @@ GridLayout {
                     radius: width / 2
                     color: "transparent"
                     border.width: 2
-                    border.color: Qt.rgba(actionRow.theme.warningBright.r, actionRow.theme.warningBright.g, actionRow.theme.warningBright.b, 0.25)
+                    border.color: Qt.rgba(actionRow.colors.warningBright.r, actionRow.colors.warningBright.g, actionRow.colors.warningBright.b, 0.25)
                 }
 
                 Shape {
@@ -311,7 +294,7 @@ GridLayout {
                     }
                     ShapePath {
                         strokeWidth: 2
-                        strokeColor: actionRow.theme.warningBright
+                        strokeColor: actionRow.colors.warningBright
                         fillColor: "transparent"
                         capStyle: ShapePath.RoundCap
                         PathAngleArc {
@@ -334,8 +317,8 @@ GridLayout {
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
                 color: actionRow.powerState === "Booting"
-                    ? actionRow.theme.warningBright
-                    : (powerButton.hovered ? (actionRow.power ? actionRow.theme.danger : actionRow.theme.successBright) : actionRow.theme.text)
+                    ? actionRow.colors.warningBright
+                    : (powerButton.hovered ? (actionRow.power ? actionRow.colors.danger : actionRow.colors.successBright) : actionRow.colors.text)
                 wrapMode: Text.NoWrap
             }
             Item { Layout.fillWidth: true }

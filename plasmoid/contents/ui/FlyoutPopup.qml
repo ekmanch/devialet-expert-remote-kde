@@ -116,6 +116,8 @@ PlasmaCore.Dialog {
     // transparency alpha (Phase 9.1.0, see TransparencySettings.qml's
     // header comment).
     required property TransparencySettings transparencySettings
+    // Phase 17.12.0: forwarded to FlyoutContent.
+    required property ThemeSettings themeSettings
 
     // Window-derived types default to visible:true in QML; without an
     // explicit initial value this popup auto-opens on plasmashell startup
@@ -281,6 +283,7 @@ PlasmaCore.Dialog {
             pendingAmpState: flyoutPopup.pendingAmpState
             volumeSettings: flyoutPopup.volumeSettings
             transparencySettings: flyoutPopup.transparencySettings
+            themeSettings: flyoutPopup.themeSettings
             popupVisible: flyoutPopup.visible
         }
     }

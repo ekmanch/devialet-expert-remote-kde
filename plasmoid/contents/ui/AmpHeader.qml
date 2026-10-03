@@ -30,6 +30,8 @@ Rectangle {
     objectName: "ampHeader"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     required property string headerName
     required property string headerSub
@@ -51,7 +53,7 @@ Rectangle {
     readonly property int rowHeight: 46
     Layout.fillWidth: true
     implicitHeight: ampHeaderBg.rowHeight + 26
-    color: ampHeaderArea.containsMouse ? Qt.rgba(1, 1, 1, 0.02) : "transparent"
+    color: ampHeaderArea.containsMouse ? ampHeaderBg.colors.headerHover : "transparent"
     // Phase 7.14.0 follow-up: this hover fill is the only thing painted
     // into the flyout's top corners besides FlyoutContent's tint
     // Rectangle, so its top corners follow the flyout's own 16px radius
@@ -74,12 +76,34 @@ Rectangle {
             id: ampDot
             objectName: "ampDot"
             Layout.alignment: Qt.AlignVCenter
-            width: 8
-            height: 8
-            radius: 4
-            color: ampHeaderBg.ampIp === "" ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.theme.warningBright : (ampHeaderBg.online ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint))
+            // Phase 17.6.0: 8 -> 12 px per the mockup (flyout v2 :140),
+            // then 10 px on the owner's live review (2026-09-27): a solid
+            // disc reads heavier than the outlined 20 px source glyphs, so
+            // 12 looked too big. 10 matches the amp list's dots. Colours,
+            // the no-amp hollow ring and the booting pulse unchanged.
+            width: 10
+            height: 10
+            radius: 5
+            // Lifted 1 px (2 px bottom margin on a vertically centred item)
+            // so the disc is centred on the amp name's capital height:
+            // centred on the three-line block it sat 1 px below that and
+            // its bottom edge 1 px under the name's baseline (2x capture
+            // 20261003-143540: disc rows 62-81, "D" rows 60-79). Same
+            // correction as Footer.qml's dot.
+            Layout.bottomMargin: 2
+            // Phase 17.21.0: in light the connected dot is the gold sphere
+            // (flyout mockup v22 :143-147); booting, not responding and
+            // the no-amp ring stay flat.
+            readonly property bool gold: ampHeaderBg.colors.isLight && ampHeaderBg.ampIp !== "" && ampHeaderBg.powerState !== "Booting" && ampHeaderBg.online
+            color: ampHeaderBg.ampIp === "" || ampDot.gold ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.colors.warningBright : (ampHeaderBg.online ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint))
+            Loader {
+                anchors.centerIn: parent
+                active: ampHeaderBg.colors.isLight
+                visible: ampDot.gold
+                sourceComponent: GoldSphere { diameter: 10 }
+            }
             border.width: ampHeaderBg.ampIp === "" ? 1.5 : 0
-            border.color: ampHeaderBg.theme.textFaint
+            border.color: ampHeaderBg.colors.textFaint
             property real pulseOpacity: 1.0
             opacity: ampHeaderBg.powerState === "Booting" ? ampDot.pulseOpacity : (ampHeaderBg.online && !ampHeaderBg.power ? 0.3 : 1.0)
             SequentialAnimation on pulseOpacity {
@@ -95,16 +119,34 @@ Rectangle {
             spacing: 2
 
             Label {
+                id: ampEyebrow
                 objectName: "ampEyebrow"
                 Layout.fillWidth: true
                 text: "DEVIALET"
                 font.family: ampHeaderBg.theme.fontMono
+                // Phase 17.20.0: semibold gold wordmark in light (flyout
+                // mockup v22 :117-120); the Label holds the layout and the
+                // gradient is painted over the word itself (contentWidth,
+                // the mockup's `width:fit-content`).
+                font.weight: ampHeaderBg.colors.isLight ? Font.DemiBold : Font.Normal
                 font.pixelSize: 10
                 font.letterSpacing: 1.2
-                color: ampHeaderBg.theme.textFaint
+                color: ampHeaderBg.colors.isLight ? "transparent" : ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
+
+                Loader {
+                    width: ampEyebrow.contentWidth
+                    height: ampEyebrow.height
+                    active: ampHeaderBg.colors.isLight
+                    sourceComponent: GradientText {
+                        text: ampEyebrow.text
+                        font: ampEyebrow.font
+                        startColor: ampHeaderBg.colors.eyebrowGradientStart
+                        endColor: ampHeaderBg.colors.eyebrowGradientEnd
+                    }
+                }
             }
 
             Label {
@@ -114,7 +156,7 @@ Rectangle {
                 font.family: ampHeaderBg.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: ampHeaderBg.theme.text
+                color: ampHeaderBg.colors.text
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -125,8 +167,10 @@ Rectangle {
                 Layout.fillWidth: true
                 text: ampHeaderBg.headerSub
                 font.family: ampHeaderBg.theme.fontMono
+                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                font.weight: ampHeaderBg.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
-                color: ampHeaderBg.theme.textFaint
+                color: ampHeaderBg.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -139,7 +183,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             text: "⌄"
             font.pixelSize: 11
-            color: ampHeaderBg.listOpen ? ampHeaderBg.theme.copperBright : ampHeaderBg.theme.textFaint
+            color: ampHeaderBg.listOpen ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint
             rotation: ampHeaderBg.listOpen ? 180 : 0
             Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         }
@@ -153,7 +197,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: ampHeaderBg.theme.divider
+        color: ampHeaderBg.colors.divider
     }
 
     MouseArea {

@@ -18,7 +18,8 @@ Control your Devialet Expert Pro amplifier from your Plasma panel — volume, so
 - **Volume feedback chime** — an optional short tone on every scroll tick, taken from your desktop's sound theme, a theme of your choice, or a custom file.
 - **Panel tooltip and volume OSD** — hover the icon for the current amp, source and level; adjustments show a brief on-screen confirmation.
 - **Configurable limits** — a slider floor, an absolute volume ceiling the amplifier is never sent past, a scroll step of 0.5, 1 or 2 dB, and a startup volume.
-- **Adjustable transparency** for the flyout, tooltip and OSD.
+- **Dark and light themes** — pick Dark or Light for the flyout, tooltip and OSD, or let them follow your desktop's color scheme. The settings page follows the desktop scheme by itself.
+- **Adjustable transparency** for the flyout.
 - **Multi-amp aware** — every Expert Pro broadcasting on your network is discovered automatically; pick the one to control from the flyout header.
 - **Launch at login** — the background daemon runs as a `systemd --user` service, toggled straight from the settings page.
 
@@ -46,7 +47,7 @@ The widget is a normal panel applet: drag it onto any panel via **Add Widgets**,
   <img src="docs/media/screenshots/ConfigDialog.png" alt="The settings window" width="640">
 </p>
 
-*Every setting lives on one page: scroll step, startup and limit volumes, chime sound, transparency, and launch at login. Open it from the gear in the flyout.*
+*Every setting lives on one page: theme, transparency, scroll step, startup and limit volumes, chime sound, and launch at login. Open it from the gear in the flyout.*
 
 ### Panel tooltip & volume OSD
 

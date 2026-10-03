@@ -72,9 +72,11 @@
 // Fraction), shared with VolumeHoverTooltip.qml (Phase 4.5.3 item 2)
 // instead of each file keeping its own copy.
 //
-// Gradient colors also moved to Theme.qml (theme.osdGradientTop/Bottom) -
+// Gradient colors also moved to Theme.qml (colors.osdGradientTop/Bottom) -
 // shared with VolumeHoverTooltip.qml, which now uses the same translucent
 // graphite background/radius/border/glow treatment (Phase 4.5.3 item 2).
+
+pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
@@ -87,6 +89,11 @@ PlasmaCore.Dialog {
     id: toast
 
     readonly property Theme theme: Theme {}
+    // Phase 17.13.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml, forwarded by CompactRepresentation); `colors` is the OSD/
+    // tooltip palette, which ThemeSettings keeps separate from the flyout's.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: toast.themeSettings.osdPalette
 
     // ---- Content state (set via showVolume()/showMute() below) ----
     property string ampName: ""
@@ -152,13 +159,13 @@ PlasmaCore.Dialog {
         implicitWidth: Math.max(340, row.implicitWidth + 36)
         implicitHeight: row.implicitHeight + 28
         radius: toast.theme.radiusLg
-        border.color: toast.theme.divider
-        border.width: 1
+        // Phase 17.5.0 (D2): no outer border (OSD mockup v2 :125). The icon
+        // box below keeps its own border.
 
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: toast.theme.osdGradientTop }
-            GradientStop { position: 1.0; color: toast.theme.osdGradientBottom }
+            GradientStop { position: 0.0; color: toast.colors.osdGradientTop }
+            GradientStop { position: 1.0; color: toast.colors.osdGradientBottom }
         }
 
         Timer {
@@ -193,14 +200,21 @@ PlasmaCore.Dialog {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 radius: 10
-                color: toast.theme.surface
+                // Phase 17.9.0: transparent fill (OSD mockup v3,
+                // `--key-bg:transparent`), was colors.surface #181818.
+                // Phase 17.22.0: in light a white key with the control
+                // border and card shadow (OSD mockup v4 :102-103, :134-141).
+                color: toast.colors.isLight ? toast.colors.surface : "transparent"
                 border.width: 1
-                border.color: toast.muted ? toast.theme.copperDim : toast.theme.divider
+                border.color: toast.muted ? toast.colors.copperDim : toast.colors.controlBorder
+                CardShadow { colors: toast.colors; radius: parent.radius }
 
-                layer.enabled: toast.muted
+                // The copper glow is dark-only (OSD mockup v4 :145); in
+                // light the muted icon carries the gold treatment instead.
+                layer.enabled: toast.muted && !toast.colors.isLight
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: toast.theme.copperBright
+                    shadowColor: toast.colors.copperBright
                     shadowBlur: 0.5
                     shadowOpacity: 0.25
                     shadowScale: 1.25
@@ -214,7 +228,41 @@ PlasmaCore.Dialog {
                     height: 17
                     source: toast.theme.volumeIconSources[toast.iconKind]
                     isMask: true
-                    color: toast.muted ? toast.theme.copperBright : toast.theme.text
+                    color: toast.muted ? toast.colors.copperBright : toast.colors.text
+                    visible: !(toast.colors.isLight && toast.muted)
+                }
+
+                // Phase 17.22.0: light muted icon - the mute glyph as the
+                // mask of the glyphGold gradient with the warm drop shadow
+                // (OSD mockup v4 :142-150), like the flyout's source glyphs
+                // (ThemedSourceGlyph.qml). A plain hidden Image works as
+                // the mask and is rasterised at device pixels (17.0.2).
+                Loader {
+                    anchors.centerIn: parent
+                    width: 17
+                    height: 17
+                    active: toast.colors.isLight
+                    visible: toast.muted
+                    sourceComponent: GradientMask {
+                        maskSource: muteMask
+                        radial: true
+                        radialCenterX: width * 0.32
+                        radialCenterY: height * 0.28
+                        radialRadius: width * 0.775
+                        shadowEnabled: true
+                        shadowVerticalOffset: 2
+                        shadowBlur: 0.3
+                        shadowBlurMax: 16
+                        shadowOpacity: 0.35
+
+                        Image {
+                            id: muteMask
+                            anchors.fill: parent
+                            visible: false
+                            source: toast.theme.volumeIconSources.mute
+                            sourceSize: Qt.size(17, 17)
+                        }
+                    }
                 }
             }
 
@@ -265,11 +313,12 @@ PlasmaCore.Dialog {
                         font.family: toast.theme.fontDisplay
                         font.weight: Font.DemiBold
                         font.pixelSize: 13
-                        color: toast.theme.text
+                        color: toast.colors.text
                         elide: Text.ElideRight
                     }
 
                     Label {
+                        id: valueLabel
                         Layout.alignment: Qt.AlignVCenter
                         text: toast.valueText + (toast.isWordValue ? "" : " dB")
                         font.family: toast.isWordValue ? toast.theme.fontDisplay : toast.theme.fontMono
@@ -278,10 +327,68 @@ PlasmaCore.Dialog {
                         // Mockup only shows a "Muted" word variant (copper)
                         // and a numeric dB variant (always copper) - there's
                         // no "Unmuted" example. Extrapolated: "Unmuted"
-                        // renders plain (theme.text), consistent with "copper
+                        // renders plain (colors.text), consistent with "copper
                         // is reserved for signaling an actually-active state"
                         // (the same rule the mockup states for the icon).
-                        color: toast.isWordValue ? (toast.muted ? toast.theme.copperBright : toast.theme.text) : toast.theme.copperBright
+                        // Phase 17.22.0: in light the Label only holds the
+                        // layout for the gold forms (number, "Muted") and
+                        // the overlay below paints them; "Unmuted" stays
+                        // plain text in both themes.
+                        readonly property bool goldForm: toast.colors.isLight && (!toast.isWordValue || toast.muted)
+                        color: valueLabel.goldForm ? "transparent" : (toast.isWordValue ? (toast.muted ? toast.colors.copperBright : toast.colors.text) : toast.colors.copperBright)
+
+                        // Light value (OSD mockup v4 :158-169, :107-110):
+                        // the number in the readout's gold sweep with a
+                        // 9 px glow and a small grey "dB", right-aligned in
+                        // the Label's box; "Muted" in the three-stop gold
+                        // text sweep. Painted over the Label, so the row's
+                        // geometry is the dark theme's.
+                        Loader {
+                            anchors.fill: parent
+                            active: toast.colors.isLight
+                            sourceComponent: Item {
+                                Label {
+                                    id: lightUnit
+                                    visible: !toast.isWordValue
+                                    anchors.right: parent.right
+                                    anchors.baseline: lightNumber.baseline
+                                    text: "dB"
+                                    font.family: toast.theme.fontMono
+                                    font.pixelSize: 10
+                                    color: toast.colors.textDim
+                                }
+                                GradientText {
+                                    id: lightNumber
+                                    visible: !toast.isWordValue
+                                    anchors.right: lightUnit.left
+                                    anchors.rightMargin: 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: toast.isWordValue ? "" : toast.valueText
+                                    font.family: toast.theme.fontMono
+                                    font.weight: Font.Medium
+                                    font.pixelSize: 15
+                                    startColor: toast.colors.readoutGradientStart
+                                    endColor: toast.colors.readoutGradientEnd
+                                    glow: true
+                                    glowColor: Qt.rgba(toast.colors.readoutGlow.r, toast.colors.readoutGlow.g, toast.colors.readoutGlow.b, 1)
+                                    glowOpacity: toast.colors.readoutGlow.a
+                                    // 9 px against the flyout readout's 14 px (0.9).
+                                    glowBlur: 0.58
+                                }
+                                GradientText {
+                                    visible: toast.isWordValue && toast.muted
+                                    anchors.fill: parent
+                                    text: "Muted"
+                                    font.family: toast.theme.fontDisplay
+                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 12
+                                    startColor: toast.colors.goldTextStart
+                                    midColor: toast.colors.goldTextMid
+                                    midPos: 0.55
+                                    endColor: toast.colors.goldTextEnd
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -289,14 +396,16 @@ PlasmaCore.Dialog {
                     Layout.fillWidth: true
                     height: 4
                     radius: 999
-                    color: toast.theme.surface3
+                    color: toast.colors.surface3
                     clip: true
 
                     Rectangle {
                         height: parent.height
                         width: parent.width * toast.fraction
                         radius: 999
-                        color: toast.muted ? toast.theme.textFaint : toast.theme.copper
+                        // Phase 17.22.0: palette tokens (same values as
+                        // before in dark; flat gold / #d8d3cb in light).
+                        color: toast.muted ? toast.colors.mutedFill : toast.colors.accentFill
                     }
                 }
 
@@ -305,7 +414,7 @@ PlasmaCore.Dialog {
                     text: toast.sourceName !== "" ? toast.sourceName : "—"
                     font.family: toast.theme.fontMono
                     font.pixelSize: 10
-                    color: toast.theme.textFaint
+                    color: toast.colors.textFaint
                 }
             }
         }

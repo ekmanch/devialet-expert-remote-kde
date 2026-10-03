@@ -60,7 +60,15 @@ short / closed / closed`), plus `--fix dim=value` filters. Dimensions:
 and, since Phase 7.14.0, `slist` (source list overlay open/closed, driven
 through `FlyoutContent.sourceListOpen`; collapses to `-` for
 not-connected amp values like `src` does, since the source row is
-disabled there). Dimensions and values are
+disabled there). Since Phase 17.12.0 there is also `theme`
+(`dark`/`light`), pinned per state through the `themeOverride` UiState key
+(`FlyoutContent.themeOverride` → `ThemeSettings.harnessOverride`) so captures
+never depend on the owner's own Theme setting. `dark` is the base, left out
+of state ids (earlier runs stay comparable) and out of `--set full`; use
+`--vary theme` to capture both. Every run clears the pin on teardown
+(`themeOverride: ""`), so it never outlives the run in the live shell. The
+flyout is translucent, so compare captures across themes or runs over a
+uniform backdrop (Phase 17 capture rule), not the live desktop. Dimensions and values are
 in `scenarios.py`; not-connected amp values (`0known`, `1none`, `2none`)
 collapse vol/mute/pow/src to `-` because the daemon's None branch zeroes
 them — those states carry no inner product.
@@ -189,3 +197,9 @@ clean.
 - `fakeamp.py --state <id> [--open] [--ui k=v]` runs the fake standalone
   for manual poking (real daemon stopped by hand first;
   `--list-states` prints ids). Restart the daemon yourself afterwards.
+  `--notify volume=<dB>` / `--notify mute=<true|false>` (Phase 17.2.0)
+  additionally emits the daemon's `VolumeCommandNotified` /
+  `MuteCommandNotified` once, 1.5 s after start, so the widget shows its
+  OSD toast (visible 1.8 s) with no real pointer - capture it with
+  `spectacle` on Wayland. Needs a connected `--state` (the widget drops a
+  signal whose ip is not its current amp).

@@ -3,33 +3,42 @@
 //! Spike (branch `spike/volume-audio-feedback`, see TODO.md's spike entry
 //! and Phase 10.0.0 findings). Invoked from QML per discrete wheel tick via
 //! `Plasma5Support.DataSource`'s executable engine, exactly like
-//! `devialet-ctl`, and like it this binary never talks to the daemon or
-//! D-Bus - the QML caller supplies both dB values it already holds:
+//! `devialet-ctl`:
 //!
 //! ```text
-//! devialet-chime --target-db <db> --confirmed-db <db>
+//! devialet-chime [--target-db <db> --confirmed-db <db>]
 //!                [--headroom-db <db>] [--file <path>] [--tick <n>] [--dry-run]
 //! ```
 //!
-//! - `--target-db`: the optimistic value this tick is scrolling to (the
-//!   same number the OSD label shows).
-//! - `--confirmed-db`: the amp's real last-broadcast dB (decoded from the
-//!   daemon's unmasked `VolumeRaw`, never the 400 ms pending mask).
+//! - `--target-db` / `--confirmed-db` (a pair: both or neither):
+//!   - target: the optimistic value this tick is scrolling to (the same
+//!     number the OSD label shows);
+//!   - confirmed: the amp's real last-broadcast dB (decoded from the
+//!     daemon's unmasked `VolumeRaw`, never the 400 ms pending mask).
+//!
+//!   When both are absent (2026-09-29), the chime reads the same two
+//!   values from the daemon itself in one bounded D-Bus `GetAll`
+//!   (daemon.rs), falling back to a zero delta (the file at its own level)
+//!   if the daemon can't answer in time. That lets QML run only
+//!   `devialet-chime --tick k` - a fixed set of command strings, see
+//!   daemon.rs for why that matters.
 //! - `--headroom-db`: constant offset below unity, default 0 (gain.rs).
 //! - `--file`: chime file. Default: the `audio-volume-change` sound of the
 //!   theme kdeglobals `[Sounds] Theme` names (theme.rs) - the same file
 //!   Audio Devices plays - falling back to ocean, then freedesktop.
 //! - `--tick`: opaque counter from QML, only echoed in the log line. It
-//!   exists to make every command string unique: Plasma's executable
-//!   engine keys running jobs by command string process-wide, so two ticks
-//!   with identical dB arguments would otherwise collapse into one process
-//!   and the second chime would never play.
+//!   keeps the command strings of chimes running at the same time distinct:
+//!   Plasma's executable engine keys running jobs by command string
+//!   process-wide, so two identical commands would otherwise collapse into
+//!   one process and the second chime would never play. QML wraps it (a
+//!   bounded set of strings - see daemon.rs).
 //! - `--dry-run`: compute and log, play nothing. Used for the hand check
 //!   of expected vs computed volume before any live test.
 //!
 //! One stderr line per invocation carries every intermediate value; this is
 //! the trail `journalctl --user | grep devialet-chime` relies on.
 
+mod daemon;
 mod gain;
 mod play;
 mod sink;
@@ -39,8 +48,8 @@ use std::process::ExitCode;
 
 #[derive(Debug, PartialEq)]
 struct Args {
-    target_db: f64,
-    confirmed_db: f64,
+    /// `(target_db, confirmed_db)`; `None` = read them from the daemon.
+    volumes: Option<(f64, f64)>,
     headroom_db: f64,
     /// `None` = resolve from the configured sound theme at run time.
     file: Option<String>,
@@ -49,7 +58,7 @@ struct Args {
 }
 
 fn usage() -> String {
-    "usage: devialet-chime --target-db <db> --confirmed-db <db> [--headroom-db <db>] [--file <path>] [--tick <n>] [--dry-run]".to_string()
+    "usage: devialet-chime [--target-db <db> --confirmed-db <db>] [--headroom-db <db>] [--file <path>] [--tick <n>] [--dry-run]".to_string()
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -110,9 +119,19 @@ fn parse_args_from(raw: Vec<String>) -> Result<Args, String> {
         i += 1;
     }
 
+    let volumes = match (target_db, confirmed_db) {
+        (Some(t), Some(c)) => Some((t, c)),
+        (None, None) => None,
+        _ => {
+            return Err(format!(
+                "--target-db and --confirmed-db go together: pass both, or neither to read them from the daemon\n\n{}",
+                usage()
+            ))
+        }
+    };
+
     Ok(Args {
-        target_db: target_db.ok_or_else(|| format!("--target-db is required\n\n{}", usage()))?,
-        confirmed_db: confirmed_db.ok_or_else(|| format!("--confirmed-db is required\n\n{}", usage()))?,
+        volumes,
         headroom_db,
         file,
         tick,
@@ -149,7 +168,19 @@ fn main() -> ExitCode {
         }
     };
 
-    let c = gain::compute(args.target_db, args.confirmed_db, args.headroom_db);
+    // Explicit values win; otherwise one bounded GetAll on the daemon.
+    let (inputs, read_ms) = match args.volumes {
+        Some((target_db, confirmed_db)) => (
+            daemon::Inputs { target_db, confirmed_db, source: "args".to_string() },
+            None,
+        ),
+        None => {
+            let (result, waited) = daemon::read_volumes(daemon::DAEMON_READ_TIMEOUT);
+            (daemon::resolve(result), Some(waited))
+        }
+    };
+
+    let c = gain::compute(inputs.target_db, inputs.confirmed_db, args.headroom_db);
 
     // Same lookup Audio Devices' tone makes (theme.rs), unless overridden.
     let configured = theme::configured_theme();
@@ -169,10 +200,12 @@ fn main() -> ExitCode {
         None => ("unknown".to_string(), "unknown".to_string()),
     };
     eprintln!(
-        "devialet-chime: tick={} target={:.1} confirmed={:.1} delta={:+.1} delta_clamped={:+.1} headroom={:+.1} gain_raw={:+.2} gain_db={:+.2} sink_raw={} sink_muted={} volume={} mode={} theme={} file={}",
+        "devialet-chime: tick={} source={} read_ms={} target={:.1} confirmed={:.1} delta={:+.1} delta_clamped={:+.1} headroom={:+.1} gain_raw={:+.2} gain_db={:+.2} sink_raw={} sink_muted={} volume={} mode={} theme={} file={}",
         args.tick.map(|t| t.to_string()).unwrap_or_else(|| "-".to_string()),
-        args.target_db,
-        args.confirmed_db,
+        inputs.source,
+        read_ms.map(|d| format!("{:.2}", d.as_secs_f64() * 1000.0)).unwrap_or_else(|| "-".to_string()),
+        inputs.target_db,
+        inputs.confirmed_db,
         c.delta_raw_db,
         c.delta_db,
         args.headroom_db,
@@ -185,6 +218,9 @@ fn main() -> ExitCode {
         theme_used,
         file,
     );
+    if inputs.source.starts_with("default") {
+        eprintln!("devialet-chime: warn: daemon volumes unavailable ({}), playing at the default zero-delta loudness", inputs.source);
+    }
     if c.delta_raw_db != c.delta_db {
         eprintln!("devialet-chime: warn: delta {:+.1} dB clamped to {:+.1} dB", c.delta_raw_db, c.delta_db);
     }
@@ -220,8 +256,7 @@ mod tests {
     #[test]
     fn minimal_separate_words_with_negative_values() {
         let a = args(&["--target-db", "-39.5", "--confirmed-db", "-40.0"]).unwrap();
-        assert_eq!(a.target_db, -39.5);
-        assert_eq!(a.confirmed_db, -40.0);
+        assert_eq!(a.volumes, Some((-39.5, -40.0)));
         assert_eq!(a.headroom_db, gain::DEFAULT_HEADROOM_DB);
         assert_eq!(a.file, None);
         assert_eq!(a.tick, None);
@@ -231,8 +266,7 @@ mod tests {
     #[test]
     fn equals_form() {
         let a = args(&["--target-db=-39.0", "--confirmed-db=-40", "--headroom-db=0", "--tick=7", "--dry-run"]).unwrap();
-        assert_eq!(a.target_db, -39.0);
-        assert_eq!(a.confirmed_db, -40.0);
+        assert_eq!(a.volumes, Some((-39.0, -40.0)));
         assert_eq!(a.headroom_db, 0.0);
         assert_eq!(a.tick, Some(7));
         assert!(a.dry_run);
@@ -247,10 +281,17 @@ mod tests {
     }
 
     #[test]
-    fn missing_required_flags() {
-        assert!(args(&["--target-db", "-40"]).unwrap_err().contains("--confirmed-db is required"));
-        assert!(args(&["--confirmed-db", "-40"]).unwrap_err().contains("--target-db is required"));
-        assert!(args(&[]).unwrap_err().contains("required"));
+    fn volume_flags_are_a_pair() {
+        assert!(args(&["--target-db", "-40"]).unwrap_err().contains("go together"));
+        assert!(args(&["--confirmed-db", "-40"]).unwrap_err().contains("go together"));
+    }
+
+    #[test]
+    fn neither_volume_flag_means_read_the_daemon() {
+        let a = args(&["--tick", "5"]).unwrap();
+        assert_eq!(a.volumes, None);
+        assert_eq!(a.tick, Some(5));
+        assert_eq!(args(&[]).unwrap().volumes, None);
     }
 
     #[test]

@@ -8250,6 +8250,1543 @@ architecture decisions; this file is just sequencing and status.
   `unsavedChanges false`; `systemctl --user is-enabled` back to
   `enabled`, unit active throughout. Reinstalled and shell restarted.
 
+- [x] **Phase 17.0.0 — Record the arc.** Done 2026-09-26, documentation
+      only.
+  - The header entry above, one entry per phase below, and the saved
+    report `docs/context-on-light-theme-arc-phase-17.md`.
+  - CLAUDE.md corrections: the "Shared cross-view state" bullet now says
+    only the flyout was ever wired to `TransparencySettings` (toast/
+    tooltip stay hardcoded per D3); the corner-radius note records that
+    the v2 mockups draw 12px and the owner kept 16 (D4); a new "The About
+    page icon cannot vary by theme" subsection under the Settings
+    ConfigDialog section records D6 and why.
+  - No code touched in this phase.
+
+- [x] **Phase 17.0.1 — Two-context `Kirigami.Theme` measurement.** Done
+      2026-09-26. Temporary `console.warn` lines (a 3 s `Timer` in
+      `main.qml` plus a temporary `org.kde.kirigami` import, a 0.5 s `Timer`
+      in `ConfigGeneral.qml`), installed copy upgraded, shell restarted
+      13:23:34, owner opened the settings dialog once; both lines read from
+      `journalctl --user`, then both files reverted and the installed copy
+      re-upgraded (the running shell keeps the already-fired lines until
+      its next restart; nothing else differs).
+  - Applet engine, 13:23:39:
+    `[17.0.1 applet] bg #151515 text #eff0f1 brightness dark`
+  - ConfigDialog engine, 13:43:27:
+    `[17.0.1 config] bg #151515 text #eff0f1 brightness dark`
+  - Reading: both contexts report `Darkly_modified`'s window background
+    (21,21,21) and `Kirigami.ColorUtils.brightnessForColor` = Dark. With
+    the Plasma Style (CachyOS-Nord-round) shipping no `colors` file,
+    `Plasma::Theme` and kdeglobals resolve to the same scheme, so the two
+    values agree by construction and do **not** identify which Kirigami
+    platform plugin serves each engine. The edge case the plan named (a
+    Plasma Style with its own `colors` file) stays theoretical; D1
+    (portal) makes both of our contexts follow kdeglobals regardless, and
+    17.15.0's fallback also reads `Kirigami.Theme` in-context, so no
+    further measurement is planned unless a Style with its own colours
+    is ever selected.
+  - Q2 table in `docs/context-on-light-theme-arc-phase-17.md` updated
+    with both values.
+
+- [x] **Phase 17.0.2 — Gradient rendering spike (branch
+      `spike/gradient-rendering`).** Ran 2026-09-26 as an unnumbered,
+      throwaway-or-merge spike per this project's "risky/uncertain work
+      stays off main" convention; the owner judged the 2× captures good
+      the same day, so it is numbered here. Exact values (glow strength,
+      glyph shadow) are deferred to live tuning in 17.20.0/17.21.0. Its
+      components stay under `tools/spike-gradient-rendering/` until
+      17.19.0-17.21.0 promote the ones they need into `plasmoid/`;
+      17.28.0 removes the directory.
+  - Standalone `/usr/lib/qt6/bin/qml` driver in the scratchpad, no
+    plasmoid change. Questions it must answer at scale 2: does one
+    `MultiEffect` do both the alpha mask (gradient text via `maskSource`
+    = the Label) and the soft gold glow (`shadowEnabled`, zero offset),
+    or are two stages needed (Qt's docs don't state mask-vs-shadow
+    order); does a `QtQuick.Shapes` `RadialGradient` sphere + MultiEffect
+    drop shadow read as the mockups' 12/10/7 px dots and 14 px thumb; can
+    a gradient-*stroked* glyph be produced by masking a radial fill with
+    the Shape (Shapes has no stroke gradient); does a bundled speaker SVG
+    work as a `maskSource` for the light muted OSD icon.
+  - Output: draft `GradientMask.qml`, `GoldSphere.qml`, `GradientText.qml`
+    + 2× captures for the owner to judge, and a go/no-go on
+    `Qt5Compat.GraphicalEffects` (expected: not needed; it would add a
+    runtime dependency).
+  - Decision point (resolved): gradient text and the sphere read well at
+    2×, so the light mockups stand and the branch merges.
+  - **Run 2026-09-26** (`tools/spike-gradient-rendering/`, README has the
+    full findings): (1) one MultiEffect cannot do mask + shadow - its
+    shadow padding stretches the mask; mask first, shadow second works,
+    now `GradientMask`'s default; (2) gradient text is clean at 26/15/13/
+    12/11 px, four glow strengths captured for the owner to pick; (3) the
+    Shape RadialGradient sphere + shadow reads at 14/12/10/7/6 px; (4)
+    gradient strokes via masking work at 20/17 px; (5) a plain `Image` of
+    the speaker SVG works directly as `maskSource`, rasterised at DPR 2;
+    (6) Qt5Compat not needed. Gotchas: offscreen QPA = software scenegraph
+    = blank effects, capture on Wayland; composite RGBA grabs on white
+    before zooming. Captures: `captures/sheet.png`, `zoom-*.png`,
+    `detail-*.png`. Owner verdict 2026-09-26: passes.
+
+- [x] **Phase 17.1.0 — Remove the scroll hint.** Delete `scrollHint`
+      (`VolumeBlock.qml:359-373`, "Scroll over the panel icon to
+      adjust"). Both themes. Mockup: flyout v2 has no `.scroll-hint`
+      element. Done 2026-09-26 (code in a0e6718; closed together with
+      17.1.1, which fixed the source list the removal made scroll).
+  - Done: `scrollHint` Label deleted and VolumeBlock's header comment
+    updated (17 lines out); qmllint clean; installed copy upgraded, shell
+    restarted. Slider-row-to-buttons gap is now 20 px (VolumeBlock
+    `bottomMargin` 6 + ActionRow `topMargin` 14) vs the mockup's 22 -
+    owner decision: keep 20, spacing alignment with v2 is its own pass.
+  - Baseline wording corrected: `expected-*.json` files are allowlists
+    of within-run moves, and removing an item adds none, so this phase
+    keeps `expected-7.14.0.json`; the before/after proof is
+    `harness.py compare`.
+  - Harness, before (HEAD 175266d) and after, three runs each: smoke,
+    `--vary amp,list`, `--vary src,slist` (runs `20260926-144114/
+    144138/144216-before-17.1.0-*`, `20260926-144301/144320/
+    144352-after-17.1.0-*`, git-ignored). All six reports exit 0 against
+    `expected-7.14.0.json` (no unexpected within-run moves).
+  - Compare, all 31 common captures: `scrollHint` only in *before*;
+    992 element records below it moved by exactly Δy −33 (spacing 10 +
+    top margin 9 + height 14), nothing else moved dx/dw; window height
+    363 → 330 in every capture; the containers (root, FlyoutContent,
+    its ColumnLayout and background, volumeBlock) shrank by 33. One
+    invisible "✓" label in the no-amp amp-list state moved sideways
+    (hidden in both runs, no visual effect).
+  - Overlay fit (scratchpad checker over the probe dumps): **amp list**
+    fits in every `list=open` state - worst case two amps, card
+    72-245, 118 px below it before, 85 px after. **Source list**
+    (six enabled sources, the real amp's count): before, card 14-258,
+    height 244 = content, room above the row 250 px; after, room above
+    217 px, so the card is capped to 217 (top 8), the list scrolls,
+    and the scroll viewport narrows 260 → 239 px for the scrollbar while
+    the rows stay 260 px wide - the scrollbar covers their right 21 px,
+    **hiding the selected row's tick** (before/after crops compared by
+    eye). Stopped per the plan's rule; owner chose to accept scrolling
+    and fix the overlay in 17.1.1.
+
+- [x] **Phase 17.1.1 — Source list: scrolling that works.** Owner
+      decision 2026-09-26 (option 1): with 17.1.0's shorter flyout, amps
+      with many sources get a scrolling source list; make that correct
+      rather than squeezing rows. `SourceListOverlay.qml`.
+  - Rows track the scroll viewport's width (today they keep the
+    ScrollView's full 260 px while the viewport narrows to 239 when the
+    scrollbar appears), so no row content - the selection tick in
+    particular - sits under the scrollbar.
+  - **The selected source is visible when the list opens.** With the
+    sixth row selected (the real amp's AIR slot; harness `src=long`,
+    index 14), opening the list must show that row with its tick, not
+    the top five with the selection scrolled out of view. A ComboBox
+    popup would position this itself; this Popup is custom and does
+    not. In the 17.1.0 *after* run the `src=long, slist=open` capture
+    has `sourceOption:14` at wy 212-248 against a card ending at 225 -
+    i.e. the check currently fails.
+  - Verify: harness `--vary src,slist` - every `slist=open` state has
+    the selected `sourceOption:<idx>` fully inside the card (top ≥ card
+    top + padding, bottom ≤ card bottom − padding) and its tick label
+    visible and inside the viewport; rows' width equals the viewport
+    width; the unscrolled/short-list case (fewer sources, no scrollbar)
+    unchanged vs 17.1.0's after run. Owner soak: open the list with the
+    last source selected, scroll with the wheel, pick a source.
+  - **Done 2026-09-26.** `SourceListOverlay.qml`: the list column binds
+    to the ScrollView's own `availableWidth` (was the Popup's), and
+    `onOpened` calls `revealCurrent()`, which sets the Flickable's
+    `contentY` to the smallest value that shows the selected row
+    (clamped to the scroll range; 0 when it already fits). qmllint clean
+    (two `missing-property` warnings from a first draft removed by
+    looking the row up by model index and casting the Flickable).
+  - **Unit test** `tests/qml/tst_SourceListOverlay.qml` (geometry only):
+    real overlay under a stand-in row with 217 px above it and the real
+    amp's six sources; for every selected source the row and its tick
+    are fully inside the viewport after `open()`; every row is exactly
+    the viewport width (scrolling and three-source cases); a short list
+    and a first-row selection open unscrolled. Written first: against
+    the unfixed file 7 of its checks failed - AIR's row ended at 236 in
+    a 209 px viewport, every other tick's right edge at 250 past a 239
+    px viewport - and all pass after the fix (suite 24/24, 12 s).
+  - `scripts/test-qml.sh` changes this needed: (1)
+    `QT_QUICK_CONTROLS_STYLE=org.kde.desktop`, the style plasmashell
+    loads - the runner's default style overlays a 10 px ScrollBar
+    without reserving width, so the width bug was invisible to it (probe:
+    viewport 260 vs 239); (2) `dbus-run-session --config-file
+    tests/qml/session-bus.conf`, a bus with no service activation -
+    under the desktop style the first run hung because the style
+    auto-started xdg-desktop-portal-kde on the private bus, which
+    outlived the run and held the output pipe (two orphaned portals on
+    `/tmp/dbus-*` buses found and stopped; the session's own portal was
+    untouched).
+  - Harness on the reinstalled widget (`20260926-152331-after-17.1.1-
+    srclist`, `20260926-152347-after-17.1.1-smoke`): both exit 0
+    against `expected-7.14.0.json`. Every `slist=open` state: rows 239
+    px = viewport; selected row visible - index 0 at 12-48 (list at the
+    top), index 14 (the AIR slot) at 185-221 in the 12-221 viewport
+    (list scrolled 27 px), `none` has no selected row. Compare vs
+    17.1.0's after runs: only the list moved (rows −21 px wide, ticks
+    −21 px x, +27 px scroll with index 14); ActionRow's hidden
+    `powerSpinner` (visible only while Booting) reports stale
+    coordinates in some states - untouched file, harness noise. Crop
+    with index 14 selected checked by eye: row and tick visible left of
+    the scrollbar. Owner hands-on check on the fixed widget (2026-09-26,
+    AIR selected on the real amp): the list opens scrolled to the bottom
+    with AIR and its tick visible left of the scrollbar (owner's
+    screenshot). The tick is still the 11 px "✓" label; 17.8.0 replaces
+    it with the painted 16 px tick.
+  - Same shape elsewhere: `AmpListOverlay.qml:105` binds its column to
+    the Popup's `availableWidth` too, so an amp list long enough to
+    scroll (more than ~3 amps, cap 230 px) would get the same covered
+    right edge. Not reachable with today's one or two amps; parked below.
+
+- [x] **AIR source name shown as the acronym (2026-09-26, on
+      `feature/light-theme`; small fix outside the Phase 17 arc).** The
+      amp reports its AIR input as "Air" (the owner's 140 Pro, slot 14);
+      Devialet's docs use both "Air" and "AIR", and it is an acronym
+      (Asynchronous Intelligent Route), so it is displayed as "AIR" - the
+      rule the Flutter app already applies.
+  - Done in the protocol crate, where slot names are decoded
+    (`crates/protocol/src/status.rs`, `parse_status` →
+    `display_source_name`): a whole-name, ASCII-case-insensitive match on
+    "air" becomes "AIR"; "AirPlay", "Air 2" and every other name pass
+    through. So the daemon's `Sources` and `ActiveSourceName` carry
+    "AIR", and every surface (source list, source row, volume chip, OSD,
+    tooltip) shows it with no QML change. `Theme.sourceGlyph()` was
+    already case-insensitive and tests "airplay" before "air"
+    (`Theme.qml:221-223`), so the glyph is unchanged.
+  - Tests: three new protocol-crate tests (any case → "AIR"; only the
+    whole name; `current_source_name()` returns the display form). 42/42
+    pass; clippy quiet; release daemon builds.
+  - Installed by the owner with `./install.sh` (sudo for
+    `/usr/local/bin`; daemon restarted). Verified: installed daemon is
+    byte-identical to the fresh release build; daemon active on it with
+    `SelectedAmpIp` 192.168.0.22; `ActiveSourceIndex` 14,
+    `ActiveSourceName` "AIR", `Sources` lists "AirPlay" and "AIR"; the
+    owner's screenshot shows "AIR" in the source row and the volume chip.
+
+- [x] **Phase 17.2.0 — Bundle the speaker glyphs, same mapping (D5).**
+      Done 2026-09-27.
+  - **Plan correction found on reading the code**: the OSD already used
+    bundled files, four level icons in `contents/icons/audio-volume-
+    icons/` picked by volume (`Theme.volumeIconKindForFraction`: 0 % mute,
+    ≤25 % low, ≤75 % medium, above high - the Phase 4.5.3 match to
+    Plasma's own OSD), drawn with an outlined speaker body. Only the
+    flyout's mute button used icon-theme names. The v2 OSD mockup shows a
+    filled speaker in just two states and never a low volume, so it does
+    not settle whether the levels stay. **Owner decision: keep the four
+    level steps, redraw them filled.**
+  - Done: the four SVGs redrawn with the mockup's filled body
+    (`fill="currentColor"` on the speaker path) and the mockup's X
+    (`M22 9 L16 15`, `M16 9 L22 15`, was 23/17); waves unchanged.
+    `ActionRow.qml` mute icon: `theme.volumeIconSources[muted ? "mute" :
+    "high"]` with `isMask: true`, replacing `audio-volume-muted-symbolic` /
+    `audio-volume-medium-symbolic` - same mapping (audible → waves, muted
+    → X), now identical under every icon theme and usable as a mask
+    source for the light theme's gold glyph. qmllint: the same single
+    pre-existing `parent.hovered` warning as HEAD.
+  - `fakeamp.py`: declares the daemon's two command signals
+    (`MuteCommandNotified sb`, `VolumeCommandNotified sd`, matching
+    `busctl introspect` of the real daemon) and gains `notify_command()`
+    and `--notify volume=<dB>|mute=<bool>`; harness README documents it.
+  - Verified: OSD captured hands-free on Wayland for −40 dB (25 %, small
+    wave), −22 dB (70 %, one wave), −12 dB (95 %, two waves) and muted
+    (copper X) - each glyph filled and correct; real daemon stopped for
+    the captures and restored afterwards (active, 192.168.0.22 selected).
+    Harness `--vary mute` (`20260927-115943-after-17.2.0-mute`): exit 0
+    against `expected-7.14.0.json`; mute button 108 px in both states,
+    icon 13×13; crops show waves + "Mute" and copper X + "Unmute"; daemon
+    active with the amp selected after the run. QML suite 24/24.
+
+- [x] **Phase 17.3.0 — Flyout mute button shows the action (D7).**
+      Done 2026-09-27. `ActionRow.qml` mute icon source flipped to
+      `theme.volumeIconSources[muted ? "high" : "mute"]`: while audible the
+      button reads "Mute" with the muted speaker (X), while muted "Unmute"
+      with the speaker and waves (flyout mockup v2 :565-566,
+      `toggleMute()`). Labels and colours already described the action and
+      are unchanged. The OSD keeps showing the state (`VolumeToast.qml`
+      untouched; 17.2.0's captures stand). qmllint: the same single
+      pre-existing warning as HEAD.
+  - Verified: harness `--vary mute` (`20260927-120901-after-17.3.0-mute`,
+    run 20 s after the shell restart) exit 0 against
+    `expected-7.14.0.json`; crops show X + "Mute" (audible) and copper
+    waves + "Unmute" (muted); mute button 108 px and icon 13×13 in both
+    states; power button unmoved (x 132, w 152). Real daemon active with
+    192.168.0.22 selected after the run.
+  - Compare vs the 17.2.0 run showed the volume slider's fill and handle
+    ~16 px further right in both states - not this change: the widget's
+    ceiling (`hardLimitDb`) was set to −20 dB between the two runs (owner
+    using the widget at ~12:05, volume held at −20), so −40 dB fills
+    0.333 of the track instead of 0.250 - exactly the two ranges' ratios
+    (−50..−20 vs −50..−10). Harness runs read the live widget settings;
+    compare runs taken under the same settings.
+
+- [x] **Phase 17.4.0 — Fixed 11:14 action-button split.** Done
+      2026-09-27. `ActionRow.qml`: the Phase 12.0.0 TextMetrics /
+      equal-worst-case-margin maths (108 / 152 px) replaced by
+      `muteButtonWidth = Math.round(buttonsAvailable * 11 / 25)`,
+      `powerButtonWidth = buttonsAvailable - muteButtonWidth` (flyout mockup
+      v2 :403-408, `11fr 14fr`); row 268 px − 8 px spacing = 260 px →
+      **114 / 146 px**. Both TextMetrics and four helper properties
+      removed (no other readers). qmllint: the same single pre-existing
+      warning as HEAD.
+  - Verified: harness `--vary mute,pow` (`20260927-121249-after-17.4.0-
+    mutepow`, 6 states) exit 0 against `expected-7.14.0.json`; mute 114
+    px and power 146 px in every state. Content margins per side, from the
+    probe dump: "Mute" 33/33, "Unmute" 26/25, "Power On" 35/34, "Power
+    Off" 31/31, "Powering on…" (with spinner) 20/20 - the tightest, as
+    planned; crops show nothing clipped. Real daemon active with
+    192.168.0.22 selected after the run. QML suite 24/24.
+
+- [x] **Phase 17.5.0 — Remove the outer borders (D2).** `border.width`/
+      `border.color` off the flyout (`FlyoutContent.qml:767-768`), toast
+      (`VolumeToast.qml:155-156`) and tooltip (`VolumeHoverTooltip.qml:
+      97-98`) (mockups: flyout v2 :280, OSD v2 :125, tooltip v2 :122).
+      Done 2026-09-27.
+  - Done: the three outer borders removed, each replaced by a one-line
+    comment; the OSD icon box keeps its own border (`VolumeToast.qml:
+    197-198`, the mockup's key border). qmllint counts unchanged from HEAD
+    in all three files.
+  - Captures (flyout via harness `--pad 40`, runs `20260927-121705-before-
+    17.5.0-edge` / `20260927-121801-after-17.5.0-edge`, both exit 0; OSD
+    via the scratchpad `--notify` script, −22 dB and muted): the border is
+    gone and the flyout's corner is one clean curve. Left-edge profile
+    at mid-height: before desktop (1,1,2) → border (30,27,27) → panel
+    (12-15); after desktop ≈(29,25,24) → panel ≈(25,23,22) - the desktop
+    behind differed between the two captures (lighter area after), and at
+    the panel's 90 % opacity the edge against it is only 3-5 levels: the
+    no-separation risk D2 named, since a NoBackground Dialog gets no KWin
+    shadow either. Daemon active with the amp selected after each run.
+  - Owner verdict 2026-09-27, on the real desktop: flyout, OSD and
+    tooltip all look right without a border - keep it (no hairline). The
+    low-contrast edge in the after capture was that capture's lighter
+    background, not a problem on the owner's desktop.
+
+- [x] **Phase 17.6.0 — Status dots.** Done 2026-09-27 (tooltip dot:
+      owner's hover check pending). Header dot 8 → 12 px, radius 6
+      (`AmpHeader.qml`; flyout mockup v2 :140) - colours, the no-amp hollow
+      ring and the booting pulse unchanged. Amp list dots 7 → 10 px, radius
+      5 (`AmpListOverlay.qml`; :141), including the "None" row's hollow
+      ring - the mockup has no "None" row, sized to match the amp rows.
+      Tooltip dot 5 → 7 px, radius 3.5, glow removed
+      (`VolumeHoverTooltip.qml`; tooltip mockup v2 :133, dark = no glows),
+      and with it the file's only `QtQuick.Effects` use, so that import
+      went too. Footer dot (4 px) unchanged. qmllint: header and list
+      counts unchanged from HEAD; tooltip one warning fewer (4 → 3).
+  - Verified: harness `--vary amp,list` and `--vary pow`
+    (`20260927-122748-after-17.6.0-amplist`, `…-122822-after-17.6.0-
+    power`), both exit 0 against `expected-7.14.0.json`. Header dot 12×12
+    in every state (filled, hollow no-amp ring, booting pulse); list dots
+    10×10 in every open state; header height 72 in every state. Compare vs
+    `after-17.1.0-amplist`: no vertical moves; header text +4 px right
+    (dx +2, dw −4, the wider dot), list row text +3 px; mute/power
+    differences are 17.4.0's split; `powerSpinner` hidden-item noise.
+    Crops checked by eye. Daemon active with the amp selected afterwards.
+  - **Owner follow-up 2026-09-27: header dot 12 → 10 px** (radius 5). On
+    the real flyout a solid 12 px disc read heavier than the outlined 20 px
+    source glyphs; 10 sits between the original 8 and the mockup's 12 and
+    matches the amp list's dots. Verified: harness `--vary amp` and
+    `--vary pow` (`20260927-125646-after-17.6.1-amp`, `…-125705-after-
+    17.6.1-power`) exit 0, dot 10×10 and header 72 px in every state;
+    daemon active with the amp selected.
+
+- [x] **Phase 17.7.0 — Painted source glyphs.** Done 2026-09-27. New
+      `plasmoid/contents/ui/SourceGlyph.qml`: the v2 mockup's six glyphs
+      (flyout v2 :630-636 - optical, UPnP, Roon, AirPlay, Spotify, AIR) as
+      QtQuick.Shapes on the mockup's 20-unit grid scaled to `size`, strokes
+      1.6 units (1.1 for Roon's chords), round caps/joins, one flat `color`
+      (copper in dark). Name matching moved in unchanged from
+      `Theme.sourceGlyph()` as `kindFor()` (case-insensitive keywords,
+      "airplay" before "air", unknown/empty → optical); `Theme.sourceGlyph()`
+      deleted and the two comments citing it (chime gate in
+      CompactRepresentation/FlyoutContent) repointed.
+  - Source row (`SourceSelector.qml`): 20 px glyph, list
+    (`SourceListOverlay.qml`): 17 px glyph; the `surface3` boxes removed in
+    both, so nothing sits behind a glyph in either theme. The old slots stay
+    as plain Items (24 px row, 20 px list) keeping their objectNames
+    (`sourceIconBadge`, `sourceOptionChip:<idx>` - harness keys) and the text
+    positions; the mockup's transparent containers are 26/22 px, a 1-2 px
+    difference left for the spacing pass.
+  - `SourceGlyph.qml` lint-clean after replacing a first draft's inline
+    components (7 unqualified-access warnings) with plain ShapePaths and
+    adding `pragma ComponentBehavior: Bound`; all other touched files lint
+    as HEAD. Standalone render (Wayland, scale 2, 20 and 17 px) matched the
+    mockup shapes and was pixel-identical before and after that rewrite.
+  - Verified: QML suite 24/24; harness `--vary src,slist` and smoke
+    (`20260927-123836-after-17.7.0-srclist`, `…-123852-after-17.7.0-
+    smoke`) exit 0; compare vs `after-17.1.1-srclist`: only the glyph
+    Labels replaced by Shapes, no text moved, other moves are 17.4.0/
+    17.6.0 and the owner's −20 dB ceiling. Crops: painted glyphs in the row
+    and list, no boxes; no-amp row shows the optical ring. Daemon active
+    with the amp selected afterwards.
+
+- [x] **Phase 17.8.0 — Painted ticks.** Done 2026-09-27. New
+      `plasmoid/contents/ui/Tick.qml`: the mockup's tick (flyout v2
+      :452-453, used :685/:707) - path `M3.8 9.4 L7.4 12.9 L14.2 5.4` on an
+      18-unit grid in a 16 px box, 2-unit round-capped/joined stroke, flat
+      `color`. Replaces the 11 px "✓" labels in `AmpListOverlay.qml` ("None"
+      row + amp rows) and `SourceListOverlay.qml`; ticks carry objectNames
+      (`ampNoneTick`, `ampOptionTick:<ip>`, `sourceOptionTick:<idx>`), and
+      `tst_SourceListOverlay.qml` now finds the tick by objectName instead of
+      the character. `ThemeDropdown.qml`'s "✓" (ConfigDialog sound-theme
+      picker) is out of this flyout phase and unchanged.
+  - First draft had a `Shape` root: it set its own implicit size from the
+    path bounds (measured 14×13) over the declared 16 px; root changed to a
+    16×16 Item with the Shape filling it - now 16×16 in every state.
+  - Visibility semantics kept (`visible: isCurrent`, as before); the
+    mockup uses `opacity:0`, reserving the tick's width in every row. Seen
+    in the crops: a name long enough to fill the row
+    ("Devialet-Expert-Living-Room-ETH") elides only while its row is
+    selected. Pre-existing with the old 7 px "✓", now more visible; left
+    for the owner to decide.
+  - Verified: Tick.qml lint-clean, touched files as HEAD; QML suite 24/24;
+    harness `--vary amp,list` and `--vary src,slist`
+    (`20260927-124649-after-17.8.0b-amplist`, `…-124723-after-17.8.0b-
+    srclist`) exit 0; tick 16×16, inside the viewport in every open state
+    (source list x 233-249 of 259, including the scrolled AIR-slot state;
+    amp list 252-268 of 276); crops show the tick only on the selected row.
+    Daemon active with the amp selected afterwards.
+
+- [x] **Phase 17.10.0 — Copper gradient bars on dark OSD/tooltip:
+      dropped.** Closed without code 2026-09-27 by owner decision: the OSD
+      and tooltip volume bars stay **solid copper** #c17f4e in the dark
+      theme (not the v2 mockups' #9a5a2c → #c17f4e → #e8a974 sweep, OSD/
+      tooltip :81), matching the light theme, whose bars and slider are flat
+      #e2b865 (D8). Muted bar colour unchanged (#5c5c60 = `textFaint`, which
+      is also the mockup's dark `--muted-fill`).
+
+- [x] **Phase 17.9.0 — OSD icon box: transparent fill (dark).** Owner
+      decision 2026-09-27 (supersedes this phase's original "dark palette
+      alignment" scope and D3's mockup opacities): in the **dark** theme the
+      OSD and tooltip keep today's look - the (23,23,26) → (18,18,20)
+      vertical gradient at 0.94 on both, the icon box's 8 %-white border,
+      the copper glow on the muted icon box. The one thing taken from the
+      mockup is the icon box's **transparent fill** (OSD mockup v2
+      `--key-bg:transparent`; today `theme.surface` #181818,
+      `VolumeToast.qml` iconBox). Light-theme OSD/tooltip (17.22.0/17.23.0)
+      are unaffected by this decision.
+  - Done 2026-09-27: `VolumeToast.qml` iconBox `color: "transparent"`
+    (was `theme.surface`). qmllint count unchanged (2).
+  - Verified: OSD captured audible (−22 dB) and muted via `fakeamp.py
+    --notify`, before/after. The fill change is nearly invisible in dark:
+    the box interior was (24,24,24) against an OSD background of about
+    (20-22,21-22,22-24), and now matches the background. Side effect: the
+    muted copper glow is subtler - the MultiEffect shadow takes its shape
+    from the item's alpha, so with no fill it comes from the border and
+    icon only, not the whole box. Owner verdict on the real OSD: happy
+    with it as is, no rebuilt box glow. (v3's `box-shadow: 0 0 12px -2px`
+    describes a somewhat stronger glow than the widget now draws.) Daemon
+    active with the amp selected after the captures.
+
+- [x] **Phase 17.11.0 — Typed palette, zero visual change.** Done
+      2026-09-27.
+  - **Names changed from the plan** (both measured in the qmltypes, not
+    assumed): QtQuick already exports a `Palette` type (`QtQuick/Palette
+    6.0`) and every `Item` has a built-in `palette` property
+    (`QQuickItem.palette`), so a local `Palette.qml` / `property Palette
+    palette` would collide. The base type is **`ColorPalette.qml`** and the
+    consumer property is **`colors`** (`root.colors.copperBright`);
+    `DarkPalette.qml` / `LightPalette.qml` keep their planned names. No base
+    type in QtQuick, Controls, Kirigami, KCMUtils or Plasma core defines
+    `colors`.
+  - New `ColorPalette.qml` (QtObject): 23 colour tokens + `isLight`, each a
+    **`required property`**, so a palette missing a token fails at creation
+    with a named error; one function, `controlColor(ts:
+    TransparencySettings): color` (dark: `ts.withControlAlpha(surface)`;
+    17.19.0 adds the light glass branch on `isLight`). New
+    `DarkPalette.qml` (`ColorPalette { ... }`): today's values and their
+    history comments, moved unchanged from `Theme.qml`, including the
+    owner's `panelTintTop/Bottom: "#151515"`. `Theme.qml` keeps fonts,
+    sizes, radii and the volume icon map only; the unused `bg` (#0e0e10,
+    read nowhere) was not carried over.
+  - Migration (one script, per-file report): 212 `theme.<colour>` reads →
+    `colors.<colour>` across 18 files; the 6 control backgrounds
+    (`withControlAlpha(<root>.theme.surface)`) → `<root>.colors.
+    controlColor(<root>.transparencySettings)`; flyout children (AmpHeader,
+    AmpListOverlay, ActionRow, SourceSelector, SourceListOverlay, Footer,
+    VolumeBlock, OverlayCardBackground) take `required property
+    ColorPalette colors`, forwarded at FlyoutContent's 7 hand-offs and the
+    2 OverlayCardBackground ones; FlyoutContent, VolumeToast and
+    VolumeHoverTooltip own `DarkPalette {}` for now (17.12.0/17.13.0 swap in
+    ThemeSettings), each config component owns `Ui.DarkPalette {}` (17.14.0
+    forwards one); `tst_SourceListOverlay.qml` passes a `DarkPalette`.
+    Hardcoded colours outside Theme (e.g. `SettingsSwitch`'s knob
+    `#e8e6e1`, ActionRow's copper `Qt.rgba(..., 0.14)`) are untouched here;
+    the light phases tokenize what they need.
+  - **qmllint proof** (planted `footer.colors.copperBrigth` in
+    `Footer.qml`, reverted):
+    `Warning: plasmoid/contents/ui/Footer.qml:70:46: Member "copperBrigth"
+    not found on type "ColorPalette" [missing-property]` +
+    `Info: Did you mean "copperBright"?`. So the type resolves through the
+    qmldir-less directory import and a forwarded token typo is caught - as
+    a **warning; qmllint still exits 0**, so it protects only when the
+    output is read (per-file warning counts are compared every phase;
+    `--missing-property error` would make it fatal). The fallback token
+    audit is not needed.
+  - qmllint: every touched plasmoid file has the same warning count as
+    HEAD; ColorPalette/DarkPalette 0; the test file +1 of its pre-existing
+    unqualified-access kind (the new `colors: testColors` line).
+  - **Zero visual change, measured**: HEAD (git export) and the refactor
+    each installed and captured over a full-screen #808080 backdrop (a
+    first pair over the live desktop differed only where the 90 %-opaque
+    flyout showed a different desktop behind it). Flyout, harness smoke
+    (`20260927-142102-before-17.11.0-grey` / `…-142152-after-17.11.0-
+    grey`, both exit 0): max difference 1-2 levels on 43-106 of 396,000
+    px in every state, except Booting (max 110 on 486 px) - all 486 inside
+    the pulsing header dot (324) and the spinner (162), i.e. animation
+    phase. OSD, −22 dB and muted: max 1 on 35 / 7 px. ConfigDialog page
+    rendered standalone from both trees (Wayland, scale 2, whole page):
+    **0 differing pixels**. QML suite 24/24. Daemon active with the amp
+    selected after every capture; installed copy == working tree.
+
+- [x] **Phase 17.12.0 — ThemeSettings + kcfg + flyout chain.** Done
+      2026-09-27.
+  - New `ThemeSettings.qml` (QtObject, root-anchored in `main.qml` next to
+    TransparencySettings): `required property string mode` ←
+    `Plasmoid.configuration.theme`; `systemDark: true` (placeholder until
+    SystemScheme, 17.15.0); `harnessOverride` (wins over `mode` when
+    non-empty); `effectiveMode`, `resolvedDark` (`system` → systemDark,
+    `light` → false, anything else → dark); `dark: DarkPalette {}`;
+    `flyoutPalette` and `osdPalette` - **both `dark` until 17.19.0**, so
+    Light and Follow system are accepted and resolved but paint dark. One
+    journal line at startup and one per real change (`[ThemeSettings] mode
+    … effective … systemDark … resolvedDark …`); a first version logged
+    three lines at startup (creation-time binding settles) and was guarded
+    to one.
+  - `main.xml`: `theme` (String, default `system`). Forwarding exactly like
+    TransparencySettings: `main.qml` → `CompactRepresentation` (required) →
+    `FlyoutPopup` (required) → `FlyoutContent` (required), whose `colors`
+    is now `themeSettings.flyoutPalette` instead of its own `DarkPalette`.
+    Harness hook: `FlyoutContent.themeOverride` (UiState key), pushed into
+    `ThemeSettings.harnessOverride` with a journal line per change.
+  - Harness: new `theme` dimension (`dark`/`light`) in `scenarios.py`,
+    base `dark`, **omitted from state ids when dark** (every earlier run's
+    ids unchanged - `full` is still the same 870 ids as HEAD, compared
+    directly) and excluded from `--set full`; `adjacent_pairs` reads a
+    missing dimension as its base value, so older `states.json` still
+    pair; `build_ui` sends `themeOverride`; `harness.py`'s teardown sends
+    `themeOverride: ""` before closing the popup. README documents it.
+    (My plan text said the full set was 438 states - stale since the slist
+    dimension; it is 870 at HEAD.)
+  - Verified: qmllint counts as HEAD, ThemeSettings 0; `main.xml`
+    well-formed; QML suite 24/24. Live config (written through Plasma's
+    scripting API, the same store the ConfigDialog writes): `light` →
+    journal `mode light … resolvedDark false` without a restart; still
+    `light` after `plasmashell --replace` (read from disk); back to
+    `system` → `resolvedDark true` (disk now holds `theme=system`, the
+    default, explicitly). Harness `--vary theme` + smoke
+    (`20260927-143404-after-17.12.0-theme`, `…-143412-after-17.12.0-smoke`)
+    exit 0; journal shows the pin going dark → light → `""` (teardown) →
+    back to `system`, in both runs. Dark vs light captures over the grey
+    backdrop (`20260927-143451-after-17.12.0-theme-grey`): **0 of 396,000
+    px differ** (over the live desktop they differed by the desktop behind
+    the translucent flyout). Daemon active with the amp selected after
+    every run.
+
+- [x] **Phase 17.13.0 — Toast/tooltip hop.** Done 2026-09-27.
+      `VolumeToast.qml` and `VolumeHoverTooltip.qml` take `required
+      property ThemeSettings themeSettings` and read `colors:
+      themeSettings.osdPalette` (their local `DarkPalette {}` removed);
+      `CompactRepresentation` forwards its own `themeSettings` to both.
+  - Seam for the owner's idea (2026-09-27; see "Not yet scoped / parked"):
+    `ThemeSettings` now resolves through `darkFor(mode)` and gives the OSD
+    and tooltip their own `osdResolvedDark`, today equal to `resolvedDark`.
+    A later "OSD/tooltip follow the desktop's appearance" option is one
+    kcfg key plus that one binding; no consumer changes. No behaviour or
+    setting added now.
+  - Verified: qmllint counts as HEAD (ThemeSettings 0); QML suite 24/24;
+    reinstalled, journal shows one `[ThemeSettings]` line and no
+    required-property or load errors from either file. OSD over the grey
+    backdrop (−22 dB and muted) vs the 17.11.0 capture under the same
+    conditions: max 2 levels on 34 / 22 px of the whole screen
+    (anti-aliasing) - unchanged. Daemon active with the amp selected
+    afterwards. Owner check 2026-09-27 (screenshot with the OSD and the
+    hover tooltip open on the real desktop): both look right - tooltip dot
+    7 px without glow, no outer borders, solid copper bars.
+
+- [x] **Phase 17.14.0 — ConfigDialog components take a forwarded
+      ColorPalette.** Done 2026-09-27 (owner's look at the real dialog
+      pending). SectionLabel, SettingsRow, SettingsSwitch, DbStepper,
+      ThemeDropdown and ChimeIconButton now `required property
+      Ui.ColorPalette colors` (their own `Ui.DarkPalette {}` removed), so a
+      missed hand-off fails at load; `ConfigGeneral.qml` passes its own
+      `colors` at all 26 instantiations (single-line ones as `{ colors:
+      root.colors; … }`, multi-line ones directly after `id:` when present).
+      `ConfigGeneral.colors` stays `Ui.DarkPalette {}` as the page's one
+      palette: the plan's "PageTheme" resolver needs `systemDark`, so its
+      choice logic lands with 17.15.0's portal reader. A first scripted
+      pass inserted stray blank lines (its indentation pattern swallowed
+      the preceding newline); the file was restored from HEAD and redone.
+  - Verified: qmllint counts as HEAD (ConfigGeneral 0); QML suite 24/24;
+    settings page rendered standalone from HEAD and from the working tree
+    (Wayland, scale 2): **0 differing pixels**, no required-property or
+    other errors (hidden chime variants are created at load too, so a
+    missing hand-off would have failed there). Installed; daemon active.
+
+- [x] **Phase 17.15.0 — `SystemScheme.qml` portal reader.** Done
+      2026-09-27, including the owner's two desktop checks.
+  - New `SystemScheme.qml` (invisible zero-size Item, so its
+    Kirigami.Theme fallback reads the colours of wherever it is placed):
+    `dark` (starts true), `source` ("start" | "portal" | "fallback"),
+    `timeoutMs` (2000), `fallbackColor` (Kirigami.Theme.backgroundColor)
+    → `fallbackDark` via `Kirigami.ColorUtils.brightnessForColor`, a
+    `context` label for its journal line. One `ReadOne("org.freedesktop.
+    appearance", "color-scheme")` at start via `Dbus.SessionBus.asyncCall`;
+    1 → dark, 2 → light; 0 / any other value / D-Bus error / a QML Timer
+    firing first → fallback; a late 1/2 still wins; a `Dbus.SignalWatcher`
+    applies `SettingChanged` for that namespace + key only (0 there → the
+    fallback, which then follows the desktop colours live). Reply shape
+    measured, not assumed: a probe against the real portal returned
+    `reply.value = {"value": 1}` (unwrapped defensively). No
+    `DBusServiceWatcher` - the portal is activatable.
+  - Wired: `main.qml` has one `SystemScheme { context: "applet" }`;
+    `ThemeSettings.systemDark` binds to its `dark`. `ConfigGeneral.qml` has
+    its own `pageScheme` (the dialog cannot reach main.qml); the page
+    palette stays dark until 17.19.0 (`pageScheme.dark ? darkColors :
+    lightColors` then).
+  - Tests: `tests/qml/fakeportal.py` - a fake `org.freedesktop.portal.
+    Settings` with a control interface (`SetReply(mode, value, delay_ms)`:
+    value / error / silent; `EmitChanged(ns, key, value)`); it refuses to
+    start when the portal name is already owned (confirmed: exit 3 on the
+    real session bus), so it only ever runs on the private test bus.
+    `scripts/test-qml.sh` starts it next to fakeamp and stops both.
+    `tests/qml/tst_SystemScheme.qml`, 12 cases: 1 dark; 2 light; 0 with a
+    light and a dark fallback; unexpected value 7; error; silence (starts
+    dark, still "start" at half the timeout, fallback after it); late 2
+    after a dark fallback wins; live SettingChanged 2 then 1; other keys and
+    namespaces ignored; SettingChanged 0 → fallback; a timeout never
+    overrides a portal answer. Suite 38/38 in 16 s, no fake left running.
+    Mutation check: swapping the 1/2 mapping fails 6 tests, dropping the
+    timeout guard fails exactly the guard test; restored file 38/38.
+  - Verified live: qmllint as HEAD (SystemScheme 0); installed; journal
+    `[SystemScheme] applet: dark true from portal - portal reply
+    (color-scheme 1)` 88 ms after start (the owner's Darkly scheme through
+    the real portal, no fallback). Harness smoke (`20260927-150710-after-
+    17.15.0-smoke`) exit 0; daemon active with the amp selected.
+  - Owner checks (2026-09-27), from the journal: first settings-dialog open
+    `[SystemScheme] config page: dark true from portal - portal reply
+    (color-scheme 1)` (15:09:57) - the dialog context reads the same portal
+    value as the applet. Owner then switched the desktop to a light global
+    theme (Breeze Light): at 15:11:09 both `config page` and `applet` logged
+    `dark false from portal - portal SettingChanged (color-scheme 2)` and
+    ThemeSettings `resolvedDark false`, live, no restart (the dialog was
+    still open, so its page flipped too). The second dialog open logged no
+    new line (value already light).
+  - Owner's screenshot of the dialog under the light scheme: window chrome
+    and page background light, but every colour the page draws still comes
+    from the dark palette (near-white text vanishes, controls are black
+    boxes). Not caused by this arc - the page has painted dark tokens on the
+    window's background since Phase 4.4, so any light scheme showed it.
+    Fixed by 17.19.0 (LightPalette; the page switches palette on
+    `pageScheme.dark`) and 17.25.0-17.27.0 (the light page per the mockup).
+
+- [x] **Phase 17.16.0 — Extract `SegmentedControl.qml`.** Done
+      2026-09-27. New `plasmoid/contents/config/SegmentedControl.qml`, the
+      two inline copies in `ConfigGeneral.qml` (Volume step size, Chime
+      sound) extracted unchanged - they were visually identical (radiusSm
+      `surface` box, 1 px divider border, 3 px padding; 2 px gaps; segments
+      radius 6, label +22/+10; active `surface3`; 11 px mono,
+      copperBright when active or hovered, else textDim; hover recolours
+      text only). API: `labels`, `activeIndex` (bound by the page),
+      `picked(index)` signal (the page writes its cfg_* in the handler),
+      `required property Ui.ColorPalette colors`; per-file `Ui.Theme`.
+      ConfigGeneral: 104 lines out, 16 in; the Phase 4.4.2 activeIndex note
+      kept.
+  - Verified: SegmentedControl and ConfigGeneral lint 0; settings page
+    rendered standalone from HEAD and the working tree: **0 differing
+    pixels** (both views). Clicks (scratch QtTest driver, page in its own
+    Window - inside the TestCase root it reported `visible: false` and
+    swallowed clicks, a test-setup issue confirmed by calling `picked(2)`
+    directly): "2 dB" → `cfg_volumeStepDb` 2, "0.5 dB" → 0.5, "Custom file"
+    → `cfg_chimeSourceMode` "file", "System theme" → "follow", activeIndex
+    following each time. QML suite 38/38; installed; daemon active.
+
+- [x] **Phase 17.18.0 — Follow-system status line.** Done 2026-09-27.
+      Under the Theme row in `ConfigGeneral.qml` (configDialog mockup v2
+      :585-590): the chime section's dot + mono pattern - 6 px copperBright
+      dot, "Following your desktop's color scheme — currently
+      <b>Dark|Light</b>" in 11 px mono textDim with the value bold
+      copperBright, 10 px above, a divider 14 px below (`.kcm-sub-row`
+      padding 10px 2px 14px + border-bottom). Shown only while
+      `cfg_theme === "system"` (reacts to the selection before Apply, like
+      the chime line). Value from the page's own `pageScheme.dark` (the XDG
+      portal through SystemScheme.qml, 17.15.0). objectNames
+      `themeFollowStatus` / `themeFollowLabel`.
+  - Verified: ConfigGeneral lint 0; QML suite 38/38. Scratch QtTest on the
+    real page: visible for Follow system, hidden for Dark and Light; with
+    the owner's real portal the line reads "currently Dark"; setting
+    `pageScheme.dark` false/true switches it to Light/Dark; the 17.17.0
+    Theme-row test still passes. Render matches the mockup. The page is now
+    1079 px tall in the driver's 1044 px viewport, so its "scrolled to the
+    bottom" capture moves 35 px - a driver artifact (the first capture is
+    requested before the scroll but rendered after it); the page opens at
+    `contentY` 0 in both HEAD and the working tree. Installed; daemon
+    active.
+
+- [x] **Phase 17.19.0 — LightPalette + light flyout base.** Done 2026-09-27.
+      `LightPalette.qml` (flyout mockup v3 light + gold blocks, :61-80 and
+      :94-105): white surfaces, text `#1c1a17`/`#6e6a64`/`#a29d95`, divider
+      `rgba(28,24,18,0.09)`, track `#ece9e4`, copper `#c39443`/`#9c6d20`/
+      `#e2c88f`, white overlay cards with the v3 popup shadow. `surface2` is
+      the v3 `--row-hover` (the only thing code uses it for). Five tokens
+      that were hardcoded now live in both palettes: `overlayShadow`,
+      `accentFill` (flat `#e2b865` in light), `headerHover`, `activeFill`,
+      `cardShadow`. Light controls are glass: `TransparencySettings.
+      glassAlpha` = 0.35 + 0.65·alpha via `ColorPalette.controlColor()`;
+      dark keeps `withControlAlpha`. The slider handle is an Item holding
+      the dark disc or the light `GoldSphere` (15 px, 3 px halo). New
+      `CardShadow.qml` (v3 `--card-shadow`) sits under both action buttons
+      (mute only while not muted), the source row, the chip and both
+      steppers. `ThemeSettings.flyoutPalette` now switches to `light`;
+      `osdPalette` stays dark until 17.22.0/17.23.0. `GoldSphere.qml` and
+      `GradientMask.qml` promoted from the spike, headers only changed.
+  - **CardShadow cuts itself out of the control.** CSS `box-shadow` is
+    never painted under its own box, but RectangularShadow is, and it
+    showed through the glass faces. At 50 % opacity over grey the faces
+    read 223-227 against the formula's 232. Hiding the shadows gave 232,
+    which confirmed the cause. Fix: the shadows are drawn into a hidden
+    layer 14 px larger than the control, and a MultiEffect with an
+    inverted mask (the control's rounded rect) removes the control's area.
+    The whole thing sits in a Loader that is active only in light. A first
+    version toggled `layer.enabled` at runtime instead; after a dark ->
+    light flip it kept drawing but stopped cutting (standalone driver:
+    face 184 instead of 192 over grey). Built with its layers on from the
+    start, it cuts in both drivers. Result: faces 231-232 (glass 0.671 vs
+    0.675, 8-bit rounding). With transparency off, the controls' borders
+    now sit on white, not on the shadow (bottom edge 218 -> 234 =
+    divider over white); face interiors are unchanged.
+  - Verified: all touched files lint as at HEAD, the new files lint 0.
+    Dark: `--set smoke` over the grey backdrop (`backdrop.qml`) matches
+    before-17.19.0 within 1-2 levels (anti-aliasing) in every state except
+    Booting, which differs only by its animation. Light: `--vary
+    theme,mute,slist`, `theme,list` and `theme,vol,pow` over grey, with
+    transparency on (50 %) and off. The theme flip moves nothing
+    geometric. Opaque samples vs v3: panel 254-255, dividers 234 (235
+    expected), muted fill 248,243,235 (249,244,236), muted border
+    `#e2c88f` exact, slider fill `#e2b865` exact, track `#ece9e4` exact,
+    chip white (v3 `--chip-bg` is white glass, :73), readout and "Unmute"
+    `#9c6d20`, amp name `#1c1a17`, IP line `#a29d95`. Thumb reads as the
+    radial gold sphere with its halo. Solving the light and dark 50 %
+    captures together gives panel alpha 0.500 over an effective backdrop
+    of 115, not 128: the owner's Better Blur DX force-blur processes the
+    backdrop. Glass is measured relative to the panel, so the blur does
+    not affect it.
+  - Harness: new `tools/flyout-harness/expected-17.json` = the 7.14.0 rules
+    plus three narrow ones: the handle Item subtree (vol, amp), the chip's
+    CardShadow (src, amp) and CardShadow's light-only Loader subtree
+    (theme). Every run reports exit 0 against it. Runs:
+    `20260927-185259-before-17.19.0-grey`, `-190620-after2-17.19.0-grey`,
+    `-190635-17.19.0-light-a-transp-v2`, `-190649-...-light-b-transp-v2`,
+    `-190658-...-light-a-opaque-v2`, plus the pre-fix `-1856*`/`-1857*`
+    light runs.
+  - QML suite 38/38. Installed; daemon active on 192.168.0.22. Settings
+    restored: transparency on, 50 %, theme unset (system).
+  - Open, not in this phase:
+    - The source list's scrollbar handle is the desktop style's, coloured
+      by the (dark) Plasma theme: a dark bar on the white light card. The
+      mockup doesn't style its scrollbar.
+    - v3 buttons use `--btn-border` `rgba(28,24,18,0.10)` (:72); ours use
+      `divider` 0.09, about 2 levels lighter.
+    - v3's gold note (:600) says "the readout and all text stay
+      near-black", but its CSS (:108-115) still paints the gold gradient
+      readout that 17.20.0 plans.
+    - The alpha sweep and the Better Blur DX soak are for the owner.
+
+- [x] **Phase 17.19.1 — Light-glass spike (`spike/light-glass`, merged).**
+      Done 2026-09-28. **Outcome: fixed-k light controls adopted (implemented
+      in 17.19.2).** The single opacity slider stays unchanged: no light
+      floor, no per-theme mapping. The light design itself (text tokens,
+      readout, gold marks, how much frost) is being re-iterated by the owner
+      outside Claude Code and will come back as an updated mockup.
+  - Why: after 17.19.0 the light flyout with transparency + Better Blur DX
+    over the owner's dark night wallpaper needed about 20 % opacity to
+    show frost. At that opacity faint text disappeared and the glass
+    controls stood out as grey slabs. Dark at 50 % over the same wallpaper
+    looks right.
+  - The finding adopted: the slabs come from the light controls' glass
+    formula `0.35 + 0.65 x alpha`. Over black, a control is +94 levels
+    above the panel at alpha 0.20 and +66 at 0.65. The dark theme's
+    fixed-k model (white at a fixed alpha k = 0.1 over the panel) gives +20
+    and +9. With fixed k the step stays small on any wallpaper, and the
+    border + card shadow do the separating.
+  - Not adopted (dropped by the owner, kept only as the record in the
+    spike directory): the mockup variants (A/B mapping, light floor
+    Lmin), worst-case text tokens, and the contrast gates.
+    `tools/spike-light-glass/` holds the mockup copy, `contrast.py` /
+    `contrast-tables.md`, `capture.sh` and the black-wallpaper captures
+    behind its +-0.1 check (max diff 0.072). Its measurements (e.g. v3
+    light tokens failing WCAG gates even opaque, the polarity floor of
+    about 0.60 for faint text) are available for the owner's
+    re-iteration. 17.28.0 removes the directory.
+  - **Dim Inactive (kept finding, confirmed 2026-09-28).** KWin's Dim
+    Inactive effect is enabled on the dev machine
+    (`diminactiveEnabled=true`). With it loaded, the #808080 grey backdrop
+    reads 113 behind the flyout. Unloaded at runtime (`qdbus6
+    org.kde.KWin /Effects unloadEffect diminactive`; kwinrc untouched,
+    loaded again afterwards), it reads 129 (128 + Better Blur DX noise).
+    Harness runs `20260928-204404-dimcheck2-on` / `-204410-dimcheck2-off`.
+    This explains the 115-instead-of-128 backdrop in 17.19.0. When the
+    flyout opens over an inactive window, KWin dims that window, so the
+    backdrop gets darker than the window itself. The effect does not
+    touch the wallpaper, which is not a window. Grey-backdrop
+    measurements should either account for it or unload it at runtime.
+    (An earlier pair, `-2043*-dimcheck-*`, ran without the backdrop and
+    is void.)
+  - Better Blur DX settings that change brightness, contrast or saturation
+    behind the widget (v2.5.1, from its `blur.kcfg` and `blur.cpp` on
+    GitHub, plus the config .so's UI strings). Owner's current values are
+    from `~/.config/kwinrc` `[Effect-better-blur-dx]`:
+    - `Saturation`: default 150, owner **110**. The colour matrix applies
+      it to the blurred backdrop. 100 = neutral.
+    - `Brightness`: default 100 (neutral), owner unset = 100.
+    - `Contrast`: default 100 (neutral), owner unset = 100.
+    - `ForceContrastParams`: default false, owner unset = false. When
+      false, a window that sends its own contrast/saturation (Plasma's
+      themed dialogs do) overrides the three globals. When true, the
+      globals apply to every blurred window. The flyout is force-blurred
+      with `NoBackground`, so it most likely sends none and the globals
+      apply either way. Inference, not checked.
+    - `NoiseStrength`: default 5, owner **10**. Added on top of the blur
+      (`GL_ONE, GL_ONE`), so it slightly brightens and grains dark
+      backdrops.
+    - `BlurStrength`: default 15, owner **10**. It changes blur radius,
+      not brightness, but a weaker blur leaves more wallpaper detail
+      under the text.
+    - `Refraction*` (`RefractionStrength` default 0, owner unset = 0): off.
+    - Not Better Blur DX but relevant: KWin's **Dim Inactive** effect is
+      enabled here (`diminactiveEnabled=true`). It may be why the 17.19.0
+      grey test backdrop read 115 instead of 128 behind the flyout (the
+      backdrop window was inactive while the flyout had focus). This is a
+      hypothesis; the spike tests it with one capture with Dim Inactive
+      off. Stock KWin blur (`[Effect-blur] Saturation=186`) is disabled
+      (`blurEnabled=false`) and plays no part.
+  - **Native blur / background contrast from QML: investigated
+    2026-09-27; not feasible for our NoBackground Dialogs.** Source read
+    at the installed tags (libplasma v6.7.5, kwindowsystem v6.30.0, kwin
+    v6.7.5, kirigami v6.30.0; shallow clones in the scratchpad) plus
+    every installed `*.qmltypes`.
+    - Verified:
+      - With `NoBackground`, `DialogPrivate::updateTheme()` actively turns
+        both off: `KWindowEffects::enableBlurBehind(q, false)` and
+        `enableBackgroundContrast(q, false)` (libplasma
+        `src/plasmaquick/dialog.cpp:229-232`). It runs from
+        `componentComplete()` (:1561), the first expose (:1390),
+        `resizeEvent` (:1297), `syncToMainItemSize` (:623, :671),
+        `updateLayoutParameters` (:571), `slotWindowPositionChanged`
+        (:683), every Plasma theme change (:945) and
+        `setBackgroundHints` (:1658). Even if something else set blur on
+        the window, Dialog would clear it at the next of these.
+      - `dialog.h:132` says so: "in case of NoBackground it loses kwin side
+        shadows and blur".
+      - With any other hint, Dialog requests both, but only on the
+        theme's terms. It sets the frame image to `dialogs/background` or
+        `widgets/tooltip` (`dialog.cpp:234-243`, drawn under our content),
+        blur = `theme.blurBehindEnabled()` masked to that frame's shape
+        (:245-247), and contrast/intensity/saturation = the theme's own
+        values (:249-254). Those values come only from the theme's
+        metadata `[ContrastEffect]`/`[BlurBehindEffect]` groups
+        (`src/plasma/private/theme_p.cpp:346-380`). Darkly ships neither
+        group (`/usr/share/plasma/desktoptheme/darkly/` has only
+        `metadata.json`, `dialogs/`, `widgets/`), so under Darkly: blur on,
+        contrast off. No property lets QML pass its own values.
+      - `PlasmaWindow` (the AppletPopup class) does the same from the
+        theme (`plasmawindow.cpp:166-167`), and it has no NoBackground (see
+        CLAUDE.md).
+      - The only setters are C++: `KWindowEffects::enableBlurBehind` /
+        `enableBackgroundContrast` (kwindowsystem `src/kwindoweffects.h:78,
+        106`). Its QML module registers only the `KWindowSystem` and
+        `KX11Extras` singletons (`src/qml/types.h:21-38`; the installed
+        `KWindowSystem.qmltypes` lists nothing else).
+      - A search of all installed qmltypes for blur-behind/contrast setters
+        finds none. The one contrast hit is
+        `org.kde.plasma.private.containmentlayoutmanager`'s
+        `PlasmaBackground` singleton, which only reads the theme's
+        `backgroundContrast/Intensity/Saturation`.
+      - Stock KWin blur blurs a window only if the window asks: the X11
+        atom `_KDE_NET_WM_BLUR_BEHIND_REGION`, the Wayland surface's
+        `blurRegion()`, or a KWin-internal window's `kwin_blur` property
+        (kwin `src/plugins/blur/blur.cpp:270-330`). There is no
+        class-based forcing; that is what Better Blur DX adds.
+        `WindowForceBlurRole` exists only for KWin scripted effects
+        (`src/scripting/scriptedeffect.h:56-57`). It only lifts the
+        "transformed / fullscreen effect" skip in `shouldBlur()`
+        (`blur.cpp:488, 499`) and creates no region, so a KWin script
+        cannot give our window blur either.
+    - Inferred (not verified):
+      - The Wayland blur and contrast objects are created by the client
+        for its own surface, so no other process (e.g. our Rust daemon)
+        can attach them to plasmashell's window.
+      - CLAUDE.md's Better Blur DX note guesses the OSD and tooltip
+        escaped force-blur because they "self-report blur via the themed
+        Dialog background". That can't be the reason: both are
+        `NoBackground` (`VolumeToast.qml:108`, `VolumeHoverTooltip.qml:92`),
+        which turns blur off per the code above. The real reason is
+        probably Better Blur DX's own window matching (window type or
+        class). Not checked; the CLAUDE.md note should be corrected once
+        it is.
+    - Consequences:
+      1. Stock KWin blur without Better Blur DX: not reachable from QML
+         while we keep `NoBackground`. The only QML route is a themed
+         background (`StandardBackground`), which brings back the
+         theme's frame image under our panel (opaque under Darkly: the
+         pre-7.10.0 problem). It also shapes the blur to the theme's
+         frame, not our 16 px corners.
+      2. Our own background contrast / saturation boost: not reachable at
+         all. Even with a themed background the values are the theme's,
+         and Darkly has contrast off.
+      - Both need `KWindowEffects` from C++, which the project rules out.
+        Stop-and-flag per CLAUDE.md; not pursued.
+    - "Blur behind widget" toggle: not sketched, because there is nothing
+      for it to control. What we can offer instead is the existing plan (a
+      short note in the ConfigDialog pointing at the compositor's
+      force-blur option), which a later light-theme phase can include.
+
+- [x] **Phase 17.19.2 — Fixed-k light controls.** Done 2026-09-28. Light
+      controls (buttons, source row, chip, +/- steppers) use the dark
+      theme's fixed-k model instead of glass `0.35 + 0.65 x alpha` - the
+      17.19.1 spike's adopted finding.
+      - `controlAlphaK` moved from `TransparencySettings.qml` into the
+        palette: `required property real controlAlphaK` in `ColorPalette.qml`
+        (the owner's "Palette.qml" - the base type is named ColorPalette
+        because `Palette` clashes with QtQuick's type).
+        `DarkPalette.qml` 0.1 (unchanged value), `LightPalette.qml` 0.1
+        (starting value, to tune live).
+      - The Phase 9.1.1 derivation comment for k moved with it.
+        `TransparencySettings.qml` keeps a short pointer where controlAlpha
+        was, because seven components' comments still say "see
+        TransparencySettings.qml's controlAlpha comment".
+      - `ColorPalette.controlColor(ts)` returns `surface` at the palette's
+        `controlAlphaK` for both themes. `ts` is no longer read; the
+        parameter stays so no component changed.
+      - Removed from `TransparencySettings.qml`: `controlAlphaK`,
+        `controlAlpha`, `withControlAlpha`, `glassAlpha`, `withGlassAlpha`.
+        Nothing else in the repo used them (grep of plasmoid/, tests/,
+        tools/).
+  - Verified:
+    - qmllint: warning counts equal to HEAD for the four touched files (all
+      0) and for their consumers (ActionRow 1, VolumeBlock 6, SourceSelector
+      0, ConfigGeneral 0).
+    - QML suite 38/38.
+    - Harness over the #808080 backdrop, transparency 50 %, Dim Inactive
+      loaded in every run: before `20260928-220128-before-17.19.2-dark`,
+      `-220144-...-light-a` (`--vary theme,mute,slist`) and
+      `-220159-...-light-b` (`--vary theme,list`); after `-220323`,
+      `-220339`, `-220354`. All exit 0 against `expected-17.json`, no moves.
+    - **Dark: no widget change.** Before vs after differs by about 23 000 px
+      of at most 7 levels per state. A restart-only control (shell
+      restarted with no code change, `-220602-after2-17.19.2-dark-restart`)
+      gives the same diff (22 922 vs 22 966 px, max 7). It is compositor
+      noise from each `plasmashell --replace` (Better Blur DX's noise band
+      at the top of the flyout, plus the transparent corners outside its
+      rounded edge), not the widget. Within one shell session, two runs
+      differ by about 100 px of 1 level. The dark panel reads 67 before
+      and after, and Booting differs only by its animation.
+    - **Light: only controls change.** Every changed pixel outside the six
+      control rectangles (sourceChip, volumeDown/UpButton, muteButton,
+      powerButton, sourceRow; 1 px margin) matches that same noise (22 966
+      / 7 776 px, max 7, none above 7). Inside the controls, faces went
+      from 232-233 (glass) to 191-194 at 50 %; fixed k predicts 191 over
+      the panel's 184.
+    - Installed; daemon active on 192.168.0.22.
+  - Left for the owner: the live check with transparency + blur (Better
+    Blur DX), and tuning `LightPalette.controlAlphaK` if 0.1 reads too
+    faint.
+  - `CardShadow.qml`'s header comment updated (owner request): it said
+    light controls are glass (`TransparencySettings.withGlassAlpha`); it
+    now points at the palette's fixed `controlAlphaK` /
+    `ColorPalette.controlColor()`. Comment only. The mask it describes is
+    still needed, since fixed-k controls are even more see-through.
+
+- [x] **Bug fix — OSD shown by fast scrolling on the flyout slider, stuck
+  on one value (2026-09-29).** Owner report: slow scrolling on the flyout
+  slider never showed the OSD, fast scrolling did, and the toast then sat
+  on one value (-20.0, the ceiling) instead of following the volume.
+  - **Root cause:** `PendingAmpState.qml`'s reply callbacks cleaned up
+    `ownInFlight` by *value* (`forgetOwn`), not per call. Fast notches past
+    the floor/ceiling re-send the clamped value (`VolumeSettings.stepped()`),
+    so two equal values are in flight; the daemon emits signal N before
+    reply N, so signal #1 consumed entry #1, reply #1 then deleted entry #2,
+    and call #2's echo went unmatched -> `externalVolumeCommand` -> toast on
+    that one value, while every later echo was still swallowed. Same shape
+    for `mute false` while scrolling fast when muted.
+  - **Fix:** entries carry a unique increasing id (`ownNextId`);
+    `rememberOwn` returns it and the reply callbacks call `forgetEntry(id)`,
+    which removes only that call's entry. The signal side (`consumeOwn`,
+    oldest equal value) is unchanged; panel wheel/middle-click and external
+    (MPV) commands are untouched.
+  - **Verification:** reproduced first against the old code with a scratch
+    QtTest (1 spurious external signal), then four new cases in
+    `tests/qml/tst_PendingAmpState.qml` (duplicate volume, duplicate mute,
+    unechoed call forgotten by its own reply, external value during an own
+    call); `scripts/test-qml.sh` 42/42, qmllint clean. Owner confirmed live
+    (after the rate-limit fix below made fast spins usable): no OSD from the
+    flyout slider; panel-icon scroll still shows it.
+
+- [x] **Bug fix — Fast wheel spin froze the widget; wheel notch rate
+  limit (2026-09-29).** Found while testing the entry above: a hard
+  free-spin froze the widget for 2-10 s (the flyout would not even close),
+  then replayed the backlog at once (e.g. -21 -> -50 sent within 30 ms,
+  dozens of chimes together).
+  - **Cause:** up to ~300 notches/s (bursts of 160-296), each spawning a
+    `devialet-ctl` and a `devialet-chime` process plus a D-Bus call from
+    plasmashell's UI thread; chime finishes trailed starts by 2-10 s.
+    **Pre-existing, not caused by the fix above** - A/B on the owner's
+    hands with the shell under `plasma-plasmashell.service`: A (the fix)
+    bursts up to 161, B (the pre-fix `PendingAmpState.qml`, packaged from a
+    scratch copy) bursts up to 257, same freeze both times. The earlier
+    session never exceeded 53-notch bursts, which is why it hadn't shown.
+  - **Fix (owner's proposal):** both wheel handlers (`VolumeBlock.qml`'s
+    slider MouseArea, `CompactRepresentation.qml` `wheelStep()`) drop a
+    notch arriving within `VolumeSettings.wheelStepMinIntervalMs` of the
+    last accepted one - dropped, not queued. +/- buttons (autoRepeat
+    100 ms) untouched. 40 ms first (the MPV script's `min_interval_ms`):
+    owner found it slow, dropping notches even on a normal ratcheted
+    scroll and a full floor-to-ceiling sweep taking too long; **25 ms**
+    (40 notches/s) kept - "feels great"; later moved to **20 ms** (50
+    notches/s) at the owner's request (2026-09-29).
+  - **Pacing instead of dropping (same day, owner report: free-spinning
+    felt uneven at 20 ms).** Journal: the owner's wheel delivers notches on
+    a ~7.5 ms grid with skipped slots, so the drop limiter accepted steps
+    22-23 ms apart mostly, but also 30, 37 and 42-45 ms - the step rate
+    jumped between ~44 and ~22 steps/s. Not UI stalls: 190 of 233
+    in-gesture silences >35 ms were plain wheel gaps, 43 short stalls
+    (mean 49 ms, max 89 ms, no backlog; the pre-fix session had the same
+    kind). New `WheelStepPacer.qml` (used by both wheel handlers): the
+    first notch steps at once, further steps are spaced exactly
+    `wheelStepMinIntervalMs` apart by a Timer, at most one notch waits
+    (latest direction wins), the rest are dropped - still no backlog.
+    `tests/qml/tst_WheelStepPacer.qml` feeds the measured gap pattern; its
+    spacing and backlog cases fail against the old drop limiter (max gap
+    31 ms) and pass on the pacer (3 runs). `scripts/test-qml.sh` 53/53.
+    The owner still found it uneven after this, and worse the longer they
+    scrolled: the real cause was UI-thread stalls from the chime's
+    ever-new command names (the "Scroll stutter" entry below), which the
+    stall count above had understated.
+  - **Verification:** `scripts/test-qml.sh` 42/42, qmllint clean; owner
+    confirmed live on the flyout slider and the panel icon (OSD and
+    tooltip) - no freeze, no chime pile-up.
+  - Side note: a `plasmashell --replace` run from a terminal puts the shell
+    in that terminal's cgroup (closing it kills the panel) - restart with
+    `systemctl --user restart plasma-plasmashell.service` instead.
+
+- [x] **Bug fix — Daemon echoes pulled the volume step base back during
+  fast scrolling (2026-09-29).** Parked while investigating the OSD bug
+  above, fixed the same day at the owner's request.
+  - **Mechanism:** both `stepVolume()`s build on `pendingAmpState.volumeDb`
+    (`FlyoutContent.qml`, `CompactRepresentation.qml`); the daemon pushes
+    `VolumeDb` = each call's own value inside `NotifyVolumeCommand`, before
+    replying, and `noteVolumeDb()` applied every push. With notch N+1
+    already sent, call N's push rewound the base to N and the next notch
+    repeated or lost a step.
+  - **Measured:** 14 direction reversals in the pre-rate-limit bursts
+    (e.g. -46 then -41 at 20:11:16); 0 in 1,028 steps after the 25 ms
+    rate limit (echo round trip ~1 ms lands before the next notch). So the
+    rate limit already made it unreachable in normal use; this closes it
+    for any UI-thread stall.
+  - **Fix (`PendingAmpState.qml`):** while any own volume call is
+    unreplied (`ownVolumeCallsPending`), pushes only update
+    `lastRealVolumeDb`; when the last reply lands, `reconcileVolume()` sets
+    `volumeDb` to the daemon's latest value once (also picks up a genuine
+    physical-remote change from meanwhile). Never stuck (owner
+    requirement): callbacks decrement first; a 3 s watchdog from the latest
+    send resets the count; a `DBusServiceWatcher` on the daemon's bus name
+    resets it when the name vanishes or reappears; a reset bumps an epoch
+    so late replies can't lower a newer burst's count. Mute unchanged (a
+    toggle doesn't re-derive from a stale base).
+  - **Verification:** new `tst_PendingAmpState.qml` pullback test failed on
+    the pre-fix file (-30 instead of -29), passes now; plus cases for a
+    genuine push during a call, a reply that never arrives (watchdog, then
+    pushes followed again), a late reply after a reset, and the bus-name
+    reset. One existing case now `tryCompare`s (its physical-remote push
+    lands before the send's reply). `scripts/test-qml.sh` 47/47, qmllint
+    clean; installed, loads without errors. Installed through all of the
+    owner's later scroll sessions (7,596 volume steps from 21:00 on):
+    no watchdog reset logged.
+
+- [x] **Bug fix — Scroll stutter that got worse the longer you scrolled:
+  unbounded chime command names (2026-09-29).** Owner report: even with
+  the paced 20 ms steps, scrolling was uneven, and the longer they
+  scrolled back and forth the worse it got - bad from the first notch in
+  a shell that had seen earlier spins.
+  - **Ruled out, by measurement:** the mouse (raw evdev capture:
+    notches <= 15 ms apart inside a spin); render loop and compositor
+    (threaded loop gave the same 67 %/32 % step-gap split; KWin 1-2 % CPU
+    while plasmashell's UI thread sat at ~95 %); the widget's own D-Bus
+    calls and process launches in isolation (3,000 each at 50/s in a
+    standalone Qt process: zero stalls); PipeWire stream churn (1,500
+    silent streams: no growth); journald (no rate limiting); widget state
+    (engine sources, connections, ownInFlight all flat).
+  - **Cause (eu-stack samples of plasmashell's UI thread, 69 of 77 busy
+    samples):** `DataContainer::becameUnused -> DataEngine::removeSource
+    -> QQmlPropertyMap::clear -> QQmlOpenMetaObject::createProperty ->
+    QMetaObjectBuilder::toMetaObject`. Every finished executable-engine
+    command makes every executable DataSource in plasmashell clear that
+    source name in its `data` map; `clear()` creates a missing key and a
+    map never drops one, so each never-seen name adds a property to every
+    such map and rebuilds its metaobject. The chime's `--tick N` made
+    every chime name new, so each cost more than the last until the shell
+    restarted. Reproduced standalone with 10 DataSources: unique names ->
+    UI thread blocked 8.9 s per 10 s after a minute (max stall 113 ms);
+    16 repeating names -> zero stalls.
+  - **Fix:** `VolumeSettings.chimeArguments()` (used by both
+    `maybeChime()`s) passes only `clamp(round(target - confirmed, 0.5),
+    +-20)` as `--target-db` against `--confirmed-db 0`, and `--tick` wraps
+    at `chimeSlots` (16) - at most 81 x 16 names for the life of the
+    shell. Loudness unchanged: devialet-chime's gain depends only on that
+    clamped delta (gain.rs); `--dry-run` gave identical `volume=` for all
+    1,111 old/new combinations checked. The settings page's chime preview
+    counter wraps at 16 for the same reason. New
+    `tests/qml/tst_VolumeSettings.qml`; `scripts/test-qml.sh` 59/59.
+    Owner confirmed after a long session: no worsening over time.
+  - **Bound checked, and why it isn't the end state:** 16 ticks is the
+    smallest safe modulus - 1,583 chimes measured: 170 ms median, 208 ms
+    max start-to-finish, at most 9 running at once, all 9 with the same
+    delta; the longest chime seen all day (259 ms, under load) / 20 ms
+    spacing needs >= 14. The full 81 x 16 = 1,296-name set in the
+    standalone repro (10 DataSources, 50/s, every name new as early as
+    possible): 0 / 1.8 s / 4.9 s blocked per 10 s while it fills (max
+    stall 38 ms), then zero for the remaining 70 s. But real use fills it
+    quickly - 437 distinct names in one 6-minute session (deltas -15..+15
+    dB) - and plasmashell has more executable DataSources than the repro
+    (13 in this widget alone), so the last new names still cost. Owner
+    decision: make the chime's command names fixed by having
+    devialet-chime read target/confirmed from the daemon itself (the
+    "Chime: fixed command names" entry below).
+
+- [x] **Chime: fixed command names - devialet-chime reads the volumes
+  from the daemon (2026-09-29).** (Owner decision, follow-up to the "Scroll
+  stutter" Done entry). QML runs only `devialet-chime --tick k` (16 names
+  for the life of the shell); the binary reads target (`VolumeDb`, the
+  daemon's pending/optimistic value) and confirmed (`VolumeRaw`) itself
+  over D-Bus. Owner considerations to design for:
+  1. **Timing** - the chime reads the volume when it starts, not when the
+     notch happened; during fast scrolling those can differ by a step or
+     two. Probably inaudible and arguably more accurate - measure it.
+  2. **Daemon not running** - the chime must still play at a sensible
+     default loudness, never fail silently or hang waiting on D-Bus
+     (bounded timeout).
+  Split into three commits (owner): (a) refactor, (b) binary reads the
+  daemon with QML unchanged, (c) QML switch; install only via
+  `./install.sh` for this phase so QML is never newer than the binary.
+  - **(a) done:** `devialet_protocol::volume_db_from_raw(raw)` - the
+    status-broadcast decode `(raw - 195) / 2` as one function;
+    `Status::volume_db()` calls it. No behaviour change; new fixture test.
+  - **(b) done:** `devialet-chime` takes `--target-db`/`--confirmed-db` as
+    a pair (both, or neither; one alone is a usage error). Neither: new
+    `daemon.rs` reads `AmpIp`, `VolumeDb`, `VolumeRaw` in ONE `GetAll`
+    (same snapshot) on a helper thread, waiting at most
+    `DAEMON_READ_TIMEOUT` (provisional 50 ms, the plan's cap, until (c)); no amp, no daemon, D-Bus error or timeout ->
+    zero delta (the file at its own level) with a logged
+    `source=default(<reason>)` warning. Log line gains `source=` and
+    `read_ms=`. Hands-free `--dry-run` on a private bus: fakeamp up ->
+    `source=daemon`, read 2.2 ms; no daemon -> `default(ServiceUnknown)`
+    in 1.0 ms; fakeamp SIGSTOPped (owns the name, never replies) ->
+    `default(timeout)` at 50.1 ms, process done in 59 ms; explicit flags
+    -> `source=args` (the current QML path, unchanged). Against the real
+    daemon: `source=daemon`, ~1.1 ms. `cargo test --workspace` 124/124,
+    clippy clean.
+  - **(c) done:** QML runs only `devialet-chime --tick k`
+    (`VolumeSettings.chimeArguments(tick)`, 16 slots) plus the unchanged
+    `--file` suffix; both `maybeChime()`s keep their gates and log QML's
+    own target/confirmed next to each command as the timing reference.
+    `tst_VolumeSettings.qml` pins the strings and a 20,000-tick session at
+    exactly 16 names. Installed via `./install.sh`, shell restarted under
+    systemd. Owner's minute of normal + hard scrolling (Optical 1, chime
+    sounding normal), 1,135 chimes:
+    - all `source=daemon`; **16 distinct command strings**;
+    - **timing (owner consideration 1):** the daemon-read target matched
+      QML's notch target in 1,135/1,135 - the daemon has always processed
+      the step's NotifyVolumeCommand before the chime reads. Confirmed
+      matched in 1,089 (96 %); the other 46 differ by 1-10 dB because an
+      amp broadcast landed in between, so the chime used the newer amp
+      value. Resulting loudness identical for 1,110 (97.8 %); 25 played
+      1-9 dB louder (amp had already caught up - less compensation due);
+    - `read_ms` p50 0.48, p99 0.60, max 0.76 -> `DAEMON_READ_TIMEOUT` set
+      to **6 ms** (about 10x p99, owner rule; 8x the max). Stalled-daemon
+      check re-run: `default(timeout)` at 6.08 ms, process 13 ms;
+    - no degradation over the minute: steps 19-23 ms apart 84.4 % in the
+      first third, 84.8 % in the last.
+    `cargo test --workspace`, clippy clean; `scripts/test-qml.sh` 58/58.
+
+- [x] **Phase 17.19.3 — Light flyout re-based on mockup v22 (tokens).** Done
+      2026-10-03. New entry: the v21/v22 mockup changes no earlier entry
+      covered. Colours and weights only.
+      - `LightPalette.qml`: `textDim` `#6e6a64` → `#3f3a33`, `textFaint`
+        `#a29d95` → `#524c45` (v22 :69-73).
+      - Two new typed tokens in `ColorPalette.qml`: `controlBorder` (resting
+        border of mute, power, -/+, source row; light `rgba(28,24,18,0.10)`,
+        `--btn-border` :76) and `chipBorder` (light `rgba(28,24,18,0.16)`,
+        :158). Dark carries the `divider` value in both, so dark is unchanged.
+        This closes 17.19.0's open item about the button border.
+      - `Font.Medium` in light on the four small mono labels (v22 :152-157):
+        ampSub, sourceChipLabel, the "SOURCE" eyebrow, footerLabel.
+  - Verified: qmllint counts equal to HEAD for every file under
+    `contents/ui/`; QML suite 58/58. Harness against `expected-17.json`,
+    exit 0: before `20261003-140526-before-17.19.3-dark`, `-140545-...-light-a`
+    (`--vary theme,mute,slist`), `-140605-...-light-b` (`theme,list`),
+    `-140618-...-light-c` (`theme,src`); after `-140743`, `-140803`,
+    `-140823`, `-140835`. Light coordinates identical before/after (the
+    heavier weight moves nothing). Dark before vs after: every pixel above 2
+    levels lies in the four corner squares (the panel icon sat 30 px further
+    right after the restart, so the desktop behind the rounded corners
+    differs); the panel itself reads 20 vs 21. Transparency off (the owner's
+    current setting).
+
+- [x] **Phase 17.20.0 — Light readout + wordmark.** Done 2026-10-03.
+      `GradientText.qml` promoted from `tools/spike-gradient-rendering/`.
+      In light the volume readout is the gold sweep `#dca136 → #f3cf7c` with
+      its glow (v22 :109-116; `shadowBlur` 0.9 / `blurMax` 32, the 17.0.2
+      pick, colour `rgba(199,154,46,0.35)`), and "DEVIALET" is DemiBold with
+      the sweep `#97691f → #cf9c45` over the word's own width (:104,
+      :117-120). "dB" stays `textDim`. Stop colours are palette tokens
+      (`readoutGradientStart/End`, `readoutGlow`, `eyebrowGradientStart/End`).
+      - Both Labels stay in the layout with transparent text in light and
+        the gradient is painted over them from a `Loader` that is active only
+        in light (layers built from the start, the CardShadow lesson).
+      - **Mask edges (found on the real flyout, not in the spike):**
+        `MultiEffect`'s default mask (threshold 0, spread 0) makes every
+        pixel with any coverage fully opaque, so text and glyph strokes came
+        out about a device pixel fatter per side and jagged (runs
+        `20261003-141153`, `-141717`). `GradientMask.qml` now sets
+        `maskThresholdMin` 0.5 / `maskSpreadAtMin` 1.0, which keeps the
+        mask's antialiased edges (run `-141804-tune2`). Ruled out first: the
+        layers are already rendered at device pixels (dpr 2 logged from
+        inside the flyout); forcing `layer.textureSize` made it worse and
+        was reverted.
+      - **Garbled readout after a resize (owner report, same day; fixed).**
+        With the light theme set at shell start the readout showed a long
+        dash and a skewed fragment instead of digits. Cause: a
+        `MultiEffect` with a shadow keeps the padded shadow geometry of the
+        size it was created at, so when the readout grew from the "—"
+        placeholder (16 px) to "-25.0" (78 px) the glow stage painted the
+        old texture stretched. The mask stage alone resizes correctly
+        (standalone driver, glow off). `GradientMask.qml` now switches its
+        shadow off and back on (`Qt.callLater`) whenever its size changes.
+        Missed at first because the harness created the gold readout at its
+        final width (theme flipped per state) and the `theme,vol` values are
+        all five characters; the `theme,amp` run that did show it
+        (`20261003-142827`) was only measured for the footer, not looked at.
+        Verified: driver sequence "—" → "-40.0" → "0.0" → "—" → "-25.0"
+        correct with glow each time; harness `--vary theme,amp`
+        (`20261003-143511-readout-fix-amp`, placeholder ↔ value four times)
+        and `theme,vol` (`-143540-readout-fix-vol`), all readouts correct,
+        exit 0; QML suite 62/62.
+  - Verified: readout row Δy 0 (dbValueLabel, dbUnitLabel, dbValueRow and
+    ampEyebrow have identical coordinates in dark and light). Opaque samples:
+    wordmark `#986a20` at the D → `#c99741` at the T, readout `#dda33a` at
+    the minus → `#efc770` in the last digit, "dB" `#3f3a33`, IP line / chip /
+    "SOURCE" / footer text `#524c45`.
+
+- [x] **Phase 17.21.0 — Light gold glyphs and dots.** Done 2026-10-03.
+      - Glyphs: new `ThemedSourceGlyph.qml` (flat `SourceGlyph` in dark; in
+        light the same glyph as the mask of the glyphGold radial gradient,
+        centre 32 % / 28 %, radius 0.775 x size per v22 :485, with the
+        17.0.2 shadow 0.3 / 16, opacity 0.35, offset 0/2). Used by the
+        source row (20 px) and the source list (17 px).
+      - Dots: `GoldSphere` in light for the connected header dot (10 px),
+        the connected amp in the amp list (10 px) and the footer dot.
+        Booting, not responding, powered-off opacity and the no-amp ring
+        are unchanged.
+      - Footer dot 5 → 7 px, gap to the label 10 → 8 px, **in both themes**
+        (v22 :466-472 is not light-scoped). Light shadow per :474-476.
+      - **Ticks stay flat** `copperBright`: v22 :455-457 paints the tick in
+        `currentColor`. The old entry's "and ticks" is dropped.
+      - Header dot lifted 1 px too (owner question, same day): centred on
+        the three-line block, its disc spanned rows 62-81 against the amp
+        name's capital "D" at 60-79, i.e. 1 px low with its bottom under
+        the baseline. With `Layout.bottomMargin: 2` disc and "D" both span
+        60-79 in dark and light (run `20261003-144133-header-dot-lift`,
+        exit 0; only ampDot and its children moved, dy -1). The amp list's
+        dots sit beside two-line rows and were left centred on the pair.
+      - Footer dot lifted 1 px (owner report, same day: the dot shared the
+        text's baseline and read low). It was centred on the label's 14 px
+        line box; on the 2x capture its disc spanned rows 618-631 against
+        the text's 616-630. With `Layout.bottomMargin: 2` it spans 616-629
+        (run `20261003-142827-footer-dot-lift`, both themes, exit 0).
+  - Verified: dark final vs dark after-17.19.3: outside the corner squares
+    the only pixels above 7 levels are the footer dot's 14 x 14 px box
+    (114 px), plus the Booting animation and the source list (17.21.1).
+  - Layer count: the light flyout with the source list open reported at
+    the harness's normal 1.5 s per state with no probe timeouts. The open
+    latency by eye is for the owner.
+
+- [x] **Phase 17.21.1 — Six sources without a scrollbar.** Done 2026-10-03.
+      New entry (v22 :446). `SourceListOverlay.qml`: the card is anchored
+      like the mockup's `bottom:66px`, which in our geometry (row top at
+      y 231 of 330, harness coords) means it covers the row's top 33 px
+      (`rowOverlap`), and `maxListHeight` is 264. Before, the card stopped
+      6 px above the row: 217 px for a list that needs 244. Applies to both
+      themes. This retires 17.19.0's open item (dark scrollbar on the white
+      card) for the real amp's six sources.
+  - `tests/qml/tst_SourceListOverlay.qml`: six sources now fit (height 244,
+    no scroll, rows 260 px wide); the scrolling guards run on an
+    eight-source list (capped at 256).
+  - Verified for 17.20.0-17.21.1 together (they were installed and gated
+    as one build after 17.19.3): qmllint equal to HEAD, new files 0; QML
+    suite 62/62; harness exit 0 for `20261003-141928-final-17.21.1-dark`,
+    `-141949-...-light-a`, `-142010-...-light-b`, `-142023-...-light-c` and
+    `-142101-...-light-transp50` (transparency 50 %, `theme,slist`).
+    `expected-17.json` gained five narrow rules for the light-only Loader
+    subtrees. Installed; daemon active on 192.168.0.22; transparency back
+    to off, theme `light` as the owner had it.
+  - Left for the owner: the look on the real panel with transparency +
+    Better Blur DX (the wordmark is the faintest gold item at 50 %), hover
+    states, open latency with the source list expanded, and whether the
+    glyph shadow should be lighter.
+  - Not changed, noted: the mockup's list rows are 12.5 px regular body
+    font; ours are Space Grotesk DemiBold 13 in both themes since 7.14.0.
+    v22's legend (:611) says the readout stays near-black while its CSS
+    paints the gold gradient; the CSS was followed.
+
+- [x] **Phase 17.22.0 — Light OSD.** Done 2026-10-03.
+      `ThemeSettings.osdPalette` now follows the theme (`osdResolvedDark ?
+      dark : light`), so the toast and the tooltip paint `LightPalette` when
+      the widget is light. `VolumeToast.qml` in light (OSD mockup v4):
+      - Opaque white card (:100, :121-131), no border.
+      - Icon key (:134-141): white face, `controlBorder`, `CardShadow`.
+        Muted (:142-150): `copperDim` border and the mute glyph as the mask
+        of the glyphGold radial gradient with the warm drop shadow (a hidden
+        `Image` as `GradientMask`'s mask). The copper glow stays dark-only.
+      - Value (:158-169): the number in the readout sweep `#dca136 →
+        #f3cf7c` with a 9 px glow (`glowBlur` 0.58) and a small grey "dB"
+        (10 px, `textDim`), right-aligned; "Muted" in the three-stop gold
+        text sweep `#a8710b → #d99a1f 55 % → #efc36a` (:105, :107-110);
+        "Unmuted" plain text. All painted over the existing Label, which
+        keeps the layout, so the toast's geometry is the dark theme's
+        (340 x 79 in both).
+      - Bar (:171-178): fill `accentFill` (`#e2b865`), muted fill the new
+        token `mutedFill` (`#d8d3cb`; dark carries `#5c5c60`, the value it
+        already painted).
+      - New palette tokens: `goldTextStart/Mid/End`, `mutedFill`.
+        `GradientText` gained an optional middle stop and a baseline.
+  - **Decision taken, owner to confirm:** OSD v4 and tooltip v5 list the
+    pre-v21 dim/faint text (`#6e6a64` / `#a29d95`); both surfaces use the
+    flyout's darker pair (`#3f3a33` / `#524c45`) from the one shared
+    `LightPalette`. Following the mockups literally would be a two-line
+    override on `osdPalette`.
+  - Not changed, noted: in dark the toast's " dB" is part of the 15 px
+    copper value, while the mockup draws a small grey unit in both themes
+    (:162). Dark was left as it is.
+  - Verified: qmllint VolumeToast 2 → 1, VolumeHoverTooltip 3 → 3 (the
+    rest are the existing width/height-in-layout notes), other touched
+    files 0; QML suite 62/62. Standalone sheet on Wayland (both Dialogs'
+    mainItems over #808080, four toast states and two tooltip states per
+    theme, old code vs new): the dark half is pixel-identical to HEAD
+    (0 differing px). Light samples: card `#ffffff`, key face `#ffffff`,
+    track `#ece9e4`, fill `#e2b865`, muted fill `#d8d3cb`, number starts
+    `#dda43a`, "Muted" `#ab730c` → `#e2ac3f` at its last letter, "dB"
+    `#3f3a33`, source line `#524c45`. The sheet changes the light toast's
+    value after creation ("-25.0" → "-5.5" → "Muted" → "-30.0") and the
+    tooltip's ("-25.0" → "-7.5"): both render correctly (the 17.20.0
+    resize case). Real toast in plasmashell via `fakeamp.py --ui
+    themeOverride=light --notify volume=-22.0` and `--notify mute=true`,
+    captured with spectacle: light card 340 x 79, gold number + grey dB,
+    gold "Muted" and gold mute glyph. Daemon active on 192.168.0.22
+    afterwards, theme pin cleared.
+  - Left for the owner: the toast and tooltip have no shadow or border of
+    their own (KWin draws none for these Dialogs, D2), so on a white
+    window they are white on white - whether that needs a hairline.
+
+- [x] **Phase 17.23.0 — Light tooltip.** Done 2026-10-03.
+      `VolumeHoverTooltip.qml` in light (tooltip mockup v5): opaque white
+      card (:100, :120-128); the dot is the gold sphere (7 px, shadow
+      0 1px 2px, :98-99, :132-134); the value, "Muted" included, in the
+      readout sweep with a 7 px glow (`glowBlur` 0.45, :145-150) over the
+      existing Label; bar fill `accentFill`, muted `mutedFill`; "dB" and
+      the hints from `textDim` / `textFaint`.
+  - Verified with 17.22.0 on the same sheet (dark half identical to HEAD;
+    light tooltip card `#ffffff`, fill `#e2b865`, hints `#3f3a33` /
+    `#524c45`). Not captured in the real shell: the tooltip needs a real
+    hover - owner check.
+
+- [x] **Phases 17.24.0 - 17.27.0 — Light settings page (one batch).** Done
+      2026-10-03. Spec: configDialog mockup v30. The page follows the
+      **desktop's** colour scheme (17.14.0), so it turns light only on a
+      light desktop: `ConfigGeneral.qml`'s `colors` is now
+      `pageScheme.dark ? darkColors : lightColors` (it was hard-wired to
+      `DarkPalette`). One shared `LightPalette`: the page gets the flyout's
+      darker dim/faint text, not the mockup's pre-v21 pair (:84).
+      - **17.25.0 page base.** Resting control borders use `controlBorder`
+        and controls get `CardShadow` (stepper buttons and value, chime
+        buttons, dropdown field, file chip, Defaults, the segmented
+        control; :73-74, :115). Slider fill `accentFill`, thumb the
+        `GoldSphere` (15 px, 3 px halo) in light, percent label
+        `controlValueText`. Status dots: new `StatusDot.qml` (gold sphere
+        in light). Dropdown list: `listBackground` / `listHover` (light
+        `surface2` is a translucent hover fill, not a card colour).
+      - **Sidebar icon (owner decision 2026-10-03: scheme-aware).**
+        `config.qml` picks `devialet_config_general_icon_white.svg` on a
+        dark window and the new `..._dark.svg` (same paths, stroke
+        `#1c1a17`) on a light one, from `SystemPalette.window`'s lightness.
+        Not `SystemScheme.qml`: the value must be right when the sidebar
+        first reads it (the portal reply is asynchronous), and a
+        `ConfigModel` is not an Item, so Kirigami's attached Theme is not
+        available there.
+      - **17.24.0 brand mark.** New `BrandMark.qml`: 37 px tile, 25 px
+        ring, 15 px disk (:236-255). Dark: ring `#654c3a` over `#262221`,
+        disk `#e3a06a`. Light: white tile with the card shadow, ring and
+        disk in 145 degree gold sweeps (the ring is a gradient disc with an
+        inner disc inset 2.5 px; Shapes has no stroke gradient). **Changes
+        dark too** (the tile was 36 px with a "◉" character); the rows
+        below did not move (first section label still at y 62).
+      - **17.26.0 gold headings and status values.** `SectionLabel.qml`:
+        Bold with the three-stop gold sweep over the word in light
+        (:99-105). New `FollowStatusText.qml` for the two "Following your
+        desktop's ..." lines: one StyledText Label as before; in light the
+        bold value is drawn transparent and a `GradientText` paints it at
+        the prefix's advance width (:109-114).
+      - **17.27.0 switches, steppers, segments.** `SettingsSwitch.qml`
+        paints from `switch*` tokens (the hardcoded `#e8e6e1` knob is now
+        `switchKnobOff`); in light the "on" track is the gold sweep with a
+        sheen, the knob white with a shadow (:76-77, :91-93). Stepper
+        values neutral (:107). Selected segment in light: white, 1 px
+        outline and DemiBold label in the text colour (:95, :106).
+      - 21 new typed tokens in `ColorPalette.qml` (`listBackground`,
+        `listHover`, `controlValueText`, `brandRing*`, `brandDisk*`,
+        `switch*`, `segmentActive*`); every dark value is what dark painted
+        before, apart from the brand mark.
+  - **Follow-up after the owner's first look at the real light dialog
+    (2026-10-03, three decisions):**
+    - **White page in light.** `ConfigGeneral.qml` sets the page's
+      `background` to white in light (`--win-bg`, mockup :34); dark keeps
+      the scheme's colour (driver, Breeze Dark: `#202326` for HEAD and for
+      the new code). Plasma's header strip and button bar around the page
+      stay in the scheme's colour.
+    - **Secondary text stays the darker pair** (`#3f3a33` / `#524c45`), not
+      the mockup's lighter greys.
+    - **Spacing matched to the mockup, both themes:** row padding 14 → 16
+      and name/description gap 2 → 4 (`.kcm-row`, `.kcm-row-text`,
+      :267-271), section label margins 28/6 → 40/10 (:261-265), brand
+      header gap 9 and 22 below, sub-title 4 below the title with 2 px
+      letter-spacing (:235, :257). In the driver a row grows 66 → 72 px and
+      the page 1103 → 1253 px. Font sizes (mockup 14.5 / 11.5 px) were not
+      changed. QML suite 62/62 after the change; lint counts as at HEAD.
+    - **Second look (same day), two more decisions, no code change:** the
+      "General" header strip, the button bar and the other two tabs
+      (Keyboard Shortcuts, About) stay in the scheme's grey - they are
+      Plasma's (`AppletConfiguration.qml` sets
+      `pageStack.globalToolBar.colorSet: Kirigami.Theme.Window`, and the
+      dialog's root Rectangle and footer Pane paint the window colour).
+      Recolouring the toolbar from our page through the page stack was
+      offered and declined: the white page stays, the rest is left alone.
+      The About icon stays one dark tile for both themes (D6 stands).
+  - **Evaluate findings:**
+    - Page background: by default the page paints none; under a Breeze
+      Light `kdeglobals` the driver measured `#eff0f1` (Kirigami's window
+      colour), not the mockup's pure white - hence the white background
+      above.
+    - CardShadow: page creation measured 40-41 ms for HEAD and for the new
+      code (dark). The light Loaders are created after the scheme is read
+      and were not timed separately; nothing visible in the driver.
+      Component unchanged (the flyout's shadow values, slightly smaller
+      than the page mockup's :73).
+  - Verified (standalone page driver on Wayland, real page in a plain
+    Window, `QT_QUICK_CONTROLS_STYLE=org.kde.desktop`):
+    - qmllint equal to HEAD on every touched file (config.qml 4 → 3), new
+      files 0; QML suite 62/62.
+    - **Dark unchanged:** old-vs-new sheet differs only in the brand mark
+      tile (rows 14-87) plus about 820 px of 1 level in text; rendering
+      HEAD twice gives the same kind of noise (709 px, max 1).
+    - **Light** (Breeze Light `kdeglobals` via `XDG_CONFIG_HOME`,
+      `pageScheme.dark` pinned false): heading sweep `#a9720b` → `#ebbb5c`,
+      status value "Light" `#ae760d` → `#e7b44e`, status prefix `#3f3a33`,
+      slider fill `#e2b865`, track `#ece9e4`, stepper value / percent /
+      segment outline `#1c1a17`, brand tile `#ffffff`. Row, switch,
+      segment and stepper positions identical in dark and light.
+    - **Scheme flip in one session** (light → dark → light): the second
+      light capture is pixel-identical to the first.
+    - **Behaviour:** the same driver clicks (Theme: Dark, Transparency
+      switch, step 2 dB, startup +, Chime: Choose theme, back to Follow
+      system, dropdown open) give identical `cfg_*` values on HEAD, new
+      dark and new light; the light capture after the clicks shows the off
+      switch, the hidden status line and the white dropdown list.
+    - Sidebar icon: loading `config.qml` in the driver gives the white SVG
+      under the dark scheme (`window` `#151515`) and the dark one under
+      Breeze Light (`#eff0f1`).
+    - Installed; flyout harness `20261003-152028-after-17.27.0-dark`
+      (smoke) and `-152048-after-17.27.0-light` (`theme,amp`) exit 0;
+      daemon active on 192.168.0.22.
+  - Left for the owner (cannot be scripted): the real dialog under a light
+    desktop scheme and under dark - page look, the sidebar icon in both,
+    Apply/OK persistence (also closes 17.17.0's check).
+  - Not done, noted: the dropdown list's shadow (`--list-shadow`) is still
+    the approximation `ThemeDropdown.qml` already flags; the driver's row
+    labels use the scratch config's default font, not the owner's.
+
+- [x] **Phase 17.28.0 — Wrap-up.** Done 2026-10-03, apart from the owner's
+      soak.
+      - `CLAUDE.md`: new section "Light theme: palettes, scheme readers,
+        gold effects (Phase 17, settled)" - `Theme.qml` holds no colours and
+        the typed `ColorPalette` / `colors` rule; who picks which palette
+        (ThemeSettings for flyout/OSD/tooltip, the desktop scheme for the
+        settings page, `SystemPalette` for the sidebar icon); the
+        `SystemScheme.qml` portal contract; the four MultiEffect rules found
+        in the arc (Loader-built layers, antialiased mask, shadow rebuilt on
+        resize, two stages); the capture rule; the harness `theme` dimension
+        and the standalone drivers. Pointer added from the "Shared
+        cross-view state" bullet; the Testing section names the six-source
+        guard.
+      - `README.md`: "Dark and light themes" feature line; theme listed in
+        the settings caption; the transparency line corrected (it said
+        flyout, tooltip and OSD; only the flyout is adjustable, D3).
+      - PKGBUILD: no dependency added. Every QML module the plasmoid
+        imports is owned by a package already in `depends`
+        (`pacman -Qo`: QtQuick.Effects / Shapes / Dialogs / QtCore →
+        qt6-declarative; `org.kde.plasma.workspace.dbus` →
+        plasma-workspace; plasma5support; kcmutils; kirigami; libplasma;
+        kquickcontrolsaddons → kdeclarative).
+      - Removed `tools/spike-gradient-rendering/` and
+        `tools/spike-light-glass/` (32 tracked files; findings are in the
+        17.0.2 and 17.19.1 entries). The three promoted components' headers
+        say so.
+      - `expected-17.json` is final as of 17.21.0 (no rule added since).
+  - Verified:
+    - Full flyout harness, dark: `20261003-160157-final-17.28.0-full-dark`,
+      `--set full`, 870 states, 5217 single-dimension pairs, exit 0
+      (control stable, no size mismatch, 0 unexpected moves, 0 warnings).
+    - Light: `20261003-163229-final-17.28.0-light` (`--vary
+      theme,amp,mute,pow,slist,list`, 204 states) and
+      `-163949-final-17.28.0-light-vol-src` (`theme,vol,src`, 18 states),
+      both exit 0. The readout area of all 111 light captures was put on
+      one sheet and looked at: every uncovered readout shows its digits or
+      the "—" placeholder, none garbled (the 17.20.0 resize case, which
+      these runs cross repeatedly). Runs were made with the owner's
+      current settings (transparency on, 40 %) over the live desktop.
+    - `scripts/test-qml.sh` 62/62; no qmllint errors in `contents/ui` or
+      `contents/config`.
+    - **Not run:** `cargo test`. `rustc` fails to start on this machine
+      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
+      system package mismatch). No Rust file changed in Phase 17.
+    - Installed (installed copy identical to `plasmoid/`); daemon active on
+      192.168.0.22.
+  - **Owner soak, 2026-10-03: done, no issues seen** (owner's words: "I
+    have done a soak. Did not see any issues."). The Rust test re-run is
+    split off as 17.29.0. The owner merges `feature/light-theme` through a
+    pull request and bumps the version on `main` afterwards.
+
+- [x] **Phase 17.17.0 — Theme row.** Code done 2026-09-27; closed
+      2026-10-03 by the owner's soak (last bullet). First Appearance row in
+      `ConfigGeneral.qml`: "Theme" / "Colors for the popup, hover tooltip
+      and volume overlay" (configDialog mockup v2 :574-584) with the shared
+      `SegmentedControl` - Dark / Light / Follow system → `cfg_theme`
+      "dark" / "light" / "system" (`themeModes`). Same pattern as every other
+      setting: `cfg_theme` + `cfg_themeDefault` (from `shippedDefaults.theme:
+      "system"`, matching main.xml), and the Reset section's Defaults button
+      resets it. **Picking Light (or Follow system on a light desktop) is
+      still visually a no-op until 17.19.0.**
+  - Verified: ConfigGeneral lint 0; QML suite 38/38; render shows the row
+    above Transparency with Follow system highlighted. Scratch QtTest driver
+    on the real page (own Window): default `system`, Follow system
+    highlighted; clicks Dark/Light/Follow system → `cfg_theme` dark/light/
+    system with the highlight following; the step-size and chime controls
+    (now 2nd and 3rd on the page) still write their settings; Defaults
+    resets `cfg_theme` from light to system. Installed; daemon active.
+  - Owner's real-dialog check, from the journal (2026-09-27): 18:43:10
+    Apply with Light → `[ThemeSettings] mode light … resolvedDark false`
+    live; 18:43:17 back to Follow system → `mode system`; the config group
+    then has no `theme=` key (writing the default back removes it). The
+    close/reopen and shell-reload steps are not visible in the journal and
+    were not observed - still to confirm by the owner if wanted.
+  - Closed 2026-10-03: the owner soaked the finished arc, including the
+    settings dialog, and reported no issues. The report was general, not
+    a per-step list; the close/reopen and shell-reload steps are taken as
+    covered by it.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -8259,12 +9796,160 @@ architecture decisions; this file is just sequencing and status.
     consume the same git repo, nothing helper-specific to do) on a
     separate/clean Arch system.
       
+- [ ] **Phase 17 — Light theme arc (header; branch `feature/light-theme`,
+      plan approved 2026-09-26).** Spec: the four mockups under
+      `design/mockups/{configDialog,flyout,OSD,tooltip}/` (v2 at commit 8526a10; since 2026-10-03 flyout v22, OSD v4, tooltip v5, configDialog v30, commit 3de775c - only the flyout changed).
+      Full investigation report + design:
+      `docs/context-on-light-theme-arc-phase-17.md` (saved from the approved
+      rev 3 plan; same location/naming as the Phase 7 investigation
+      document). One concern per phase, one entry per phase below; each
+      entry moves to "## Done" when its phase completes.
+  - **Investigation findings (2026-09-26)**:
+    - Toast/tooltip never received `TransparencySettings` (CompactRepresentation
+      passes none); they paint Theme.qml's hardcoded 0.94 pair
+      (Theme.qml:117-125 defers to a "Phase 9.2.0" that never existed).
+    - The flyout's grey outer edge is our own 1px `theme.divider` border
+      (FlyoutContent.qml:767-768; same on VolumeToast.qml:155-156 and
+      VolumeHoverTooltip.qml:97-98); all three Dialogs are `NoBackground`, KWin
+      draws no outline and no shadow for them.
+    - The mute/power split has been static since Phase 12.0.0 (108/152 px,
+      TextMetrics worst case); the installed copy equals HEAD. The change is the
+      ratio, not the mechanism.
+    - Kirigami chooses its colour plugin per QQmlEngine (`_kirigamiTheme`
+      engine property, else `QQuickStyle::name()`, filename-substring match);
+      plasmashell has both `KirigamiPlasmaStyle` (Plasma Style colours via
+      `Plasma::Theme`, which falls back to kdeglobals when the Style has no
+      `colors` file) and `org.kde.desktop` loaded; the ConfigView has its own
+      engine. The portal `org.freedesktop.appearance color-scheme` is computed by
+      xdg-desktop-portal-kde from the application palette (`qGray(window) < 192`
+      → 1, else 2; never 0) and tracks kdeglobals. This machine's Plasma Style
+      (CachyOS-Nord-round) ships no `colors` file, so both agree today.
+    - Rendering: `QtQuick.Effects` (MultiEffect mask + shadow) and
+      `QtQuick.Shapes` (fill gradients only, no stroke gradient) are installed
+      and already used; `Qt5Compat.GraphicalEffects` is installed but would add
+      a dependency. Custom shaders need `.qsb`. Screen scale is 2.
+    - About page icon: Plasma's `AboutPlugin.qml` renders `metaData.iconName`
+      via the icon theme; pages are `replace`d in the dialog's PageRow so ours
+      never coexists with it; no runtime swap is possible by any theme.
+  - **Owner decisions**: D1 Follow-system source = portal/application scheme.
+    D2 remove the outer border, screenshot, hairline only if it reads badly.
+    D3 toast/tooltip alpha stays hardcoded, not tied to the transparency
+    setting; revised 2026-09-27: dark keeps today's 0.94 gradient on both
+    (not the mockups' 0.96 / opaque flat #121212), light per the mockups
+    (opaque white). D4 flyout radius stays 16 (v2 mockups draw
+    12). D5 bundle the speaker SVGs. D6 one About icon, no phase. D7 flyout
+    mute button shows the action, OSD shows the state. D8 one sphere gradient
+    (`#fcecc0 0% / #f0a623 38% / #a8710b 100%`, centre 32% 28%) for thumb and
+    dots; light fills flat `#e2b865`; dark OSD/tooltip bars stay solid
+    copper #c17f4e (revised 2026-09-27, 17.10.0 dropped). D9 the gradient-rendering spike ran
+    unnumbered on `spike/gradient-rendering` after 17.0.1 and became Phase
+    17.0.2 once the owner passed its captures (see "## Done").
+  - **Architecture**: `Theme.qml` stays per-file with fonts/radii/sizes only;
+    `ColorPalette.qml` (typed, `required` tokens; consumers read a `colors`
+    property - renamed in 17.11.0, see its entry) with one `controlColor(ts)` function
+    branching on `isLight`; `DarkPalette.qml`/`LightPalette.qml` are instances;
+    `ThemeSettings.qml` (root-anchored, forwarded like TransparencySettings,
+    plus two new hops to toast/tooltip) exposes `flyoutPalette` and
+    `osdPalette` separately from day one so a per-surface split later is one
+    kcfg key + one binding; `SystemScheme.qml` reads the portal (starts dark,
+    `1`→dark, `2`→light, anything else/error/2 s Timer → Kirigami brightness
+    fallback, `SignalWatcher` on SettingChanged); ConfigGeneral owns a
+    `PageTheme` (`systemDark ? dark : light`) for the page; kcfg `theme`
+    (String, default `system`).
+  - **Verification tooling added in-arc**: `FlyoutContent.themeOverride`
+    UiState key → `ThemeSettings.harnessOverride` + a `theme` harness dim
+    (17.12.0); `fakeamp.py --notify` emitting `VolumeCommandNotified`/
+    `MuteCommandNotified` for hands-free toast captures (17.2.0); a fake
+    `org.freedesktop.portal.Settings` on a private bus for the driver
+    (17.15.0). Tooltip remains an owner hover check.
+  - **Capture rule for every phase in this arc** (from 17.0.2): (a)
+    Qt effects (`MultiEffect`, layers) render **blank** under
+    `QT_QPA_PLATFORM=offscreen` because that platform selects the
+    software scenegraph (`GraphicsInfo.api` = Software), and a blank
+    gold item still "passes" a naive compare - every pixel capture runs
+    on Wayland (`QT_QPA_PLATFORM=wayland`), the real GPU scenegraph; (b)
+    `grabToImage` output is RGBA with junk RGB in near-transparent
+    pixels, so a grab is composited onto a solid backdrop before it is
+    judged or diffed (`tools/spike-gradient-rendering/zoom.py` does
+    this). Audit of existing capture paths (2026-09-26): the harness
+    (`tools/flyout-harness/harness.py:218`) already forces Wayland and
+    captures with `spectacle`, so it is unaffected; `scripts/test-qml.sh`
+    (:28) runs QtTest under offscreen but compares no pixels - keep it
+    that way, never add a rendered-pixel assertion there; the standalone
+    `/usr/lib/qt6/bin/qml` driver recipes for the ConfigDialog page and
+    the tooltip (memory notes, Phases 10.1.1/11.x) used offscreen for
+    behaviour checks and must switch to Wayland for any light-theme
+    pixel capture (17.23.0-17.27.0).
+
+- **Mockups came back 2026-10-03 (commit 3de775c): flyout v22, OSD v4,
+  tooltip v5, configDialog v30.** Only the flyout changed; the other three
+  are byte-identical renames of the files the entries below were written
+  against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
+  17.21.1 (the flyout), 17.22.0 / 17.23.0 (OSD toast, tooltip) and
+  17.24.0 - 17.27.0 (the settings page) and 17.28.0 (wrap-up) are in
+  "## Done", as is 17.17.0 (owner soak 2026-10-03). Only 17.29.0 below is
+  open.
+- [ ] **Phase 17.29.0 — Re-run the Rust tests on `main`.** The branch
+      carries Rust changes from earlier in the arc (devialet-chime reading
+      its volumes from the daemon, `volume_db_from_raw`, the AIR source
+      name; last Rust commit daadf97, 2026-09-29) that passed
+      `cargo test --workspace` and clippy when they landed, but could not
+      be re-run at the wrap-up: `rustc` fails to start on the dev machine
+      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
+      system Rust/LLVM package mismatch). The installed binaries are from
+      2026-10-01, after that commit, and identical to `target/release`.
+      To do on `main` once the toolchain works again (owner decision
+      2026-10-03).
+  - Verify: `cargo test --workspace` and `cargo clippy --workspace` clean;
+    `./install.sh` reports the three binaries unchanged or reinstalls
+    them, and the daemon runs the installed binary. Until then, do not run
+    `./install.sh` or `cargo clean` (use `scripts/install-plasmoid.sh` for
+    QML-only reinstalls).
 
 ## Bugs
+
+- **Harness can leave the real daemon down, and a mid-run restart then
+  kills it for good** (found 2026-09-26 after the Phase 17.1.0/17.1.1
+  runs; the owner's widget showed "No Amplifier" and could not select the
+  amp). Journal: the unit was stopped at 14:42:16, the instant
+  `before-17.1.0-srclist` started, although that run recorded
+  `daemon_was_active=False` and so never stopped or restarted it; every
+  later run saw it inactive and left it down. At 14:43:05, 4 s into
+  `after-17.1.0-smoke` while `fakeamp.py` owned
+  `com.ekmanch.DevialetRemote`, systemd started the unit - requester not
+  in the journal; plausibly the Plasma session target re-pulling it after
+  the `plasmashell --replace` at ~14:42:55 (inference). Five `NameTaken`
+  exits in one second hit `start-limit-hit`, and the unit stayed failed
+  until restored by hand (`systemctl --user reset-failed` + `start`,
+  15:28; amp 192.168.0.22 re-selected from the persisted config).
+  Harness fixes to scope: decide whether to restart from the unit's
+  *enabled* state (or the pre-run state recorded before any shell
+  restart), not a racy `is-active`; after every run assert the daemon
+  is active and owns the name, and fail loudly if not; before a run,
+  refuse to start if a `plasmashell --replace` happened within the last
+  few seconds, or wait for the session target to settle.
 
 
 
 ## Not yet scoped / parked
+
+- **OSD + tooltip: follow the desktop's appearance, or the widget's Theme**
+  (owner idea, 2026-09-27, not decided). A ConfigDialog option letting the
+  OSD toast and hover tooltip follow the system appearance even when the
+  widget's Theme is set to Dark or Light. Prepared in Phase 17.13.0:
+  `ThemeSettings.osdResolvedDark` is the one binding to change
+  (`osdFollowsSystem ? systemDark : resolvedDark`) plus one `main.xml` key
+  and one settings row; `VolumeToast`/`VolumeHoverTooltip` already read the
+  separate `osdPalette`. Best scheduled after 17.15.0 (the portal reader
+  that drives `systemDark`) and 17.19.0 (a light palette to switch to).
+
+- **Amp list: rows under the scrollbar once it scrolls** (found in Phase
+  17.1.1, 2026-09-26). `AmpListOverlay.qml:105` binds its column to the
+  Popup's `availableWidth`, not the ScrollView's, so with enough amps to
+  exceed its 230 px cap the desktop style's 21 px scrollbar would cover
+  the rows' right edge (the tick). Same fix and test shape as 17.1.1's
+  `SourceListOverlay.qml`; also scroll the selected amp into view on
+  open. Not reachable with one or two amps.
 
 
 

@@ -45,6 +45,10 @@ Rectangle {
     signal themeChosen(string id)
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
+    // palette for the whole page; required, so a missed hand-off fails at
+    // load instead of silently painting a different palette).
+    required property Ui.ColorPalette colors
     readonly property bool open: list.opened
 
     function nameFor(id) {
@@ -62,9 +66,11 @@ Rectangle {
     implicitWidth: Math.max(150, fieldRow.implicitWidth + 12 + 8)
     implicitHeight: fieldRow.implicitHeight + 12
     radius: root.theme.radiusSm
-    color: root.theme.surface
+    color: root.colors.surface
     border.width: 1
-    border.color: fieldArea.containsMouse ? root.theme.copperDim : root.theme.divider
+    border.color: fieldArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
+    // Phase 17.25.0: light-theme card shadow.
+    Ui.CardShadow { colors: root.colors; radius: root.radius }
 
     RowLayout {
         id: fieldRow
@@ -78,7 +84,7 @@ Rectangle {
             text: root.nameFor(root.currentId)
             font.family: root.theme.fontMono
             font.pixelSize: 11
-            color: root.theme.text
+            color: root.colors.text
             elide: Text.ElideRight
         }
 
@@ -95,7 +101,7 @@ Rectangle {
             Behavior on rotation { NumberAnimation { duration: 150 } }
             ShapePath {
                 strokeWidth: 2.4
-                strokeColor: root.open ? root.theme.copperBright : root.theme.textFaint
+                strokeColor: root.open ? root.colors.copperBright : root.colors.textFaint
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
                 joinStyle: ShapePath.RoundJoin
@@ -133,9 +139,11 @@ Rectangle {
 
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.theme.surface2
+            // Phase 17.25.0: own tokens - light `surface2` is a translucent
+            // hover fill, not a card colour.
+            color: root.colors.listBackground
             border.width: 1
-            border.color: root.theme.divider
+            border.color: root.colors.divider
         }
 
         contentItem: ColumnLayout {
@@ -158,7 +166,7 @@ Rectangle {
                     implicitWidth: rowContent.implicitWidth + 16
                     implicitHeight: rowContent.implicitHeight + 12
                     radius: 6
-                    color: rowArea.containsMouse ? root.theme.surface3 : "transparent"
+                    color: rowArea.containsMouse ? root.colors.listHover : "transparent"
 
                     RowLayout {
                         id: rowContent
@@ -171,7 +179,7 @@ Rectangle {
                             Layout.preferredWidth: 12
                             text: "✓"
                             font.pixelSize: 10
-                            color: root.theme.copperBright
+                            color: root.colors.copperBright
                             opacity: row.selected ? 1.0 : 0.0
                         }
 
@@ -180,7 +188,7 @@ Rectangle {
                             text: row.modelData.name
                             font.family: root.theme.fontMono
                             font.pixelSize: 11
-                            color: row.selected ? root.theme.copperBright : root.theme.textDim
+                            color: row.selected ? root.colors.copperBright : root.colors.textDim
                             wrapMode: Text.NoWrap
                         }
                     }

@@ -174,7 +174,18 @@ all three.
   out of `Theme.qml` into `TransparencySettings.qml` (root-anchored and
   forwarded exactly like `VolumeSettings.qml`, exposing `alpha` and
   `withAlpha(color)`), while `Theme.qml` keeps only the opaque base tint
-  colours and stays per-file. Not a `required property` on `Theme.qml`:
+  colours and stays per-file. **Update (Phase 17.11.0, 2026-09-27)**: the
+  colours have since moved out too - `ColorPalette.qml` (typed, `required`
+  tokens) and `DarkPalette.qml`, read through a `colors` property; `Theme.qml`
+  now holds fonts, sizes, radii and the volume icon map only. See "Light
+  theme: palettes, scheme readers, gold effects" below for the rules that
+  came out of the whole arc.
+  **Correction (Phase 17.0.0, 2026-09-26)**: only
+  the flyout was ever wired to `TransparencySettings`; `VolumeToast.qml` and
+  `VolumeHoverTooltip.qml` still paint `Theme.qml`'s hardcoded 0.94 pair and,
+  per the owner's Phase 17 decision D3, stay hardcoded (mockup values), so
+  "all three surfaces" describes the intent of 9.0.0, not the code.
+  Not a `required property` on `Theme.qml`:
   `Theme {}` is also instantiated by `ConfigGeneral.qml`, a separate
   ConfigDialog QML tree with no path to `main.qml`'s root objects, so a
   required input would break that page and a defaulted one would let
@@ -271,6 +282,21 @@ for what's confirmed out of scope.
   order, the real message shape. `tst_PendingAmpState.qml` guards the
   post-boot hold (2026-09-20 regression: a VolumeRaw match must not
   release the hold before a send) - it fails on the pre-fix file.
+  The runner uses `QT_QUICK_CONTROLS_STYLE=org.kde.desktop` (the style
+  plasmashell loads; the default style overlays scrollbars without
+  reserving width, which hid a real layout bug) and a private bus from
+  `tests/qml/session-bus.conf` with no service activation (otherwise the
+  desktop style auto-starts xdg-desktop-portal-kde on it, which outlives
+  the run and hangs the script). `tst_SourceListOverlay.qml` (Phase
+  17.1.1) guards the source list's selected-row visibility and row width.
+  `tests/qml/fakeportal.py` (Phase 17.15.0) stands in for the XDG settings
+  portal on that private bus (it refuses to start where the real portal's
+  name is owned); `tst_SystemScheme.qml` drives it through its control
+  interface to cover every branch of the Follow-system portal reader.
+  `tst_SourceListOverlay.qml` also guards that the real amp's six sources
+  fit without a scrollbar (Phase 17.21.1) and that a longer list is capped
+  and scrolls.
+  Geometry assertions only: offscreen renders effects blank.
 
 ## Working style
 
@@ -635,6 +661,21 @@ dialog, and separately reload the widget itself, and confirm the
 control still reflects the value you set — not just that toggling it
 visibly changed something in the moment.
 
+### The About page icon cannot vary by theme (Phase 17.0.0, settled)
+
+Plasma's About page (`/usr/share/plasma/shells/org.kde.plasma.desktop/contents/
+configuration/AboutPlugin.qml:112-131`) renders `Kirigami.Icon { source:
+page.metaData.iconName }` with no `isMask`/`color`; the name is
+`metadata.json`'s `Icon`, resolved through the icon theme and read once per
+plasmashell process. `AppletConfiguration.qml:110-113` `replace`s pages in its
+PageRow (only the first is `push`ed), so our General page and the About page
+never exist at the same time and nothing of ours can touch that icon at
+runtime. KIconThemes' `current-color-scheme` recolouring only substitutes
+eight flat semantic classes (`kiconcolors.h:154-161`), only under icon themes
+with `FollowsColorScheme=true` (hicolor is not one), and cannot express
+gradients. Consequence: one icon for every theme and scheme (owner decision
+D6). Do not plan a light/dark About icon again without a new Plasma API.
+
 ### Non-KConfig controls ride Apply/OK through two undocumented page hooks (Phase 11.0.0)
 
 The shell's `AppletConfiguration.qml` (`/usr/share/plasma/shells/
@@ -729,6 +770,134 @@ rebuild spike.** That surface has more dynamic-content rows than either
 `VolumeHoverTooltip.qml` or `VolumeToast.qml` combined, and is exactly
 where this lesson needs to actually get applied up front — not
 re-discovered a fourth time after the rebuild ships.
+
+## Executable-engine command strings must come from a fixed set (settled, do not relitigate)
+
+**The pattern**: every command run through `Plasma5Support.DataSource`'s
+executable engine is a *source* named by its exact command string, and the
+engine is shared by the whole plasmashell process. When a command finishes,
+Plasma5Support clears that source name in the `data` map of **every**
+executable DataSource in plasmashell - ours and other widgets'.
+`QQmlPropertyMap::clear()` creates the key where it is missing, and a map
+can never drop a key, so each never-seen command string adds a property to
+every such map and rebuilds its whole metaobject. The cost of a new name
+grows with every name before it and only resets when plasmashell restarts.
+
+**How it showed up (2026-09-29)**: the volume chime passed an
+ever-increasing `--tick N` (and the dB values) in its command line, so every
+chime was a new name. Scrolling got more stuttery the longer the owner
+scrolled, and stayed bad between spins; plasmashell's UI thread sat at
+~95 % CPU. eu-stack samples: 69 of 77 busy samples in
+`DataContainer::becameUnused -> DataEngine::removeSource ->
+QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject`. Reproduced
+standalone with 10 DataSources: unique names -> UI thread blocked 8.9 s per
+10 s after a minute; 16 repeating names -> zero. It looked like a render,
+compositor or mouse problem first; none of those were it (TODO.md "Scroll
+stutter" and "Chime: fixed command names" entries).
+
+**House rule**: a command string passed to `connectSource()` must come from
+a small, fixed set for the life of the shell. Never put counters,
+timestamps, measured values or other ever-changing data in it.
+
+- Need concurrent runs of the same command (the engine collapses identical
+  running commands into one)? Use a counter that wraps at a bound derived
+  from measured overlap - the chime uses `--tick k`, k < 16
+  (`VolumeSettings.chimeArguments()`).
+- Need per-call data? Have the program fetch it itself (the chime reads
+  its volumes from the daemon over D-Bus, `crates/devialet-chime/src/
+  daemon.rs`), or keep the value space small and bounded (e.g.
+  `devialet-ctl ... volume <dB>` - one string per volume step in range).
+- When adding a `connectSource()` call, count the distinct strings it can
+  produce over a long session and say so in a comment.
+
+## Light theme: palettes, scheme readers, gold effects (Phase 17, settled)
+
+The widget has a Dark / Light / Follow system setting (kcfg `theme`,
+default `system`). Full record: TODO.md's Phase 17 entries and
+`docs/context-on-light-theme-arc-phase-17.md`. What to know before
+touching colours or effects:
+
+- **`Theme.qml` holds no colours** - fonts, sizes, radii and the volume
+  icon map only, re-instantiated per file. Every painted colour is a typed,
+  `required` token in `ColorPalette.qml`; `DarkPalette.qml` and
+  `LightPalette.qml` only assign values. Consumers declare
+  `required property ColorPalette colors` and read `colors.<token>`. A new
+  colour is a new token in all three files, with the dark value equal to
+  what dark painted before. Branch on `colors.isLight` only where the two
+  themes need a different mechanism (a gradient or an effect vs a flat
+  fill), never to pick between two colour values.
+- **Who picks the palette.**
+  - Flyout, OSD toast, hover tooltip: `ThemeSettings.qml`, root-anchored
+    in `main.qml` and forwarded like `TransparencySettings.qml`. It
+    exposes `flyoutPalette` and `osdPalette` separately (both follow the
+    one setting today), and `harnessOverride` for the harness.
+  - Settings page: follows the **desktop's** scheme, not the widget's
+    setting (it cannot reach `main.qml`'s root): `ConfigGeneral.qml`'s
+    `colors` is `pageScheme.dark ? darkColors : lightColors`. In light it
+    paints its own white background; Plasma's header strip, button bar,
+    the other two tabs and the About icon are not ours and stay in the
+    scheme's colours (owner decision 2026-10-03, see "The About page icon"
+    above).
+  - Sidebar icon (`config.qml`): white or dark-ink SVG from
+    `SystemPalette.window`'s lightness - it must be right synchronously,
+    and a `ConfigModel` is not an Item.
+- **`SystemScheme.qml` contract** (the Follow-system reader): one `ReadOne`
+  of the XDG portal's `org.freedesktop.appearance color-scheme` plus a
+  `SettingChanged` watcher; `1` = dark, `2` = light; anything else, an
+  error, or no reply within 2 s falls back to the brightness of
+  `Kirigami.Theme.backgroundColor`. `dark` starts `true`. Covered by
+  `tst_SystemScheme.qml` against `tests/qml/fakeportal.py`.
+- **One shared `LightPalette` for all four surfaces.** The OSD, tooltip
+  and ConfigDialog mockups still list lighter dim/faint text; the owner
+  kept the flyout's darker pair (`#3f3a33` / `#524c45`) everywhere.
+- **Transparency in light:** the flyout's panel follows the setting; the
+  toast and tooltip are opaque white (dark keeps the hardcoded 0.94
+  pair). Controls use the fixed-k model in both themes
+  (`ColorPalette.controlColor()`, `controlAlphaK`).
+
+### Gold effects: `GradientMask`, `GradientText`, `GoldSphere`, `CardShadow`
+
+Light-only gold text, glyphs and dots are painted with
+`QtQuick.Effects.MultiEffect`. Four rules, each found the hard way:
+
+1. **Build effect items in a `Loader { active: colors.isLight }`**, with
+   their layers on from creation. Toggling `layer.enabled` at runtime
+   stopped masking after a dark -> light flip (17.19.0, `CardShadow.qml`).
+   Keep the plain Label/Shape in the layout with transparent text and
+   paint the gold over it, so geometry is identical in both themes.
+2. **Mask edges:** MultiEffect's default mask (threshold 0, spread 0) is a
+   hard cut - strokes come out about a device pixel fatter per side and
+   jagged. `GradientMask.qml` sets `maskThresholdMin` 0.5 /
+   `maskSpreadAtMin` 1.0. Item layers are already at device pixels; do
+   not force `layer.textureSize` (it made things worse).
+3. **A MultiEffect with a shadow keeps its creation-time geometry.** When
+   the item is resized later (the readout's "—" placeholder becoming
+   "-25.0"), the shadow stage paints the old texture stretched.
+   `GradientMask.qml` switches its shadow off and on after every size
+   change. Any new effect item whose size can change must be tested
+   through a resize after creation.
+4. **Mask + shadow needs two stages** (mask first, then shadow the
+   result); one MultiEffect doing both misaligns the mask (17.0.2).
+
+**Capture rule for anything painted by an effect:** `QT_QPA_PLATFORM=
+offscreen` uses the software scenegraph and renders effects blank, so a
+blank gold item "passes" a naive compare. Pixel captures run on Wayland;
+`grabToImage` output is composited on a solid backdrop before judging.
+`scripts/test-qml.sh` runs offscreen and must stay geometry-only. And
+open every capture of a run: the garbled readout was sitting in a harness
+run that had only been measured for something else.
+
+**Verification tooling:** the flyout harness has a `theme` dimension
+(`--vary theme,...`; pinned per state through
+`FlyoutContent.themeOverride`, cleared on teardown) and
+`expected-17.json` is the current allowlist. `fakeamp.py --ui
+themeOverride=light --notify volume=<dB>|mute=<bool>` shows the real
+toast for a spectacle capture. The toast, tooltip and settings page
+render standalone under `/usr/lib/qt6/bin/qml` on Wayland (reparent a
+Dialog's `mainItem` into a plain Window; for the page set
+`page.pageScheme.dark` after the portal reply and pin window colours
+with a scratch `XDG_CONFIG_HOME/kdeglobals`). The real ConfigDialog and
+the tooltip hover remain owner checks.
 
 ## Environment
 
@@ -1017,7 +1186,9 @@ records that the frame is gone (`NoBackground`), which is also why
 nothing constrains the radius any more. `AmpHeader.qml`'s hover fill
 rounds its top corners to the same value so it can't paint square
 corners over the flyout's. Overlay cards use their own 13px
-(`theme.radiusOverlay`).
+(`theme.radiusOverlay`). The v2 light-theme mockups (2026-09-26) draw the
+flyout at 12px; the owner kept 16 (Phase 17 decision D4: 7.14.0 precedent,
+Better Blur DX `CornerRadius=16`, Darkly).
 
 The flyout's corner radius used `Kirigami.Units.cornerRadius` (matches
 Darkly's real Dialog/window corner size, e.g. 5 on this system) rather
@@ -1194,3 +1365,24 @@ corner pixels then match the sharp wallpaper (bottom-left error 72 -> 0.7).
 On System Settings the blur arc falls just inside Darkly's smaller corner,
 leaving a thin unblurred sliver visible only at 10x with contrast boosted.
 12 would bring back ~45% of the flyout's leak to shrink that sliver.
+
+***  automatic text colour from the wallpaper was prototyped and dropped (owner decision 2026-10-01, do not re-propose) ***
+
+A spike on 2026-09-30 made the light theme's text flip between dark ink and
+light text by sampling the wallpaper behind the flyout and scoring both text
+sets with APCA at the current opacity. It worked end to end, but needed
+open-ended calibration, and the owner judged it out of scope for a widget
+that sends a few UDP commands. Nothing from it was kept: no code, no tests,
+no tooling, and its branch was deleted without a commit. The widget instead
+ships fixed text colours per theme, chosen to read at full opacity and with
+transparency and blur when the theme matches the wallpaper (light theme on a
+light wallpaper, dark on dark).
+
+Findings worth keeping if anything like it comes up again: plasmashell 6.7+
+can render the desktop containment to a PNG
+(`org.kde.PlasmaShell.grabContainmentImage`), but the call stalls the whole
+shell for its duration (about one frame at a 240 px request, a full second at
+1920) and cannot be made from the widget's own QML ("local-loop message
+cannot have delayed replies"), so it needs an external process. Plasma emits
+no signal when the wallpaper is changed from its settings dialog or by a
+slideshow.

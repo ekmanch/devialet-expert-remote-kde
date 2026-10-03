@@ -1,5 +1,5 @@
 // Phase 7.4.0 (spike/flyout-appletpopup-rebuild) - the volume block (dB/
-// unit readout, source chip, -/slider/+, scroll hint), extracted from
+// unit readout, source chip, -/slider/+), extracted from
 // FullRepresentation.qml's volume ColumnLayout (~1173-1480) into its own
 // self-contained component for the FlyoutPopup rebuild, following the
 // AmpHeader.qml/AmpListOverlay.qml precedent set in Phase 7.3.0. Replaces
@@ -63,6 +63,8 @@ ColumnLayout {
     objectName: "volumeBlock"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     // undefined | number - see header comment, fed from
     // FlyoutContent's root.pendingAmpState.volumeDb.
@@ -144,8 +146,28 @@ ColumnLayout {
                 font.family: volumeBlock.theme.fontMono
                 font.weight: Font.Medium
                 font.pixelSize: 26
-                color: volumeBlock.theme.copperBright
+                // Phase 17.20.0: in light the Label only holds the layout
+                // (transparent text) and the gold gradient + glow is
+                // painted over it, so the row's geometry is the same in
+                // both themes.
+                color: volumeBlock.colors.isLight ? "transparent" : volumeBlock.colors.copperBright
                 wrapMode: Text.NoWrap
+
+                Loader {
+                    anchors.fill: parent
+                    active: volumeBlock.colors.isLight
+                    sourceComponent: GradientText {
+                        text: dbValueLabel.text
+                        font: dbValueLabel.font
+                        startColor: volumeBlock.colors.readoutGradientStart
+                        endColor: volumeBlock.colors.readoutGradientEnd
+                        glow: true
+                        // The token carries the CSS alpha; MultiEffect
+                        // takes colour and opacity separately.
+                        glowColor: Qt.rgba(volumeBlock.colors.readoutGlow.r, volumeBlock.colors.readoutGlow.g, volumeBlock.colors.readoutGlow.b, 1)
+                        glowOpacity: volumeBlock.colors.readoutGlow.a
+                    }
+                }
             }
             Label {
                 id: dbUnitLabel
@@ -153,7 +175,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 text: "dB"
                 font.pixelSize: 12
-                color: volumeBlock.theme.textDim
+                color: volumeBlock.colors.textDim
                 Layout.leftMargin: 3
                 wrapMode: Text.NoWrap
             }
@@ -172,11 +194,13 @@ ColumnLayout {
             radius: 999
             // Phase 9.1.1: tracks panel alpha with a floor - see
             // TransparencySettings.qml's controlAlpha comment. Was a flat
-            // theme.surface (always fully opaque regardless of panel
+            // colors.surface (always fully opaque regardless of panel
             // transparency) before this phase.
-            color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+            color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+            // Phase 17.19.0: light-theme card shadow (hidden in dark).
+            CardShadow { colors: volumeBlock.colors; radius: parent.radius }
             border.width: 1
-            border.color: volumeBlock.theme.divider
+            border.color: volumeBlock.colors.chipBorder
             implicitWidth: sourceChipLabel.implicitWidth + 18
             implicitHeight: sourceChipLabel.implicitHeight + 6
 
@@ -188,8 +212,10 @@ ColumnLayout {
                 horizontalAlignment: Text.AlignHCenter
                 text: volumeBlock.activeSourceName !== "" ? volumeBlock.activeSourceName : "—"
                 font.family: volumeBlock.theme.fontMono
+                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                font.weight: volumeBlock.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
-                color: volumeBlock.theme.textFaint
+                color: volumeBlock.colors.textFaint
                 wrapMode: Text.NoWrap
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -219,16 +245,18 @@ ColumnLayout {
             // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
-                color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+                color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.theme.copperDim : volumeBlock.theme.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder
             }
             contentItem: Label {
                 text: parent.text
                 font.family: volumeBlock.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: parent.hovered ? volumeBlock.theme.copperBright : volumeBlock.theme.text
+                color: parent.hovered ? volumeBlock.colors.copperBright : volumeBlock.colors.text
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -271,23 +299,42 @@ ColumnLayout {
                 width: volumeSlider.availableWidth
                 height: 4
                 radius: 999
-                color: volumeBlock.theme.surface3
+                color: volumeBlock.colors.surface3
 
                 Rectangle {
                     width: volumeSlider.visualPosition * parent.width
                     height: parent.height
                     radius: 999
-                    color: volumeBlock.theme.copper
+                    color: volumeBlock.colors.accentFill
                 }
             }
 
-            handle: Rectangle {
+            // Phase 17.19.0: flat copperBright disc in dark; in light the
+            // mockup's gold sphere (flyout mockup v3 :99-100 - radial
+            // #fcecc0/#f0a623/#a8710b, `0 1px 3px rgba(110,72,10,.35)` shadow,
+            // 3 px rgba(240,166,35,.14) halo) - GoldSphere, promoted from the
+            // 17.0.2 spike. Same 15 px footprint in both, so nothing moves.
+            handle: Item {
                 x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
                 width: 15
                 height: 15
-                radius: 999
-                color: volumeBlock.theme.copperBright
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: !volumeBlock.colors.isLight
+                    radius: 999
+                    color: volumeBlock.colors.copperBright
+                }
+                GoldSphere {
+                    anchors.fill: parent
+                    visible: volumeBlock.colors.isLight
+                    diameter: 15
+                    haloWidth: 3
+                    shadowColor: "#6e480a"
+                    shadowVerticalOffset: 1
+                    shadowBlur: 0.2
+                }
             }
 
             // Phase 4.5.1: scroll-to-adjust-volume - see FullRepresentation
@@ -304,6 +351,18 @@ ColumnLayout {
                 // Slider.qml convention.
                 property int wheelDelta: 0
 
+                // Spaces notches into evenly timed steps - see
+                // WheelStepPacer.qml and VolumeSettings.wheelStepMinIntervalMs.
+                WheelStepPacer {
+                    id: wheelPacer
+                    intervalMs: volumeBlock.volumeSettings.wheelStepMinIntervalMs
+                    onStep: (direction) => volumeBlock.stepRequested(direction)
+                }
+
+                function step(direction) {
+                    wheelPacer.notch(direction);
+                }
+
                 onWheel: (wheel) => {
                     // Blocked while actively dragging - the Slider's
                     // `value` binding above is suppressed until release,
@@ -314,11 +373,11 @@ ColumnLayout {
                     wheelDelta += delta;
                     while (wheelDelta >= 120) {
                         wheelDelta -= 120;
-                        volumeBlock.stepRequested(1);
+                        step(1);
                     }
                     while (wheelDelta <= -120) {
                         wheelDelta += 120;
-                        volumeBlock.stepRequested(-1);
+                        step(-1);
                     }
                 }
             }
@@ -340,35 +399,21 @@ ColumnLayout {
             // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
-                color: volumeBlock.transparencySettings.withControlAlpha(volumeBlock.theme.surface)
+                color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
+                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
-                border.color: parent.hovered ? volumeBlock.theme.copperDim : volumeBlock.theme.divider
+                border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder
             }
             contentItem: Label {
                 text: parent.text
                 font.family: volumeBlock.theme.fontDisplay
                 font.weight: Font.DemiBold
                 font.pixelSize: 14
-                color: parent.hovered ? volumeBlock.theme.copperBright : volumeBlock.theme.text
+                color: parent.hovered ? volumeBlock.colors.copperBright : volumeBlock.colors.text
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
         }
-    }
-
-    Label {
-        id: scrollHint
-        objectName: "scrollHint"
-        Layout.fillWidth: true
-        Layout.topMargin: 9
-        horizontalAlignment: Text.AlignHCenter
-        // Decorative only - matches FullRepresentation.qml's own text
-        // (scroll-over-icon volume control is Phase 4.4's job, not this
-        // file's).
-        text: "Scroll over the panel icon to adjust"
-        font.family: volumeBlock.theme.fontMono
-        font.pixelSize: 10
-        color: volumeBlock.theme.textFaint
-        wrapMode: Text.NoWrap
     }
 }

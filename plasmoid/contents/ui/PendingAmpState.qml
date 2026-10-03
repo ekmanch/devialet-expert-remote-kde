@@ -94,9 +94,13 @@
 //
 // Thin consumer only: the confirmed-vs-expired resolution logic stays
 // entirely in the daemon (Phase 5.0.0's resolve_pending_commands). This
-// file never tracks a deadline or compares against one itself -
-// volumeDb/muted below are already exactly what the daemon currently
-// reports, whether still pending or already confirmed.
+// file never tracks the amp-confirmation deadline itself - volumeDb/muted
+// below are what the daemon currently reports, whether still pending or
+// already confirmed. Exception (2026-09-29): while this widget's own
+// NotifyVolumeCommand calls are unreplied, VolumeDb pushes are only
+// recorded, then reconciled once the last reply lands - see the echo guard
+// next to noteVolumeDb (its watchdog is a stuck-reply guard, not an
+// amp-confirmation deadline).
 //
 // PC-originated-command signal (2026-09-15, unnumbered phase). The daemon
 // now emits `VolumeCommandNotified(ip, db)` / `MuteCommandNotified(ip,
@@ -111,8 +115,8 @@
 // (notifyVolume/notifyMute - panel wheel/middle-click, flyout slider/
 // step/mute, main.qml's settings clamp), which makes it the one place that
 // can tell the daemon's echo of our own call apart from an external one:
-// `ownInFlight` remembers each value we sent, the signal handler consumes
-// a matching entry silently, and only an unmatched signal is re-emitted as
+// `ownInFlight` remembers each call we made, the signal handler consumes
+// an entry with a matching value silently, and only an unmatched signal is re-emitted as
 // `externalVolumeCommand`/`externalMuteCommand` for CompactRepresentation
 // to turn into a toast. Owner decision: every widget-originated call is
 // suppressed (the flyout and the settings clamp never showed the OSD and
@@ -120,7 +124,12 @@
 // The daemon emits the signal inside the method before replying, so the
 // echo normally consumes the entry before the reply callback runs; the
 // callbacks only forget an entry no signal ever matched (unknown-ip no-op,
-// a daemon predating the signal). A sender-based scheme was not possible:
+// a daemon predating the signal). They forget their own call's entry by
+// id, never by value (2026-09-29 fix): with two equal values in flight -
+// fast scrolling past the floor/ceiling re-sends the clamped value - a
+// by-value forget in reply #1 deleted call #2's entry, so call #2's echo
+// went unmatched and showed the OSD from the flyout, stuck on that one
+// value. A sender-based scheme was not possible:
 // QML has no access to plasmashell's own unique bus name to compare with.
 //
 // Plain QtObject root, not `pragma Singleton` - matches Theme.qml's own
@@ -153,19 +162,26 @@ QtObject {
     signal externalVolumeCommand(real db)
     signal externalMuteCommand(bool muted)
 
-    // Values this widget itself has sent to Notify*Command and not yet
-    // seen echoed back as a signal. Plain JS array of {kind, value}
+    // Calls this widget itself has made to Notify*Command and not yet
+    // seen echoed back as a signal. Plain JS array of {id, kind, value}
     // (kind "volume" | "mute"); nothing binds to it, so in-place mutation
-    // is fine. Matching is exact: a double sent as a D-Bus `d` comes back
-    // bit-identical, a bool trivially.
+    // is fine. Signals match by value - exact: a double sent as a D-Bus `d`
+    // comes back bit-identical, a bool trivially - and entries with equal
+    // values are interchangeable there. Reply cleanup matches by id, so a
+    // call only ever removes its own entry (see the header).
     property var ownInFlight: []
+    property int ownNextId: 0
 
+    // Returns the entry's id, for the call's reply callbacks.
     function rememberOwn(kind, value) {
-        root.ownInFlight.push({ kind: kind, value: value });
-        if (root.debugLogging) console.log("[PendingAmpState] remembered own", kind, value);
+        const id = root.ownNextId++;
+        root.ownInFlight.push({ id: id, kind: kind, value: value });
+        if (root.debugLogging) console.log("[PendingAmpState] remembered own", kind, value, "id", id);
+        return id;
     }
 
-    // Removes the oldest matching entry; true if there was one.
+    // Signal-side match: removes the oldest entry with this value; true if
+    // there was one.
     function consumeOwn(kind, value) {
         for (let i = 0; i < root.ownInFlight.length; i++) {
             const entry = root.ownInFlight[i];
@@ -177,10 +193,17 @@ QtObject {
         return false;
     }
 
-    // Reply-time cleanup for an entry no signal matched (see the header).
-    function forgetOwn(kind, value) {
-        if (root.consumeOwn(kind, value) && root.debugLogging) {
-            console.log("[PendingAmpState] forgot unechoed own", kind, value);
+    // Reply-time cleanup for an entry no signal matched (see the header):
+    // removes the entry `rememberOwn` returned `id` for, if its echo has not
+    // already consumed it. Never touches another call's entry.
+    function forgetEntry(id) {
+        for (let i = 0; i < root.ownInFlight.length; i++) {
+            const entry = root.ownInFlight[i];
+            if (entry.id === id) {
+                root.ownInFlight.splice(i, 1);
+                if (root.debugLogging) console.log("[PendingAmpState] forgot unechoed own", entry.kind, entry.value, "id", id);
+                return;
+            }
         }
     }
 
@@ -268,10 +291,84 @@ QtObject {
     }
 
     // VolumeDb push from the daemon: always remembered, applied only when
-    // not held (the hold is the whole point - see header).
+    // not held (the hold is the whole point - see header) and when no own
+    // volume call is awaiting its reply (echo guard below).
     function noteVolumeDb(db) {
         root.lastRealVolumeDb = db;
-        if (root.bootHoldIp === "") root.volumeDb = db;
+        if (root.bootHoldIp === "" && root.ownVolumeCallsPending === 0) root.volumeDb = db;
+    }
+
+    // Echo guard (2026-09-29, the parked "dropped/repeated notch" item).
+    // NotifyVolumeCommand makes the daemon push VolumeDb = that call's own
+    // value before it replies (interface.rs notify_volume_command). When a
+    // later notch has already gone out, call N's push used to rewind
+    // volumeDb - the base both stepVolume()s build the next notch on - to
+    // N, so the next notch repeated or lost a step (14 direction reversals
+    // measured in one pre-rate-limit burst). While any own volume call is
+    // unreplied, pushes are therefore only recorded (lastRealVolumeDb);
+    // once the last reply lands - after every push of those calls, since
+    // the daemon emits them inside the method - volumeDb is reconciled
+    // with the daemon's latest value once, which also picks up a genuine
+    // change (physical remote) that arrived meanwhile.
+    //
+    // The count must never stick (owner requirement): the callbacks
+    // decrement before anything else; a watchdog resets it if the latest
+    // send has gone ownVolumeWatchdogMs without every reply (round trip
+    // measured ~1 ms; QtDBus's own call timeout is 25 s); the daemon's
+    // bus name vanishing or reappearing resets it too. A reset bumps the
+    // epoch, so late replies from abandoned calls can't lower a newer
+    // burst's count.
+    property int ownVolumeCallsPending: 0
+    property int ownVolumeEpoch: 0
+    property int ownVolumeWatchdogMs: 3000
+
+    readonly property Timer ownVolumeWatchdog: Timer {
+        interval: root.ownVolumeWatchdogMs
+        repeat: false
+        onTriggered: {
+            if (root.ownVolumeCallsPending > 0) root.resetOwnVolumeCalls("no reply within " + root.ownVolumeWatchdogMs + " ms");
+        }
+    }
+
+    // Plasma's DBusServiceWatcher (org.kde.plasma.workspace.dbus,
+    // dbusplugin.qmltypes: busType/watchedService/registered). Either
+    // direction resets: replies to calls made to a vanished daemon will
+    // never come, and a restarted one knows nothing of them.
+    readonly property Dbus.DBusServiceWatcher daemonWatcher: Dbus.DBusServiceWatcher {
+        busType: Dbus.BusType.Session
+        watchedService: root.serviceName
+        onRegisteredChanged: {
+            if (root.ownVolumeCallsPending > 0) root.resetOwnVolumeCalls("daemon bus name " + (registered ? "reappeared" : "vanished"));
+        }
+    }
+
+    // Returns the epoch the call's callbacks hand back to endOwnVolumeCall.
+    function beginOwnVolumeCall() {
+        root.ownVolumeCallsPending += 1;
+        root.ownVolumeWatchdog.restart();
+        return root.ownVolumeEpoch;
+    }
+
+    // First statement of both reply callbacks. True when this reply
+    // brought the count to 0 - the caller then reconciles last.
+    function endOwnVolumeCall(epoch) {
+        if (epoch !== root.ownVolumeEpoch || root.ownVolumeCallsPending === 0) return false;
+        root.ownVolumeCallsPending -= 1;
+        if (root.ownVolumeCallsPending > 0) return false;
+        root.ownVolumeWatchdog.stop();
+        return true;
+    }
+
+    function resetOwnVolumeCalls(reason) {
+        console.log("[WARN] [PendingAmpState] resetting", root.ownVolumeCallsPending, "unreplied volume call(s):", reason);
+        root.ownVolumeCallsPending = 0;
+        root.ownVolumeEpoch += 1;
+        root.ownVolumeWatchdog.stop();
+        root.reconcileVolume();
+    }
+
+    function reconcileVolume() {
+        if (root.bootHoldIp === "" && root.lastRealVolumeDb !== undefined) root.volumeDb = root.lastRealVolumeDb;
     }
 
     // AmpIp from the daemon: a *change* while held ends the hold (the
@@ -333,7 +430,8 @@ QtObject {
         }
         const previous = root.volumeDb;
         root.volumeDb = db;
-        root.rememberOwn("volume", db);
+        const ownId = root.rememberOwn("volume", db);
+        const epoch = root.beginOwnVolumeCall();
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -343,16 +441,20 @@ QtObject {
                 arguments: [root.ampIp, db]
             }),
             function (reply) {
-                root.forgetOwn("volume", db);
+                const settled = root.endOwnVolumeCall(epoch);
+                root.forgetEntry(ownId);
                 if (reply.isError) {
                     root.volumeDb = previous;
                     console.log("[WARN] NotifyVolumeCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
+                if (settled) root.reconcileVolume();
             },
             function (reply) {
-                root.forgetOwn("volume", db);
+                const settled = root.endOwnVolumeCall(epoch);
+                root.forgetEntry(ownId);
                 root.volumeDb = previous;
                 console.log("[WARN] NotifyVolumeCommand call failed:", JSON.stringify(reply.error));
+                if (settled) root.reconcileVolume();
             }
         );
     }
@@ -361,7 +463,7 @@ QtObject {
         if (root.ampIp === "") return;
         const previous = root.muted;
         root.muted = muted;
-        root.rememberOwn("mute", muted);
+        const ownId = root.rememberOwn("mute", muted);
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
                 service: root.serviceName,
@@ -371,14 +473,14 @@ QtObject {
                 arguments: [root.ampIp, muted]
             }),
             function (reply) {
-                root.forgetOwn("mute", muted);
+                root.forgetEntry(ownId);
                 if (reply.isError) {
                     root.muted = previous;
                     console.log("[WARN] NotifyMuteCommand call returned a D-Bus error:", JSON.stringify(reply.error));
                 }
             },
             function (reply) {
-                root.forgetOwn("mute", muted);
+                root.forgetEntry(ownId);
                 root.muted = previous;
                 console.log("[WARN] NotifyMuteCommand call failed:", JSON.stringify(reply.error));
             }

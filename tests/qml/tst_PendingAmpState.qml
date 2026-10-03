@@ -32,6 +32,9 @@ TestCase {
 
     property var state: null
 
+    SignalSpy { id: externalVolumeSpy; signalName: "externalVolumeCommand" }
+    SignalSpy { id: externalMuteSpy; signalName: "externalMuteCommand" }
+
     // One PropertiesChanged message carrying one property, as the daemon
     // sends them.
     function push(changed) {
@@ -55,11 +58,15 @@ TestCase {
         compare(state.ampIp, ip);
         compare(state.volumeDb, -25);
         compare(state.bootHoldIp, "");
+        externalVolumeSpy.target = state;
+        externalMuteSpy.target = state;
+        externalVolumeSpy.clear();
+        externalMuteSpy.clear();
     }
 
     function cleanup() {
         // Let any in-flight NotifyVolumeCommand reply land while its
-        // callbacks still have an object to call forgetOwn() on.
+        // callbacks still have an object to call forgetEntry() on.
         wait(100);
         state.destroy();
         state = null;
@@ -139,7 +146,9 @@ TestCase {
         pushPacket(115, -40);
         compare(state.bootHoldIp, "");
         pushPacket(125, -35);   // physical remote afterwards
-        compare(state.volumeDb, -35);
+        // Delivered before the send's reply here, so the echo guard holds
+        // it until that reply lands, then reconciles to it.
+        tryCompare(state, "volumeDb", -35);
     }
 
     // Fallback with nothing ever sent: bounded from arming.
@@ -188,5 +197,120 @@ TestCase {
         push({ AmpIp: "10.0.0.2" });
         compare(state.bootHoldIp, "");
         verify(!state.bootHoldSent);
+    }
+
+    // 2026-09-29 regression: fast scrolling on the flyout slider past the
+    // ceiling sends the clamped value twice before the first reply lands.
+    // Driven in the real daemon's order (signal N before reply N, measured
+    // in Phase 16.0.0's soak). Reply #1 used to forget by value and so
+    // deleted call #2's entry, and call #2's echo then showed the OSD.
+    function test_duplicate_volume_in_flight_is_not_external() {
+        const e1 = state.rememberOwn("volume", -20);
+        const e2 = state.rememberOwn("volume", -20);
+        state.handleCommandSignal("volume", ip, -20);
+        state.forgetEntry(e1);
+        state.handleCommandSignal("volume", ip, -20);
+        state.forgetEntry(e2);
+        compare(externalVolumeSpy.count, 0, "own echo misattributed as external");
+        compare(state.ownInFlight.length, 0);
+    }
+
+    // Same shape for mute: scrolling fast while muted sends `mute false`
+    // once per notch until the unmute lands.
+    function test_duplicate_mute_in_flight_is_not_external() {
+        const e1 = state.rememberOwn("mute", false);
+        const e2 = state.rememberOwn("mute", false);
+        state.handleCommandSignal("mute", ip, false);
+        state.forgetEntry(e1);
+        state.handleCommandSignal("mute", ip, false);
+        state.forgetEntry(e2);
+        compare(externalMuteSpy.count, 0, "own echo misattributed as external");
+        compare(state.ownInFlight.length, 0);
+    }
+
+    // The case reply cleanup exists for: no echo ever arrives (unknown-ip
+    // no-op, old daemon). The reply removes its own entry, so a later
+    // external command with the same value still shows.
+    function test_unechoed_call_is_forgotten_by_its_own_reply() {
+        const e1 = state.rememberOwn("volume", -30);
+        state.forgetEntry(e1);
+        compare(state.ownInFlight.length, 0);
+        state.handleCommandSignal("volume", ip, -30);
+        compare(externalVolumeSpy.count, 1);
+    }
+
+    // Control: an external command with a different value while our own
+    // call is in flight still shows, and our echo is still swallowed.
+    function test_external_value_during_own_call_is_external() {
+        const e1 = state.rememberOwn("volume", -25);
+        state.handleCommandSignal("volume", ip, -31);
+        compare(externalVolumeSpy.count, 1);
+        compare(externalVolumeSpy.signalArguments[0][0], -31);
+        state.handleCommandSignal("volume", ip, -25);
+        state.forgetEntry(e1);
+        compare(externalVolumeSpy.count, 1);
+        compare(state.ownInFlight.length, 0);
+    }
+
+    // Parked item fixed 2026-09-29: the daemon pushes VolumeDb = each
+    // call's own value inside NotifyVolumeCommand, before replying. When a
+    // later notch has already been sent, call 1's echo used to rewind
+    // volumeDb (the base the next step builds on) to call 1's value -
+    // measured as 14 direction reversals in a pre-rate-limit burst. Both
+    // pushes are delivered here before either reply can land.
+    function test_own_echo_does_not_rewind_a_newer_optimistic_value() {
+        state.notifyVolume(-30);
+        state.notifyVolume(-29);
+        push({ VolumeDb: -30 });   // call 1's echo
+        compare(state.volumeDb, -29, "call 1's echo must not pull the base back");
+        push({ VolumeDb: -29 });   // call 2's echo
+        compare(state.volumeDb, -29);
+        wait(100);                 // both replies land; reconcile
+        compare(state.volumeDb, -29);
+        compare(state.ownVolumeCallsPending, 0);
+    }
+
+    // A genuine change (physical remote) during a burst: held while the
+    // own call is unreplied, applied by the reconcile at its reply.
+    function test_genuine_push_during_own_call_applies_at_the_reply() {
+        state.notifyVolume(-30);
+        push({ VolumeDb: -35 });
+        compare(state.volumeDb, -30, "held while our call is unreplied");
+        tryCompare(state, "volumeDb", -35);
+        compare(state.ownVolumeCallsPending, 0);
+    }
+
+    // Owner requirement: a reply that never arrives must not leave pushes
+    // ignored forever. beginOwnVolumeCall() alone is such a call (the fake
+    // daemon always replies, so this is the only way to get one).
+    function test_reply_that_never_arrives_is_reset_by_the_watchdog() {
+        state.ownVolumeWatchdogMs = 300;
+        const epoch = state.beginOwnVolumeCall();
+        push({ VolumeDb: -33 });
+        compare(state.volumeDb, -25, "held while the call looks in flight");
+        tryCompare(state, "ownVolumeCallsPending", 0, 600);
+        compare(state.volumeDb, -33, "reconciled to the daemon's value");
+        push({ VolumeDb: -31 });
+        compare(state.volumeDb, -31, "pushes are followed again");
+        verify(!state.endOwnVolumeCall(epoch));
+        compare(state.ownVolumeCallsPending, 0, "a late reply can't go below 0");
+    }
+
+    function test_late_reply_does_not_lower_a_newer_burst() {
+        const epochA = state.beginOwnVolumeCall();
+        state.resetOwnVolumeCalls("test");
+        state.beginOwnVolumeCall();
+        verify(!state.endOwnVolumeCall(epochA));
+        compare(state.ownVolumeCallsPending, 1);
+        state.resetOwnVolumeCalls("test cleanup");
+    }
+
+    function test_daemon_name_change_resets_the_count() {
+        state.beginOwnVolumeCall();
+        push({ VolumeDb: -37 });
+        compare(state.volumeDb, -25);
+        state.daemonWatcher.registeredChanged();
+        compare(state.ownVolumeCallsPending, 0);
+        compare(state.volumeDb, -37);
     }
 }

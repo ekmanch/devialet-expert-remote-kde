@@ -19,9 +19,11 @@ ColumnLayout {
     property bool showDivider: true
     // Phase 10.1.1: the mockup's per-row padding overrides (e.g. the
     // "Chime sound" row's inline `padding-top:0`, v16 mockup line 481).
-    // Defaults are the .kcm-row's own 14px, so no existing row moves.
-    property int topPadding: 14
-    property int bottomPadding: 14
+    // Defaults are the .kcm-row's own padding: 16px since 2026-10-03
+    // (configDialog mockup v30 :267, owner decision to match the mockup's
+    // spacing; they were 14).
+    property int topPadding: 16
+    property int bottomPadding: 16
     // Phase 11.0.0: optional one-line message under the row, between the
     // name/control line and the divider - the mockup's .limit-warning
     // (v16 mockup lines 297-301: mono 10px, danger-bright, right-aligned,
@@ -29,10 +31,14 @@ ColumnLayout {
     // no existing row moves. First user: Launch at login's systemd
     // status/error text; Phase 11.1.0's forget-amps row may reuse it.
     property string note: ""
-    property color noteColor: theme.dangerBright
+    property color noteColor: colors.dangerBright
     default property alias controlData: controlHolder.data
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
+    // palette for the whole page; required, so a missed hand-off fails at
+    // load instead of silently painting a different palette).
+    required property Ui.ColorPalette colors
 
     Layout.fillWidth: true
     spacing: 0
@@ -46,14 +52,15 @@ ColumnLayout {
         ColumnLayout {
             Layout.maximumWidth: 440
             Layout.alignment: Qt.AlignVCenter
-            spacing: 2
+            // `.kcm-row-text{gap:4px}` (mockup v30 :271); was 2.
+            spacing: 4
 
             Label {
                 Layout.fillWidth: true
                 text: root.name
                 font.pixelSize: 14
                 font.weight: Font.Medium
-                color: root.theme.text
+                color: root.colors.text
                 wrapMode: Text.WordWrap
             }
 
@@ -62,7 +69,7 @@ ColumnLayout {
                 text: root.desc
                 visible: root.desc !== ""
                 font.pixelSize: 11
-                color: root.theme.textFaint
+                color: root.colors.textFaint
                 wrapMode: Text.WordWrap
             }
         }
@@ -93,6 +100,6 @@ ColumnLayout {
         Layout.fillWidth: true
         height: 1
         visible: root.showDivider
-        color: root.theme.divider
+        color: root.colors.divider
     }
 }

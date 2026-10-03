@@ -51,6 +51,8 @@ Popup {
     objectName: "ampListOverlay"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property var knownAmps
     required property string ampIp
     // Phase 9.1.1: chrome alpha for the card background - see
@@ -78,7 +80,7 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-    background: OverlayCardBackground { theme: overlay.theme; transparencySettings: overlay.transparencySettings }
+    background: OverlayCardBackground { theme: overlay.theme; colors: overlay.colors; transparencySettings: overlay.transparencySettings }
 
     contentItem: ScrollView {
         clip: true
@@ -98,7 +100,7 @@ Popup {
                 Layout.fillWidth: true
                 implicitHeight: ampNoneRow.implicitHeight + 16
                 radius: overlay.theme.radiusOverlayRow
-                color: ampNoneArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                color: ampNoneArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                 RowLayout {
                     id: ampNoneRow
@@ -110,12 +112,14 @@ Popup {
 
                     Rectangle {
                         Layout.alignment: Qt.AlignVCenter
-                        width: 7
-                        height: 7
-                        radius: 3.5
+                        // Phase 17.6.0: 7 -> 10 px, matching the amp rows'
+                        // dots below (the mockup has no "None" row).
+                        width: 10
+                        height: 10
+                        radius: 5
                         color: "transparent"
                         border.width: 1.5
-                        border.color: ampNoneOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
+                        border.color: ampNoneOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint
                     }
 
                     ColumnLayout {
@@ -129,7 +133,7 @@ Popup {
                             font.weight: Font.DemiBold
                             font.italic: true
                             font.pixelSize: 13
-                            color: ampNoneOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                            color: ampNoneOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
@@ -140,18 +144,19 @@ Popup {
                             text: "Don't connect to any amplifier"
                             font.family: overlay.theme.fontMono
                             font.pixelSize: 10
-                            color: overlay.theme.textFaint
+                            color: overlay.colors.textFaint
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
                         }
                     }
 
-                    Label {
+                    // Phase 17.8.0: painted 16 px tick (flyout mockup v2
+                    // :452-453) instead of the "✓" character.
+                    Tick {
+                        objectName: "ampNoneTick"
                         Layout.alignment: Qt.AlignVCenter
-                        text: "✓"
-                        font.pixelSize: 11
-                        color: overlay.theme.copperBright
+                        color: overlay.colors.copperBright
                         visible: ampNoneOption.isCurrent
                     }
                 }
@@ -172,7 +177,7 @@ Popup {
                 Layout.leftMargin: 4
                 Layout.rightMargin: 4
                 height: 1
-                color: overlay.theme.divider
+                color: overlay.colors.divider
             }
 
             Label {
@@ -184,7 +189,7 @@ Popup {
                 text: "No amps discovered yet"
                 font.family: overlay.theme.fontMono
                 font.pixelSize: 11
-                color: overlay.theme.textFaint
+                color: overlay.colors.textFaint
             }
 
             Repeater {
@@ -200,7 +205,7 @@ Popup {
                     Layout.fillWidth: true
                     implicitHeight: ampOptionRow.implicitHeight + 16
                     radius: overlay.theme.radiusOverlayRow
-                    color: ampOptionArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                    color: ampOptionArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                     RowLayout {
                         id: ampOptionRow
@@ -211,11 +216,24 @@ Popup {
                         spacing: 9
 
                         Rectangle {
+                            id: ampOptionDot
                             Layout.alignment: Qt.AlignVCenter
-                            width: 7
-                            height: 7
-                            radius: 3.5
-                            color: ampOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textFaint
+                            // Phase 17.6.0: 7 -> 10 px (flyout mockup v2
+                            // :141, `.amp-option-dot`).
+                            width: 10
+                            height: 10
+                            radius: 5
+                            // Phase 17.21.0: the connected amp's dot is the
+                            // gold sphere in light (flyout mockup v22
+                            // :144-146).
+                            readonly property bool gold: overlay.colors.isLight && ampOption.isCurrent
+                            color: ampOptionDot.gold ? "transparent" : (ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textFaint)
+                            Loader {
+                                anchors.centerIn: parent
+                                active: overlay.colors.isLight
+                                visible: ampOptionDot.gold
+                                sourceComponent: GoldSphere { diameter: 10 }
+                            }
                             opacity: ampOption.modelData.online ? 1.0 : 0.5
                         }
 
@@ -229,7 +247,7 @@ Popup {
                                 font.family: overlay.theme.fontDisplay
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 13
-                                color: ampOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                                color: ampOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                                 wrapMode: Text.NoWrap
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
@@ -242,18 +260,18 @@ Popup {
                                     + (ampOption.modelData.modelName !== "" ? "" : " · name unresolved")
                                 font.family: overlay.theme.fontMono
                                 font.pixelSize: 10
-                                color: overlay.theme.textFaint
+                                color: overlay.colors.textFaint
                                 wrapMode: Text.NoWrap
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
                             }
                         }
 
-                        Label {
+                        // Phase 17.8.0: painted 16 px tick, as above.
+                        Tick {
+                            objectName: "ampOptionTick:" + ampOption.modelData.ip
                             Layout.alignment: Qt.AlignVCenter
-                            text: "✓"
-                            font.pixelSize: 11
-                            color: overlay.theme.copperBright
+                            color: overlay.colors.copperBright
                             visible: ampOption.isCurrent
                         }
                     }

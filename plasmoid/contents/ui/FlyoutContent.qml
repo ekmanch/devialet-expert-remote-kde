@@ -81,6 +81,11 @@ Item {
     property bool popupVisible: false
 
     readonly property Theme theme: Theme {}
+    // Phase 17.12.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml); `colors` is the flyout's palette, forwarded to every child
+    // alongside `theme`.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: root.themeSettings.flyoutPalette
 
     implicitWidth: theme.panelWidth
     implicitHeight: mainColumn.implicitHeight
@@ -205,15 +210,17 @@ Item {
     // stream per trigger so rapid triggers overlap and mix instead of
     // interrupting each other. Tick N uses chimePool[N % length]. Four
     // slots: the chime is 0.30 s and even ~10 ticks/s leaves at most 3 in
-    // flight. The `--tick` argument makes every command string unique -
-    // Plasma's executable engine is shared process-wide and keys running
-    // jobs by command string, so two ticks with identical dB arguments
-    // would otherwise collapse into one process regardless of the pool.
+    // flight. The `--tick` argument keeps concurrently running chimes'
+    // command strings distinct - Plasma's executable engine is shared
+    // process-wide and keys running jobs by command string, so two ticks
+    // with identical dB arguments would otherwise collapse into one
+    // process regardless of the pool. The set of strings must stay
+    // bounded, though: see VolumeSettings.chimeArguments().
     readonly property var chimePool: [chimeExec0, chimeExec1, chimeExec2, chimeExec3]
     property int chimeTick: 0
 
-    // Gate on the amp's live broadcast name, trimmed + lowercased (Theme.qml
-    // sourceGlyph() keyword-match precedent; never by index - see
+    // Gate on the amp's live broadcast name, trimmed + lowercased (the
+    // SourceGlyph.kindFor() keyword-match precedent; never by index - see
     // crates/protocol command.rs). Any other source: no chime at all.
     function isPcSourceActive() {
         return String(root.activeSourceName || "").trim().toLowerCase() === "optical 1";
@@ -239,10 +246,13 @@ Item {
             return;
         }
         const slot = root.chimeTick % root.chimePool.length;
-        const cmd = root.chimeCommand + " --target-db " + targetDb.toFixed(1)
-            + " --confirmed-db " + confirmed.toFixed(1) + " --tick " + root.chimeTick + fileArg;
+        // The binary reads target/confirmed from the daemon itself (one
+        // GetAll, see crates/devialet-chime/src/daemon.rs), so the command
+        // is only `--tick k` - a fixed set of strings. QML's own values are
+        // logged as the reference for the notch-vs-read timing comparison.
+        const cmd = root.chimeCommand + root.volumeSettings.chimeArguments(root.chimeTick) + fileArg;
         root.chimeTick += 1;
-        console.log("devialet-chime[" + slot + "] running:", cmd);
+        console.log("devialet-chime[" + slot + "] running:", cmd, "(qml target=" + targetDb.toFixed(1) + " confirmed=" + confirmed.toFixed(1) + ")");
         root.chimePool[slot].connectSource(cmd);
     }
 
@@ -558,6 +568,14 @@ Item {
     // Phase 7.14.0: the source list is a second owner-driven Popup
     // (SourceListOverlay.qml) with the identical contract.
     property bool sourceListOpen: false
+    // Phase 17.12.0, harness-only: a UiState key pinning the theme for a
+    // capture ("dark"/"light"; "" = follow the setting). Pushed into
+    // ThemeSettings.harnessOverride; the harness sends "" on teardown.
+    property string themeOverride: ""
+    onThemeOverrideChanged: {
+        console.log("[FlyoutContent] harness theme override:", JSON.stringify(root.themeOverride));
+        root.themeSettings.harnessOverride = root.themeOverride;
+    }
 
     // Reset both lists when the flyout hides, so neither is already
     // expanded on the next open (neither the old flyout nor a QtQuick
@@ -755,7 +773,7 @@ Item {
     //
     // Phase 9.1.0: the gradient's alpha is now the user-configured
     // transparency setting, not a hardcoded value baked into Theme.qml -
-    // theme.panelTintTop/Bottom are the opaque base colours only (see
+    // colors.panelTintTop/Bottom are the opaque base colours only (see
     // Theme.qml's own comment), and transparencySettings.withAlpha()
     // reads the live alpha on every call, so a ConfigDialog Apply/OK
     // re-paints this immediately (no reload), per TransparencySettings.
@@ -764,11 +782,13 @@ Item {
         anchors.fill: parent
         radius: root.theme.radiusLg
         antialiasing: true
-        border.width: 1
-        border.color: root.theme.divider
+        // Phase 17.5.0 (D2): no outer border - the v2 mockups draw none in
+        // either theme (flyout :280). This 1px divider-coloured border was
+        // the flyout's grey edge; NoBackground means no frame or KWin
+        // shadow replaces it.
         gradient: Gradient {
-            GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.theme.panelTintTop) }
-            GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.theme.panelTintBottom) }
+            GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.colors.panelTintTop) }
+            GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.colors.panelTintBottom) }
         }
     }
 
@@ -782,6 +802,7 @@ Item {
         AmpHeader {
             id: ampHeader
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             headerName: root.headerName
             headerSub: root.headerSub
@@ -795,6 +816,7 @@ Item {
         VolumeBlock {
             id: volumeBlock
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             volumeDb: root.pendingAmpState.volumeDb
             volumeSettings: root.volumeSettings
@@ -810,6 +832,7 @@ Item {
         ActionRow {
             id: actionRow
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             muted: root.pendingAmpState.muted
             power: root.power
@@ -822,6 +845,7 @@ Item {
         SourceSelector {
             id: sourceSelector
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             sources: root.sources
             activeSourceIndex: root.activeSourceIndex
@@ -842,12 +866,13 @@ Item {
             objectName: "sourceFooterDivider"
             Layout.fillWidth: true
             height: 1
-            color: root.theme.divider
+            color: root.colors.divider
         }
 
         Footer {
             id: footer
             theme: root.theme
+            colors: root.colors
             ampIp: root.ampIp
             online: root.online
         }
@@ -862,6 +887,7 @@ Item {
         id: ampListOverlay
         parent: ampHeader
         theme: root.theme
+        colors: root.colors
         knownAmps: root.knownAmps
         ampIp: root.ampIp
         transparencySettings: root.transparencySettings
@@ -879,6 +905,7 @@ Item {
         id: sourceListOverlay
         parent: sourceSelector.rowItem
         theme: root.theme
+        colors: root.colors
         enabledSources: sourceSelector.enabledSources
         activeSourceIndex: root.activeSourceIndex
         transparencySettings: root.transparencySettings
@@ -899,7 +926,7 @@ Item {
         width: 24
         height: 24
         radius: root.theme.radiusSm
-        color: settingsTriggerArea.containsMouse ? root.theme.surface2 : "transparent"
+        color: settingsTriggerArea.containsMouse ? root.colors.surface2 : "transparent"
         z: 10
 
         Kirigami.Icon {
@@ -908,7 +935,7 @@ Item {
             height: 15
             source: Qt.resolvedUrl("../icons/settings_gear.svg")
             isMask: true
-            color: settingsTriggerArea.containsMouse ? root.theme.copperBright : root.theme.textFaint
+            color: settingsTriggerArea.containsMouse ? root.colors.copperBright : root.colors.textFaint
         }
 
         MouseArea {

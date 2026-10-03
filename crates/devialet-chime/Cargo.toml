@@ -7,3 +7,8 @@ license.workspace = true
 description = "Spike: gain-compensated volume-feedback chime (paplay) for the Devialet Expert Pro widget. Computes one stream gain, plays one chime, exits."
 
 [dependencies]
+devialet-protocol = { path = "../protocol" }
+# Blocking API only (default features): one bounded GetAll on the daemon
+# when QML passes no dB arguments - see src/daemon.rs. Same major as the
+# daemon, so Cargo.lock gains no new zbus.
+zbus = "5"

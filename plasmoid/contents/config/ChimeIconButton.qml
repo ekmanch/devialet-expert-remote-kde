@@ -39,6 +39,10 @@ Item {
     signal clicked()
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
+    // palette for the whole page; required, so a missed hand-off fails at
+    // load instead of silently painting a different palette).
+    required property Ui.ColorPalette colors
     readonly property bool isPlay: root.kind === "play"
     readonly property bool hot: root.isPlay || area.containsMouse
 
@@ -54,7 +58,7 @@ Item {
         anchors.fill: parent
         anchors.margins: -3
         radius: root.theme.radiusSm + 3
-        color: Qt.rgba(root.theme.copperBright.r, root.theme.copperBright.g, root.theme.copperBright.b, 0.18)
+        color: Qt.rgba(root.colors.copperBright.r, root.colors.copperBright.g, root.colors.copperBright.b, 0.18)
         visible: root.playing
     }
 
@@ -62,10 +66,12 @@ Item {
         anchors.fill: parent
         radius: root.theme.radiusSm
         color: root.playing
-            ? Qt.rgba(root.theme.copper.r, root.theme.copper.g, root.theme.copper.b, 0.18)
-            : root.theme.surface
+            ? Qt.rgba(root.colors.copper.r, root.colors.copper.g, root.colors.copper.b, 0.18)
+            : root.colors.surface
         border.width: 1
-        border.color: root.hot ? root.theme.copperDim : root.theme.divider
+        border.color: root.hot ? root.colors.copperDim : root.colors.controlBorder
+        // Phase 17.25.0: light-theme card shadow.
+        Ui.CardShadow { colors: root.colors; radius: parent.radius; visible: root.colors.isLight && !root.playing }
 
         Shape {
             id: glyph
@@ -73,7 +79,7 @@ Item {
             width: 24
             height: 24
             scale: 14 / 24
-            readonly property color tint: root.hot ? root.theme.copperBright : root.theme.textDim
+            readonly property color tint: root.hot ? root.colors.copperBright : root.colors.textDim
 
             // Mockup line 501/522/536: <path d="M8 6.5v11l9-5.5-9-5.5z"/>
             // (fill="currentColor", stroke="none").

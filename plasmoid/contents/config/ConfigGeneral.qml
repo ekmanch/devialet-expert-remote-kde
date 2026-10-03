@@ -64,6 +64,30 @@ KCM.SimpleKCM {
     id: root
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.14.0: the page's palette, forwarded to every settings
+    // component below. This page follows the desktop's colour scheme, not
+    // the widget's Theme setting (and cannot reach main.qml's ThemeSettings
+    // anyway), so it reads the scheme itself through pageScheme. Since
+    // Phase 17.25.0 a light desktop paints LightPalette.
+    readonly property Ui.ColorPalette darkColors: Ui.DarkPalette {}
+    readonly property Ui.ColorPalette lightColors: Ui.LightPalette {}
+    readonly property Ui.ColorPalette colors: root.pageScheme.dark ? root.darkColors : root.lightColors
+
+    // Owner decision 2026-10-03: the light page is pure white like the
+    // mockup (`--win-bg:#ffffff`, configDialog mockup v30 :34), not the
+    // desktop scheme's window colour (#eff0f1 under Breeze Light). Dark
+    // keeps the scheme's colour, which is what the page's default
+    // background paints. Plasma's own header strip and button bar around
+    // the page stay in the scheme's colour.
+    background: Rectangle {
+        color: root.colors.isLight ? root.colors.surface : Kirigami.Theme.backgroundColor
+    }
+
+    // Phase 17.15.0: the desktop's colour scheme, as seen from this dialog
+    // (also what the Follow-system status line, 17.18.0, will report).
+    readonly property Ui.SystemScheme pageScheme: Ui.SystemScheme {
+        context: "config page"
+    }
 
     // Phase 4.4.2: cfg_<entryName> is the standard Plasma ConfigModule
     // convention - the shell's own AppletConfiguration.qml (open()/
@@ -86,6 +110,14 @@ KCM.SimpleKCM {
     // than re-typing the literals a third time.
     readonly property real cfg_volumeStepDbDefault: root.shippedDefaults.volumeStepDb
     readonly property var stepValues: [0.5, 1, 2]
+
+    // Phase 17.17.0: main.xml `theme` - the widget's colour theme for the
+    // flyout, OSD and tooltip (ThemeSettings.qml reads it). Segment order
+    // matches the row: Dark, Light, Follow system. Until 17.19.0 every
+    // value still paints the dark palette.
+    readonly property var themeModes: ["dark", "light", "system"]
+    property string cfg_theme: "system"
+    readonly property string cfg_themeDefault: root.shippedDefaults.theme
 
     // Appearance section - wired for real in Phase 9.1.0 (see main.xml's
     // own comment on these two entries and TransparencySettings.qml).
@@ -168,6 +200,7 @@ KCM.SimpleKCM {
     // rather than three times. Update this alongside main.xml if a
     // default ever changes.
     readonly property var shippedDefaults: ({
+        theme: "system",
         transparencyEnabled: true,
         transparencyPercent: 90,
         volumeStepDb: 1.0,
@@ -336,15 +369,17 @@ KCM.SimpleKCM {
     // is the amp-latency gain compensation, which has no meaning without
     // a scroll gesture to compensate for. The DEVIALET_PREVIEW_TICK=<n>
     // prefix is a no-op sh environment assignment whose only job is to
-    // make every command string unique - the executable engine is
-    // shared process-wide and keys jobs by command string, so two
+    // keep overlapping presses' command strings distinct - the executable
+    // engine is shared process-wide and keys jobs by command string, so two
     // presses within one sound's duration would otherwise collapse into
     // one process (same reason maybeChime() passes --tick, see
-    // CompactRepresentation.qml).
+    // CompactRepresentation.qml). It wraps at 16 so the set of strings
+    // stays bounded - see VolumeSettings.chimeArguments() for why every
+    // new command string costs plasmashell a little more forever.
     function previewChime() {
         const path = root.chimePreviewPath();
         if (path === "") return;
-        const cmd = "DEVIALET_PREVIEW_TICK=" + root.chimePreviewTick
+        const cmd = "DEVIALET_PREVIEW_TICK=" + (root.chimePreviewTick % 16)
             + " paplay --volume=65536 " + root.soundThemes.shellQuote(path);
         root.chimePreviewTick += 1;
         console.log("[ConfigGeneral] chime preview running:", cmd);
@@ -408,44 +443,35 @@ KCM.SimpleKCM {
         Layout.fillWidth: true
         spacing: 0
 
+        // Spacing per the mockup's `.brand-header` (gap 9px, margin-bottom
+        // 22px, configDialog mockup v30 :235) and `.brand-sub` (4px above,
+        // letter-spacing 0.2em, :257) - owner decision 2026-10-03 to match
+        // the mockup's spacing in both themes.
         RowLayout {
             Layout.fillWidth: true
-            Layout.bottomMargin: Kirigami.Units.largeSpacing * 2
-            spacing: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: 22
+            spacing: 9
 
-            Rectangle {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                radius: 9
-                color: root.theme.surface
-                border.width: 1
-                border.color: root.theme.copperDim
-
-                Label {
-                    anchors.centerIn: parent
-                    text: "◉"
-                    font.pixelSize: 14
-                    color: root.theme.copperBright
-                }
-            }
+            // Phase 17.24.0: the app icon's ring + disk (BrandMark.qml).
+            BrandMark { colors: root.colors }
 
             ColumnLayout {
-                spacing: 2
+                spacing: 4
 
                 Label {
                     text: "Devialet Expert Remote"
                     font.family: root.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 17
-                    color: root.theme.text
+                    color: root.colors.text
                 }
 
                 Label {
                     text: "WIDGET SETTINGS"
                     font.family: root.theme.fontMono
                     font.pixelSize: 10
-                    font.letterSpacing: 1.2
-                    color: root.theme.textFaint
+                    font.letterSpacing: 2
+                    color: root.colors.textFaint
                 }
             }
 
@@ -457,14 +483,79 @@ KCM.SimpleKCM {
         // flyout's panel-tint alpha live (TransparencySettings.qml), not
         // just this dialog's own preview. OSD toast/hover tooltip alpha is
         // still separate (Phase 9.2.0's job); see main.xml's own comment.
-        SectionLabel { text: "Appearance"; first: true }
+        SectionLabel { colors: root.colors; text: "Appearance"; first: true }
+
+        // Phase 17.17.0: Theme (configDialog mockup v2 :574-584; Follow
+        // system is the shipped default). Recolours the flyout, hover
+        // tooltip and OSD - not this page, which follows its window's
+        // scheme. The "Following your desktop's color scheme" status line
+        // below it is 17.18.0.
+        SettingsRow {
+            colors: root.colors
+            name: "Theme"
+            desc: "Colors for the popup, hover tooltip and volume overlay"
+
+            SegmentedControl {
+                id: themeSegmented
+                colors: root.colors
+                labels: ["Dark", "Light", "Follow system"]
+                activeIndex: root.themeModes.indexOf(root.cfg_theme)
+                onPicked: index => root.cfg_theme = root.themeModes[index]
+            }
+        }
+
+        // Phase 17.18.0: Follow-system status line (configDialog mockup v2
+        // :585-590, `.kcm-sub-row` padding 10px 2px 14px + border-bottom,
+        // `.theme-follow-status`) - the same dot + mono line as the chime
+        // section's "Following your desktop's sound theme". Shown only while
+        // Follow system is selected (reacts to the selection before Apply,
+        // like the chime line); the value is this dialog's own reading of the
+        // desktop's scheme (pageScheme, the XDG portal via SystemScheme.qml),
+        // the same portal value the widget follows.
+        ColumnLayout {
+            id: themeFollowStatus
+            objectName: "themeFollowStatus"
+            Layout.fillWidth: true
+            Layout.topMargin: 10
+            spacing: 0
+            visible: root.cfg_theme === "system"
+
+            RowLayout {
+                Layout.leftMargin: 2
+                spacing: 9
+
+                StatusDot {
+                    Layout.alignment: Qt.AlignVCenter
+                    colors: root.colors
+                }
+
+                // Phase 17.26.0: the value is gold-gradient in light
+                // (FollowStatusText.qml).
+                FollowStatusText {
+                    objectName: "themeFollowLabel"
+                    Layout.alignment: Qt.AlignVCenter
+                    colors: root.colors
+                    prefix: "Following your desktop's color scheme — currently "
+                    value: root.pageScheme.dark ? "Dark" : "Light"
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 14
+                Layout.preferredHeight: 1
+                color: root.colors.divider
+            }
+        }
 
         SettingsRow {
+            colors: root.colors
             name: "Transparency"
             desc: "Let the desktop show through the panel"
 
             SettingsSwitch {
                 id: transparencySwitch
+                colors: root.colors
                 checked: root.cfg_transparencyEnabled
                 // Phase 10.1.2: onToggled, not onCheckedChanged - see
                 // SettingsSwitch.qml's header for the broken-binding bug
@@ -522,23 +613,44 @@ KCM.SimpleKCM {
                     width: transparencySlider.availableWidth
                     height: 4
                     radius: 999
-                    color: root.theme.surface3
+                    color: root.colors.surface3
 
                     Rectangle {
                         width: transparencySlider.visualPosition * parent.width
                         height: parent.height
                         radius: 999
-                        color: root.theme.copper
+                        // Phase 17.25.0: accentFill (= copper in dark, flat
+                        // gold in light), as the flyout's slider.
+                        color: root.colors.accentFill
                     }
                 }
 
-                handle: Rectangle {
+                // Phase 17.25.0: an Item holding the dark disc or the light
+                // gold sphere (15 px, 3 px halo; configDialog mockup v30
+                // :87-88), the flyout slider's pattern (VolumeBlock.qml).
+                handle: Item {
                     x: transparencySlider.leftPadding + transparencySlider.visualPosition * (transparencySlider.availableWidth - width)
                     y: transparencySlider.topPadding + transparencySlider.availableHeight / 2 - height / 2
                     width: 15
                     height: 15
-                    radius: 999
-                    color: root.theme.copperBright
+
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: !root.colors.isLight
+                        radius: 999
+                        color: root.colors.copperBright
+                    }
+                    Loader {
+                        anchors.fill: parent
+                        active: root.colors.isLight
+                        sourceComponent: Ui.GoldSphere {
+                            diameter: 15
+                            haloWidth: 3
+                            shadowColor: "#6e480a"
+                            shadowVerticalOffset: 1
+                            shadowBlur: 0.2
+                        }
+                    }
                 }
 
                 // Scroll-to-adjust, same mechanism as VolumeBlock.qml's
@@ -586,81 +698,41 @@ KCM.SimpleKCM {
                 text: Math.round(transparencySlider.value) + "%"
                 font.family: root.theme.fontMono
                 font.pixelSize: 11
-                color: root.theme.copperBright
+                // Phase 17.25.0: neutral in light (mockup v30 :108).
+                color: root.colors.controlValueText
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
             }
         }
 
         // ---- Volume ----
-        SectionLabel { text: "Volume" }
+        SectionLabel { colors: root.colors; text: "Volume" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Step Size"
             desc: "Change how large one increment change in volume is"
 
-            Rectangle {
+            // Phase 17.16.0: the shared SegmentedControl (was an inline copy).
+            // Phase 4.4.2: activeIndex is derived from cfg_volumeStepDb
+            // rather than a literal, so it stays in sync whether that value
+            // came from the dialog's own initial load or a click.
+            SegmentedControl {
                 id: stepSegmented
-                radius: root.theme.radiusSm
-                color: root.theme.surface
-                border.width: 1
-                border.color: root.theme.divider
-                implicitWidth: stepRow.implicitWidth + 6
-                implicitHeight: stepRow.implicitHeight + 6
-
-                // Phase 4.4.2: derived from cfg_volumeStepDb rather than a
-                // literal, so it stays in sync whether that value came from
-                // the dialog's own initial load or a click below.
-                property int activeIndex: root.stepValues.indexOf(root.cfg_volumeStepDb)
-
-                RowLayout {
-                    id: stepRow
-                    anchors.centerIn: parent
-                    spacing: 2
-
-                    Repeater {
-                        model: ["0.5 dB", "1 dB", "2 dB"]
-
-                        Rectangle {
-                            required property string modelData
-                            required property int index
-
-                            radius: 6
-                            color: stepSegmented.activeIndex === index ? root.theme.surface3 : "transparent"
-                            implicitWidth: stepLabel.implicitWidth + 22
-                            implicitHeight: stepLabel.implicitHeight + 10
-
-                            Label {
-                                id: stepLabel
-                                anchors.centerIn: parent
-                                text: parent.modelData
-                                font.family: root.theme.fontMono
-                                font.pixelSize: 11
-                                // Mockup v25 .kcm-seg-btn:not(.active):hover
-                                // {color:var(--copper-bright)}: hover lights the
-                                // text only - no background change, no cursor
-                                // change ("segmented hover is text-color only").
-                                color: stepSegmented.activeIndex === parent.index || stepArea.containsMouse
-                                    ? root.theme.copperBright : root.theme.textDim
-                            }
-
-                            MouseArea {
-                                id: stepArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.cfg_volumeStepDb = root.stepValues[parent.index]
-                            }
-                        }
-                    }
-                }
+                colors: root.colors
+                labels: ["0.5 dB", "1 dB", "2 dB"]
+                activeIndex: root.stepValues.indexOf(root.cfg_volumeStepDb)
+                onPicked: index => root.cfg_volumeStepDb = root.stepValues[index]
             }
         }
 
         SettingsRow {
+            colors: root.colors
             name: "Startup / Source-Switch Volume"
             desc: "Default volume at startup and when source is changed"
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_startupVolumeDb
                 from: root.dbRangeMin
                 to: root.dbRangeMax
@@ -676,13 +748,15 @@ KCM.SimpleKCM {
         // mis-drag - a stepper gives exact, unambiguous values. Volume
         // floor is ordered before Volume ceiling to match the mockup;
         // don't rearrange.
-        SectionLabel { text: "Volume Limits" }
+        SectionLabel { colors: root.colors; text: "Volume Limits" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Floor"
             desc: "Lowest volume possible to set"
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_volumeFloorDb
                 from: root.dbRangeMin
                 // Phase 8.3.0: can never reach (let alone pass) the current
@@ -697,11 +771,13 @@ KCM.SimpleKCM {
         }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Ceiling"
             desc: "Highest volume possible to set"
             showDivider: false
 
             DbStepper {
+                colors: root.colors
                 value: root.cfg_hardLimitDb
                 // Phase 8.3.0: mirror of the floor stepper above - can
                 // never reach the current floor, capped one step above it.
@@ -720,14 +796,16 @@ KCM.SimpleKCM {
         // sub-row above is (opacity 0.35 + enabled:false, the mockup's
         // .kcm-sub-row.disabled), holding the three-way source
         // segmented control and one visible variant block.
-        SectionLabel { text: "Volume Feedback" }
+        SectionLabel { colors: root.colors; text: "Volume Feedback" }
 
         SettingsRow {
+            colors: root.colors
             name: "Volume Feedback Chime"
             desc: "Plays a short tone on each scroll tick, matching the volume you're setting"
 
             SettingsSwitch {
                 id: chimeSwitch
+                colors: root.colors
                 checked: root.cfg_chimeEnabled
                 onToggled: (checked) => root.cfg_chimeEnabled = checked
             }
@@ -751,6 +829,7 @@ KCM.SimpleKCM {
             // Mockup line 481: .kcm-row with border-bottom:none and
             // padding-top:0.
             SettingsRow {
+                colors: root.colors
                 name: "Chime Sound"
                 desc: "Which sound plays on each tick"
                 showDivider: false
@@ -758,58 +837,14 @@ KCM.SimpleKCM {
 
                 // Same segmented control as the Volume step size row
                 // above (mockup .kcm-segmented / .kcm-seg-btn), three
-                // string-valued modes instead of three dB values.
-                Rectangle {
+                // string-valued modes instead of three dB values - the shared
+                // SegmentedControl since Phase 17.16.0.
+                SegmentedControl {
                     id: chimeSegmented
-                    radius: root.theme.radiusSm
-                    color: root.theme.surface
-                    border.width: 1
-                    border.color: root.theme.divider
-                    implicitWidth: chimeSegRow.implicitWidth + 6
-                    implicitHeight: chimeSegRow.implicitHeight + 6
-
-                    property int activeIndex: root.chimeSourceModes.indexOf(root.cfg_chimeSourceMode)
-
-                    RowLayout {
-                        id: chimeSegRow
-                        anchors.centerIn: parent
-                        spacing: 2
-
-                        Repeater {
-                            model: ["System theme", "Choose theme", "Custom file"]
-
-                            Rectangle {
-                                id: chimeSeg
-                                required property string modelData
-                                required property int index
-                                readonly property bool active: chimeSegmented.activeIndex === chimeSeg.index
-
-                                radius: 6
-                                color: chimeSeg.active ? root.theme.surface3 : "transparent"
-                                implicitWidth: chimeSegLabel.implicitWidth + 22
-                                implicitHeight: chimeSegLabel.implicitHeight + 10
-
-                                Label {
-                                    id: chimeSegLabel
-                                    anchors.centerIn: parent
-                                    text: chimeSeg.modelData
-                                    font.family: root.theme.fontMono
-                                    font.pixelSize: 11
-                                    // Same v25 hover rule as the step-size segments
-                                    // above: text-color only, cursor stays normal.
-                                    color: chimeSeg.active || chimeSegArea.containsMouse
-                                        ? root.theme.copperBright : root.theme.textDim
-                                }
-
-                                MouseArea {
-                                    id: chimeSegArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: root.setChimeSourceMode(root.chimeSourceModes[chimeSeg.index])
-                                }
-                            }
-                        }
-                    }
+                    colors: root.colors
+                    labels: ["System theme", "Choose theme", "Custom file"]
+                    activeIndex: root.chimeSourceModes.indexOf(root.cfg_chimeSourceMode)
+                    onPicked: index => root.setChimeSourceMode(root.chimeSourceModes[index])
                 }
             }
 
@@ -841,29 +876,23 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 9
 
-                        Rectangle {
-                            Layout.preferredWidth: 6
-                            Layout.preferredHeight: 6
+                        StatusDot {
                             Layout.alignment: Qt.AlignVCenter
-                            radius: 3
-                            color: root.theme.copperBright
+                            colors: root.colors
                         }
 
-                        Label {
+                        FollowStatusText {
                             Layout.alignment: Qt.AlignVCenter
-                            textFormat: Text.StyledText
-                            text: "Following your desktop's sound theme — currently <font color=\""
-                                + root.theme.copperBright + "\"><b>"
-                                + root.escapeStyledText(root.soundThemes.followDisplayName()) + "</b></font>"
-                            font.family: root.theme.fontMono
-                            font.pixelSize: 11
-                            color: root.theme.textDim
+                            colors: root.colors
+                            prefix: "Following your desktop's sound theme — currently "
+                            value: root.soundThemes.followDisplayName()
                         }
                     }
 
                     Item { Layout.fillWidth: true }
 
                     ChimeIconButton {
+                        colors: root.colors
                         kind: "play"
                         tooltip: "Preview"
                         enabled: root.chimePreviewPath() !== ""
@@ -883,7 +912,7 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         text: "Always use this theme's tone, regardless of your desktop setting"
                         font.pixelSize: 11
-                        color: root.theme.textFaint
+                        color: root.colors.textFaint
                         wrapMode: Text.WordWrap
                     }
 
@@ -896,12 +925,14 @@ KCM.SimpleKCM {
 
                         ThemeDropdown {
                             id: themeDropdown
+                            colors: root.colors
                             themes: root.soundThemes.themes
                             currentId: root.cfg_chimePinnedTheme
                             onThemeChosen: (id) => root.cfg_chimePinnedTheme = id
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "play"
                             tooltip: "Preview"
                             enabled: root.chimePreviewPath() !== ""
@@ -922,7 +953,7 @@ KCM.SimpleKCM {
                         Layout.alignment: Qt.AlignVCenter
                         text: "Any sound file on disk"
                         font.pixelSize: 11
-                        color: root.theme.textFaint
+                        color: root.colors.textFaint
                         wrapMode: Text.WordWrap
                     }
 
@@ -948,9 +979,11 @@ KCM.SimpleKCM {
                             implicitWidth: chimeFileLabel.implicitWidth + 20
                             implicitHeight: chimeFileLabel.implicitHeight + 12
                             radius: root.theme.radiusSm
-                            color: root.theme.surface
+                            color: root.colors.surface
                             border.width: 1
-                            border.color: root.theme.divider
+                            border.color: root.colors.controlBorder
+                            // Phase 17.25.0: light-theme card shadow.
+                            Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                             readonly property bool hasFile: root.cfg_chimeSoundFile !== ""
 
@@ -963,7 +996,7 @@ KCM.SimpleKCM {
                                 text: chimeFileChip.hasFile ? root.chimeFileBaseName() : "No file chosen"
                                 font.family: root.theme.fontMono
                                 font.pixelSize: 11
-                                color: chimeFileChip.hasFile ? root.theme.textDim : root.theme.textFaint
+                                color: chimeFileChip.hasFile ? root.colors.textDim : root.colors.textFaint
                                 elide: Text.ElideRight
                             }
 
@@ -980,12 +1013,14 @@ KCM.SimpleKCM {
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "browse"
                             tooltip: "Browse…"
                             onClicked: chimeFileDialogLoader.active = true
                         }
 
                         ChimeIconButton {
+                            colors: root.colors
                             kind: "play"
                             tooltip: "Preview"
                             enabled: root.cfg_chimeSoundFile !== ""
@@ -997,9 +1032,10 @@ KCM.SimpleKCM {
         }
 
         // ---- Startup ----
-        SectionLabel { text: "Startup" }
+        SectionLabel { colors: root.colors; text: "Startup" }
 
         SettingsRow {
+            colors: root.colors
             name: "Launch at Login"
             desc: "Automatically start the daemon used for UDP communication to amplifier"
             // Phase 11.0.0: wired for real - see the daemonAutostart block
@@ -1013,6 +1049,7 @@ KCM.SimpleKCM {
             note: root.launchAtLoginNote()
 
             SettingsSwitch {
+                colors: root.colors
                 checked: root.launchDesired
                 enabled: root.daemonAutostart.toggleable && !root.daemonAutostart.writing
                 onToggled: (checked) => root.launchDesired = checked
@@ -1028,9 +1065,10 @@ KCM.SimpleKCM {
         // Loader/Repeater/conditional slot exists there for a 4th button).
         // v14 moves it into the page content instead, as this section -
         // see that mockup's own updated legend for the same reasoning.
-        SectionLabel { text: "Reset" }
+        SectionLabel { colors: root.colors; text: "Reset" }
 
         SettingsRow {
+            colors: root.colors
             name: "Restore Defaults"
             desc: "Resets every setting on this page back to its default values"
             showDivider: false
@@ -1040,9 +1078,11 @@ KCM.SimpleKCM {
                 radius: root.theme.radiusSm
                 implicitWidth: defaultsLabel.implicitWidth + 28
                 implicitHeight: defaultsLabel.implicitHeight + 14
-                color: root.theme.surface
+                color: root.colors.surface
                 border.width: 1
-                border.color: defaultsArea.containsMouse ? root.theme.copperDim : root.theme.divider
+                border.color: defaultsArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
+                // Phase 17.25.0: light-theme card shadow.
+                Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                 Label {
                     id: defaultsLabel
@@ -1050,7 +1090,7 @@ KCM.SimpleKCM {
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     text: "Defaults"
-                    color: defaultsArea.containsMouse ? root.theme.copperBright : root.theme.text
+                    color: defaultsArea.containsMouse ? root.colors.copperBright : root.colors.text
                 }
 
                 MouseArea {
@@ -1065,6 +1105,7 @@ KCM.SimpleKCM {
                     // Values must stay in sync with main.xml's own
                     // <default> entries - see root.shippedDefaults above.
                     onClicked: {
+                        root.cfg_theme = root.shippedDefaults.theme;
                         root.cfg_transparencyEnabled = root.shippedDefaults.transparencyEnabled;
                         root.cfg_transparencyPercent = root.shippedDefaults.transparencyPercent;
                         root.cfg_volumeStepDb = root.shippedDefaults.volumeStepDb;

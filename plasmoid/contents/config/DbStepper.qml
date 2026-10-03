@@ -31,6 +31,10 @@ RowLayout {
     signal stepped(real value)
 
     readonly property Ui.Theme theme: Ui.Theme {}
+    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
+    // palette for the whole page; required, so a missed hand-off fails at
+    // load instead of silently painting a different palette).
+    required property Ui.ColorPalette colors
 
     spacing: 8
 
@@ -59,16 +63,18 @@ RowLayout {
         opacity: enabled ? 1.0 : 0.4
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.theme.surface
+            color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.theme.copperDim : root.theme.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
+            // Phase 17.25.0: light-theme card shadow.
+            Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
             text: parent.text
             font.family: root.theme.fontDisplay
             font.weight: Font.DemiBold
             font.pixelSize: 14
-            color: parent.hovered ? root.theme.copperBright : root.theme.text
+            color: parent.hovered ? root.colors.copperBright : root.colors.text
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -76,9 +82,11 @@ RowLayout {
 
     Rectangle {
         radius: root.theme.radiusSm
-        color: root.theme.surface
+        color: root.colors.surface
         border.width: 1
-        border.color: root.theme.divider
+        border.color: root.colors.controlBorder
+        // Phase 17.25.0: light-theme card shadow (`--val-shadow`).
+        Ui.CardShadow { colors: root.colors; radius: parent.radius }
         implicitWidth: valueLabel.implicitWidth + 20
         implicitHeight: 26
 
@@ -88,7 +96,8 @@ RowLayout {
             text: Math.round(root.value) + " dB"
             font.family: root.theme.fontMono
             font.pixelSize: 12
-            color: root.theme.copperBright
+            // Phase 17.27.0: neutral in light (configDialog mockup v30 :107).
+            color: root.colors.controlValueText
             wrapMode: Text.NoWrap
         }
     }
@@ -106,16 +115,18 @@ RowLayout {
         opacity: enabled ? 1.0 : 0.4
         background: Rectangle {
             radius: root.theme.radiusSm
-            color: root.theme.surface
+            color: root.colors.surface
             border.width: 1
-            border.color: parent.hovered ? root.theme.copperDim : root.theme.divider
+            border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
+            // Phase 17.25.0: light-theme card shadow.
+            Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
             text: parent.text
             font.family: root.theme.fontDisplay
             font.weight: Font.DemiBold
             font.pixelSize: 14
-            color: parent.hovered ? root.theme.copperBright : root.theme.text
+            color: parent.hovered ? root.colors.copperBright : root.colors.text
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }

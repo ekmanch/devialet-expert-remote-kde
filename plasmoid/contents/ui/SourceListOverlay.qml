@@ -39,6 +39,8 @@ Popup {
     objectName: "sourceListOverlay"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     // Array of {name, index, enabled, selected} - enabled ones only.
     required property var enabledSources
     required property int activeSourceIndex
@@ -54,18 +56,22 @@ Popup {
     x: 0
     width: parent ? parent.width : 0
 
-    // Opens upward: card bottom `gap` px above the row's top edge. The
-    // mockup pins `bottom:72px` from the flyout's bottom, which lands the
-    // card just above the row; 6px is the closest clean reading (verify
-    // live - assumption, not a measured mockup value).
-    readonly property int gap: 6
-    y: -overlay.height - overlay.gap
+    // Opens upward, its bottom edge over the row's top part. Phase 17.21.1:
+    // the mockup pins the card `bottom:66px` above the flyout's bottom and
+    // caps it at 264 px so six sources fit without a scrollbar (flyout
+    // mockup v22 :446). Measured on the live flyout (harness coords,
+    // 2026-10-03): the row's top is 99 px above the flyout's bottom (y 231
+    // of 330), so the card covers the row's top 33 px. Before, the card
+    // stopped 6 px above the row, which left 217 px for a list that needs
+    // 244 (6 x 36 + 5 x 4 + 2 x 4).
+    readonly property int rowOverlap: 33
+    y: -overlay.height + overlay.rowOverlap
 
     // `.source-option{margin:4px}` - CSS vertical margins collapse between
     // siblings, so rows are 4px apart and 4px in from the card edge.
     padding: 4
     readonly property int rowSpacing: 4
-    readonly property int maxListHeight: 252
+    readonly property int maxListHeight: 264
 
     // The row's top edge in window coordinates, as a LIVE binding (QML
     // tracks every `y`/`parent` read in the loop - same technique as
@@ -81,7 +87,7 @@ Popup {
         }
         return y;
     }
-    readonly property real spaceAbove: overlay.rowTopInWindow - overlay.gap - 8
+    readonly property real spaceAbove: overlay.rowTopInWindow + overlay.rowOverlap - 8
 
     height: Math.max(
         2 * overlay.padding + 36,
@@ -94,15 +100,44 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-    background: OverlayCardBackground { theme: overlay.theme; transparencySettings: overlay.transparencySettings }
+    background: OverlayCardBackground { theme: overlay.theme; colors: overlay.colors; transparencySettings: overlay.transparencySettings }
+
+    // Phase 17.1.1: since 17.1.0's shorter flyout, the real amp's six
+    // sources no longer fit in the room above the row, so the list
+    // scrolls. On open, scroll just far enough that the selected source is
+    // fully visible (a ComboBox popup positions itself; this Popup does
+    // not), and leave the list at the top when it already is.
+    onOpened: overlay.revealCurrent()
+
+    function revealCurrent() {
+        const flick = scrollView.contentItem as Flickable;
+        let row = null;
+        for (let i = 0; i < overlay.enabledSources.length; ++i) {
+            if (overlay.enabledSources[i].index === overlay.activeSourceIndex) {
+                row = rowRepeater.itemAt(i);
+                break;
+            }
+        }
+        if (!flick || !row) return;
+        const maxY = Math.max(0, flick.contentHeight - flick.height);
+        const wanted = Math.max(0, row.y + row.height - flick.height);
+        flick.contentY = Math.min(wanted, maxY);
+    }
 
     contentItem: ScrollView {
+        id: scrollView
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         ColumnLayout {
             id: listColumn
-            width: overlay.availableWidth
+            // Phase 17.1.1: the ScrollView's own availableWidth, not the
+            // Popup's. Under the desktop style the vertical ScrollBar
+            // reserves 21 px (rightPadding) once the list scrolls; binding
+            // to the Popup's width kept rows 260 px wide in a 239 px
+            // viewport, so the bar covered their right edge and the
+            // selection tick (measured on the 17.1.0 harness run).
+            width: scrollView.availableWidth
             spacing: overlay.rowSpacing
 
             // Unreachable through the row (SourceSelector disables it when
@@ -117,10 +152,11 @@ Popup {
                 text: "No sources"
                 font.family: overlay.theme.fontMono
                 font.pixelSize: 11
-                color: overlay.theme.textFaint
+                color: overlay.colors.textFaint
             }
 
             Repeater {
+                id: rowRepeater
                 model: overlay.enabledSources
 
                 // `.source-option`: padding 8px 10px, gap 9, radius 9,
@@ -136,12 +172,12 @@ Popup {
                     Layout.fillWidth: true
                     // Pinned (house rule: AlignVCenter children + a row
                     // height equal to the tallest child's real height):
-                    // the 20px chip is the tallest child in every state -
+                    // the 20px glyph slot is the tallest child in every state -
                     // the 13px label's implicit height is below it - so
                     // 20 + 2*8 padding.
                     implicitHeight: 36
                     radius: overlay.theme.radiusOverlayRow
-                    color: sourceOptionArea.containsMouse ? overlay.theme.surface2 : "transparent"
+                    color: sourceOptionArea.containsMouse ? overlay.colors.surface2 : "transparent"
 
                     RowLayout {
                         anchors.left: parent.left
@@ -151,18 +187,25 @@ Popup {
                         anchors.rightMargin: 10
                         spacing: 9
 
-                        Rectangle {
+                        // Phase 17.7.0: painted 17 px glyph (flyout mockup
+                        // v2 :132-133), no box behind it - in either theme,
+                        // so it reads right over transparency + blur. The
+                        // 20 px slot keeps the objectName (harness key) and
+                        // the text position; the mockup's transparent
+                        // container is 22 px - spacing alignment is its own
+                        // pass.
+                        Item {
                             objectName: "sourceOptionChip:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
-                            radius: 7
-                            color: overlay.theme.surface3
-                            Label {
+                            // Phase 17.21.0: gold gradient + warm
+                            // shadow in light.
+                            ThemedSourceGlyph {
                                 anchors.centerIn: parent
-                                text: overlay.theme.sourceGlyph(sourceOption.modelData.name)
-                                font.pixelSize: 10
-                                color: overlay.theme.copperBright
+                                colors: overlay.colors
+                                sourceName: sourceOption.modelData.name
+                                size: 17
                             }
                         }
 
@@ -174,17 +217,18 @@ Popup {
                             font.family: overlay.theme.fontDisplay
                             font.weight: Font.DemiBold
                             font.pixelSize: 13
-                            color: sourceOption.isCurrent ? overlay.theme.copperBright : overlay.theme.textDim
+                            color: sourceOption.isCurrent ? overlay.colors.copperBright : overlay.colors.textDim
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
                             elide: Text.ElideRight
                         }
 
-                        Label {
+                        // Phase 17.8.0: painted 16 px tick (flyout mockup v2
+                        // :452-453) instead of the "✓" character.
+                        Tick {
+                            objectName: "sourceOptionTick:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
-                            text: "✓"
-                            font.pixelSize: 11
-                            color: overlay.theme.copperBright
+                            color: overlay.colors.copperBright
                             visible: sourceOption.isCurrent
                         }
                     }

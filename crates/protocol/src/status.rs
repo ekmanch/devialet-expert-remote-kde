@@ -32,13 +32,20 @@ pub struct Status {
     pub sources: Vec<Source>,
 }
 
+/// Status-broadcast volume decoding. **Not the inverse of
+/// `command::volume_packet`'s `db_convert`** - two independently
+/// reverse-engineered encodings for two different packet directions, do
+/// not assume symmetry. Ported from `DevialetStatus.volumeDb`. Standalone so
+/// consumers that only hold the raw byte (the daemon's `VolumeRaw`
+/// property, read by `devialet-chime`) decode it with this one formula.
+pub fn volume_db_from_raw(raw: u8) -> f64 {
+    (raw as f64 - 195.0) / 2.0
+}
+
 impl Status {
-    /// Status-broadcast volume decoding. **Not the inverse of
-    /// `command::volume_packet`'s `db_convert`** - two independently
-    /// reverse-engineered encodings for two different packet directions, do
-    /// not assume symmetry. Ported from `DevialetStatus.volumeDb`.
+    /// See [`volume_db_from_raw`].
     pub fn volume_db(&self) -> f64 {
-        (self.volume_raw as f64 - 195.0) / 2.0
+        volume_db_from_raw(self.volume_raw)
     }
 
     pub fn current_source_name(&self) -> Option<&str> {
@@ -79,7 +86,7 @@ pub fn parse_status(data: &[u8]) -> Result<Status, TooShort> {
     for i in 0..SOURCE_SLOTS as u8 {
         let base = 52 + (i as usize) * 17;
         let enabled = data[base] == b'1';
-        let name = trimmed_utf8(&data[base + 1..base + 1 + 16]);
+        let name = display_source_name(trimmed_utf8(&data[base + 1..base + 1 + 16]));
         sources.push(Source {
             name,
             index: i,
@@ -100,6 +107,19 @@ pub fn parse_status(data: &[u8]) -> Result<Status, TooShort> {
         source_index,
         sources,
     })
+}
+
+/// Display form of a source slot name. Devialet's own docs write the AIR
+/// input both as "AIR" and "Air"; it is an acronym (Asynchronous
+/// Intelligent Route), so any case of the whole name "air" is shown as
+/// "AIR" - the same rule the Flutter app applies. Whole-name match only:
+/// "AirPlay" and every other name pass through unchanged.
+fn display_source_name(name: String) -> String {
+    if name.eq_ignore_ascii_case("air") {
+        "AIR".to_string()
+    } else {
+        name
+    }
 }
 
 fn trimmed_utf8(bytes: &[u8]) -> String {
@@ -158,6 +178,18 @@ mod tests {
     }
 
     #[test]
+    fn volume_db_from_raw_matches_status_decoding() {
+        assert_eq!(volume_db_from_raw(195), 0.0);
+        assert_eq!(volume_db_from_raw(165), -15.0);
+        assert_eq!(volume_db_from_raw(115), -40.0);
+        assert_eq!(volume_db_from_raw(0), -97.5);
+        for raw in [0u8, 1, 100, 115, 164, 165, 194, 195, 255] {
+            let data = FixtureBuilder::new().volume_raw(raw).build();
+            assert_eq!(parse_status(&data).unwrap().volume_db(), volume_db_from_raw(raw));
+        }
+    }
+
+    #[test]
     fn all_30_source_slots_are_present_including_disabled_ones() {
         let data = FixtureBuilder::new()
             .source(0, "Optical 1", true)
@@ -197,5 +229,37 @@ mod tests {
         assert!(status.sources[3].selected);
         assert!(!status.sources[0].selected);
         assert_eq!(status.current_source_name(), Some("Roon Ready"));
+    }
+
+    #[test]
+    fn air_source_is_displayed_as_the_acronym_in_any_case() {
+        for raw in ["air", "Air", "AIR", "aIr"] {
+            let status = parse_status(&FixtureBuilder::new().source(14, raw, true).build()).unwrap();
+            assert_eq!(status.sources[14].name, "AIR", "raw slot name {raw:?}");
+        }
+    }
+
+    #[test]
+    fn only_the_whole_name_air_is_rewritten() {
+        let status = parse_status(
+            &FixtureBuilder::new()
+                .source(3, "AirPlay", true)
+                .source(4, "Air 2", true)
+                .source(5, "Optical 1", true)
+                .build(),
+        )
+        .unwrap();
+        assert_eq!(status.sources[3].name, "AirPlay");
+        assert_eq!(status.sources[4].name, "Air 2");
+        assert_eq!(status.sources[5].name, "Optical 1");
+    }
+
+    #[test]
+    fn active_source_name_uses_the_display_form() {
+        let status = parse_status(
+            &FixtureBuilder::new().source(14, "Air", true).active_source_index(14).build(),
+        )
+        .unwrap();
+        assert_eq!(status.current_source_name(), Some("AIR"));
     }
 }

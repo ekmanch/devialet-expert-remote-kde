@@ -42,6 +42,8 @@ ColumnLayout {
     objectName: "sourceSelector"
 
     required property Theme theme
+    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    required property ColorPalette colors
     required property string ampIp
     // Raw array of {name, index, enabled, selected} objects - see
     // FlyoutContent's `unwrapSources()`/`fetchSourcesFresh()` for how
@@ -114,9 +116,11 @@ ColumnLayout {
         radius: sourceSelector.theme.radiusMd
         // Phase 9.1.1: tracks panel alpha with a floor - see
         // TransparencySettings.qml's controlAlpha comment.
-        color: sourceSelector.transparencySettings.withControlAlpha(sourceSelector.theme.surface)
+        color: sourceSelector.colors.controlColor(sourceSelector.transparencySettings)
+        // Phase 17.19.0: light-theme card shadow (hidden in dark).
+        CardShadow { colors: sourceSelector.colors; radius: parent.radius }
         border.width: 1
-        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.theme.copperDim : sourceSelector.theme.divider
+        border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.controlBorder
 
         RowLayout {
             anchors.left: parent.left
@@ -126,21 +130,24 @@ ColumnLayout {
             anchors.rightMargin: 10
             spacing: 10
 
-            // `.source-icon-sm`: 24x24, radius 7, surface-3, copper glyph.
             // Follows the ACTIVE source's glyph (owner decision - the
-            // mockup's static ◉ was a JS shortcut).
-            Rectangle {
+            // mockup's static ◉ was a JS shortcut). Phase 17.7.0: painted
+            // 20 px glyph (flyout mockup v2 :126-131), no box behind it in
+            // either theme; optical when no amp is connected. The 24 px
+            // slot keeps the objectName (harness key) and the text
+            // position; the mockup's transparent container is 26 px -
+            // spacing alignment is its own pass.
+            Item {
                 objectName: "sourceIconBadge"
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: 24
                 Layout.preferredHeight: 24
-                radius: 7
-                color: sourceSelector.theme.surface3
-                Label {
+                // Phase 17.21.0: gold gradient + warm shadow in light.
+                ThemedSourceGlyph {
                     anchors.centerIn: parent
-                    text: sourceSelector.ampIp === "" ? "◉" : sourceSelector.theme.sourceGlyph(sourceSelector.displayName)
-                    font.pixelSize: 12
-                    color: sourceSelector.theme.copperBright
+                    colors: sourceSelector.colors
+                    sourceName: sourceSelector.ampIp === "" ? "" : sourceSelector.displayName
+                    size: 20
                 }
             }
 
@@ -155,9 +162,11 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: "SOURCE"
                     font.family: sourceSelector.theme.fontMono
+                    // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                    font.weight: sourceSelector.colors.isLight ? Font.Medium : Font.Normal
                     font.pixelSize: 10
                     font.letterSpacing: 1
-                    color: sourceSelector.theme.textFaint
+                    color: sourceSelector.colors.textFaint
                     wrapMode: Text.NoWrap
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -170,7 +179,7 @@ ColumnLayout {
                     font.family: sourceSelector.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 13
-                    color: sourceSelector.theme.text
+                    color: sourceSelector.colors.text
                     wrapMode: Text.NoWrap
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -184,7 +193,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 text: "⌄"
                 font.pixelSize: 11
-                color: sourceSelector.listOpen ? sourceSelector.theme.copperBright : sourceSelector.theme.textFaint
+                color: sourceSelector.listOpen ? sourceSelector.colors.copperBright : sourceSelector.colors.textFaint
                 rotation: sourceSelector.listOpen ? 180 : 0
                 Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             }

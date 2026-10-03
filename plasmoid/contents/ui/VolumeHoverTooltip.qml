@@ -60,13 +60,14 @@
 // to the dot; "Muted" still swaps in for the dB reading (that part of
 // the earlier fix was correct and is kept), just with no icon
 // accompanying it, muted or not. Background gradient/radius/border still
-// match VolumeToast.qml's OSD-toast look (theme.osdGradientTop/Bottom,
+// match VolumeToast.qml's OSD-toast look (colors.osdGradientTop/Bottom,
 // radiusLg) - only the icon was reverted, nothing else from that round.
+
+pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import QtQuick.Effects
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
@@ -81,6 +82,11 @@ PlasmaCore.Dialog {
     property bool muted: false
 
     readonly property Theme theme: Theme {}
+    // Phase 17.13.0: the theme, resolved by ThemeSettings (root-anchored in
+    // main.qml, forwarded by CompactRepresentation); `colors` is the OSD/
+    // tooltip palette, which ThemeSettings keeps separate from the flyout's.
+    required property ThemeSettings themeSettings
+    readonly property ColorPalette colors: tooltip.themeSettings.osdPalette
     readonly property bool isWordValue: tooltip.hasAmp && tooltip.muted
 
     type: PlasmaCore.Dialog.Tooltip
@@ -94,13 +100,12 @@ PlasmaCore.Dialog {
         implicitWidth: 172
         implicitHeight: column.implicitHeight + 18
         radius: tooltip.theme.radiusLg
-        border.color: tooltip.theme.divider
-        border.width: 1
+        // Phase 17.5.0 (D2): no outer border (tooltip mockup v2 :122).
 
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: tooltip.theme.osdGradientTop }
-            GradientStop { position: 1.0; color: tooltip.theme.osdGradientBottom }
+            GradientStop { position: 0.0; color: tooltip.colors.osdGradientTop }
+            GradientStop { position: 1.0; color: tooltip.colors.osdGradientBottom }
         }
 
         ColumnLayout {
@@ -131,21 +136,24 @@ PlasmaCore.Dialog {
                 // numbers here, not the literal CSS ones.
                 Layout.bottomMargin: 7
 
+                // Phase 17.6.0: 5 -> 7 px and no glow (tooltip mockup v2
+                // :133 - dark palette has no glows; the light theme's gold
+                // sphere comes in 17.23.0).
                 Rectangle {
                     id: dot
-                    width: 5; height: 5
-                    radius: 2.5
-                    color: tooltip.theme.copperBright
-
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: tooltip.theme.copperBright
-                        shadowBlur: 0.6
-                        shadowOpacity: 0.5
-                        shadowScale: 1.6
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 0
+                    width: 7; height: 7
+                    radius: 3.5
+                    color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
+                    // Phase 17.23.0: the gold sphere in light (tooltip
+                    // mockup v5 :98-99, :132-134; shadow 0 1px 2px).
+                    Loader {
+                        anchors.centerIn: parent
+                        active: tooltip.colors.isLight
+                        sourceComponent: GoldSphere {
+                            diameter: 7
+                            shadowVerticalOffset: 1
+                            shadowBlur: 0.25
+                        }
                     }
                 }
 
@@ -155,7 +163,7 @@ PlasmaCore.Dialog {
                     font.family: tooltip.theme.fontDisplay
                     font.weight: Font.DemiBold
                     font.pixelSize: 11
-                    color: tooltip.theme.text
+                    color: tooltip.colors.text
                     elide: Text.ElideRight
                 }
             }
@@ -231,12 +239,13 @@ PlasmaCore.Dialog {
                     text: tooltip.hasAmp && tooltip.sourceName !== "" ? tooltip.sourceName : "—"
                     font.family: tooltip.theme.fontMono
                     font.pixelSize: 10
-                    color: tooltip.theme.textFaint
+                    color: tooltip.colors.textFaint
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Label {
+                    id: valueLabel
                     Layout.alignment: Qt.AlignVCenter
                     text: {
                         if (!tooltip.hasAmp) return "—";
@@ -246,14 +255,33 @@ PlasmaCore.Dialog {
                     font.family: tooltip.isWordValue ? tooltip.theme.fontDisplay : tooltip.theme.fontMono
                     font.weight: tooltip.isWordValue ? Font.DemiBold : Font.Medium
                     font.pixelSize: tooltip.isWordValue ? 12 : 13
-                    color: tooltip.theme.copperBright
+                    // Phase 17.23.0: in light the Label holds the layout and
+                    // the readout's gold sweep with a 7 px glow is painted
+                    // over it, "Muted" included (tooltip mockup v5 :145-150).
+                    color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
+
+                    Loader {
+                        anchors.fill: parent
+                        active: tooltip.colors.isLight
+                        sourceComponent: GradientText {
+                            text: valueLabel.text
+                            font: valueLabel.font
+                            startColor: tooltip.colors.readoutGradientStart
+                            endColor: tooltip.colors.readoutGradientEnd
+                            glow: true
+                            glowColor: Qt.rgba(tooltip.colors.readoutGlow.r, tooltip.colors.readoutGlow.g, tooltip.colors.readoutGlow.b, 1)
+                            glowOpacity: tooltip.colors.readoutGlow.a
+                            // 7 px against the flyout readout's 14 px (0.9).
+                            glowBlur: 0.45
+                        }
+                    }
                 }
                 Label {
                     Layout.alignment: Qt.AlignVCenter
                     visible: !tooltip.isWordValue
                     text: "dB"
                     font.pixelSize: 9
-                    color: tooltip.theme.textDim
+                    color: tooltip.colors.textDim
                 }
             }
 
@@ -263,14 +291,16 @@ PlasmaCore.Dialog {
                 Layout.bottomMargin: 7
                 height: 2.5
                 radius: 999
-                color: tooltip.theme.surface3
+                color: tooltip.colors.surface3
                 clip: true
 
                 Rectangle {
                     height: parent.height
                     width: parent.width * tooltip.volumeFraction
                     radius: 999
-                    color: tooltip.muted ? tooltip.theme.textFaint : tooltip.theme.copper
+                    // Phase 17.23.0: palette tokens (same values as before
+                    // in dark; flat gold / #d8d3cb in light).
+                    color: tooltip.muted ? tooltip.colors.mutedFill : tooltip.colors.accentFill
                 }
             }
 
@@ -279,13 +309,13 @@ PlasmaCore.Dialog {
 
                 RowLayout {
                     spacing: 3
-                    Label { text: "Scroll"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.theme.textDim }
-                    Label { text: "to adjust"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.theme.textFaint }
+                    Label { text: "Scroll"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.colors.textDim }
+                    Label { text: "to adjust"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.colors.textFaint }
                 }
                 RowLayout {
                     spacing: 3
-                    Label { text: "Middle-click"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.theme.textDim }
-                    Label { text: "to mute"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.theme.textFaint }
+                    Label { text: "Middle-click"; font.family: tooltip.theme.fontMono; font.weight: Font.Medium; font.pixelSize: 9; color: tooltip.colors.textDim }
+                    Label { text: "to mute"; font.family: tooltip.theme.fontMono; font.pixelSize: 9; color: tooltip.colors.textFaint }
                 }
             }
         }
