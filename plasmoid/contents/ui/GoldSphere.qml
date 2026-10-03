@@ -1,4 +1,5 @@
-// Promoted from tools/spike-gradient-rendering/ (Phase 17.0.2) in Phase
+// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
+// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
 // 17.19.0 (slider thumb); 17.21.0 uses it for the status dots, unchanged apart from this header.
 //
 // Spike: the light theme's gold sphere (thumb, status dots):

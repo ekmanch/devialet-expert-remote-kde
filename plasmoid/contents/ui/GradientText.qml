@@ -1,4 +1,5 @@
-// Promoted from tools/spike-gradient-rendering/ (Phase 17.0.2) in Phase
+// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
+// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
 // 17.20.0: gradient-filled text with an optional soft glow, for the light
 // theme's volume readout and "DEVIALET" wordmark (flyout mockup v22
 // :109-120), and since 17.22.0/17.23.0 the OSD toast's and tooltip's values.

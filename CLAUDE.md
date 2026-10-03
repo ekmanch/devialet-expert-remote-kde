@@ -177,7 +177,9 @@ all three.
   colours and stays per-file. **Update (Phase 17.11.0, 2026-09-27)**: the
   colours have since moved out too - `ColorPalette.qml` (typed, `required`
   tokens) and `DarkPalette.qml`, read through a `colors` property; `Theme.qml`
-  now holds fonts, sizes, radii and the volume icon map only.
+  now holds fonts, sizes, radii and the volume icon map only. See "Light
+  theme: palettes, scheme readers, gold effects" below for the rules that
+  came out of the whole arc.
   **Correction (Phase 17.0.0, 2026-09-26)**: only
   the flyout was ever wired to `TransparencySettings`; `VolumeToast.qml` and
   `VolumeHoverTooltip.qml` still paint `Theme.qml`'s hardcoded 0.94 pair and,
@@ -291,6 +293,9 @@ for what's confirmed out of scope.
   portal on that private bus (it refuses to start where the real portal's
   name is owned); `tst_SystemScheme.qml` drives it through its control
   interface to cover every branch of the Follow-system portal reader.
+  `tst_SourceListOverlay.qml` also guards that the real amp's six sources
+  fit without a scrollbar (Phase 17.21.1) and that a longer list is capped
+  and scrolls.
   Geometry assertions only: offscreen renders effects blank.
 
 ## Working style
@@ -804,6 +809,95 @@ timestamps, measured values or other ever-changing data in it.
   `devialet-ctl ... volume <dB>` - one string per volume step in range).
 - When adding a `connectSource()` call, count the distinct strings it can
   produce over a long session and say so in a comment.
+
+## Light theme: palettes, scheme readers, gold effects (Phase 17, settled)
+
+The widget has a Dark / Light / Follow system setting (kcfg `theme`,
+default `system`). Full record: TODO.md's Phase 17 entries and
+`docs/context-on-light-theme-arc-phase-17.md`. What to know before
+touching colours or effects:
+
+- **`Theme.qml` holds no colours** - fonts, sizes, radii and the volume
+  icon map only, re-instantiated per file. Every painted colour is a typed,
+  `required` token in `ColorPalette.qml`; `DarkPalette.qml` and
+  `LightPalette.qml` only assign values. Consumers declare
+  `required property ColorPalette colors` and read `colors.<token>`. A new
+  colour is a new token in all three files, with the dark value equal to
+  what dark painted before. Branch on `colors.isLight` only where the two
+  themes need a different mechanism (a gradient or an effect vs a flat
+  fill), never to pick between two colour values.
+- **Who picks the palette.**
+  - Flyout, OSD toast, hover tooltip: `ThemeSettings.qml`, root-anchored
+    in `main.qml` and forwarded like `TransparencySettings.qml`. It
+    exposes `flyoutPalette` and `osdPalette` separately (both follow the
+    one setting today), and `harnessOverride` for the harness.
+  - Settings page: follows the **desktop's** scheme, not the widget's
+    setting (it cannot reach `main.qml`'s root): `ConfigGeneral.qml`'s
+    `colors` is `pageScheme.dark ? darkColors : lightColors`. In light it
+    paints its own white background; Plasma's header strip, button bar,
+    the other two tabs and the About icon are not ours and stay in the
+    scheme's colours (owner decision 2026-10-03, see "The About page icon"
+    above).
+  - Sidebar icon (`config.qml`): white or dark-ink SVG from
+    `SystemPalette.window`'s lightness - it must be right synchronously,
+    and a `ConfigModel` is not an Item.
+- **`SystemScheme.qml` contract** (the Follow-system reader): one `ReadOne`
+  of the XDG portal's `org.freedesktop.appearance color-scheme` plus a
+  `SettingChanged` watcher; `1` = dark, `2` = light; anything else, an
+  error, or no reply within 2 s falls back to the brightness of
+  `Kirigami.Theme.backgroundColor`. `dark` starts `true`. Covered by
+  `tst_SystemScheme.qml` against `tests/qml/fakeportal.py`.
+- **One shared `LightPalette` for all four surfaces.** The OSD, tooltip
+  and ConfigDialog mockups still list lighter dim/faint text; the owner
+  kept the flyout's darker pair (`#3f3a33` / `#524c45`) everywhere.
+- **Transparency in light:** the flyout's panel follows the setting; the
+  toast and tooltip are opaque white (dark keeps the hardcoded 0.94
+  pair). Controls use the fixed-k model in both themes
+  (`ColorPalette.controlColor()`, `controlAlphaK`).
+
+### Gold effects: `GradientMask`, `GradientText`, `GoldSphere`, `CardShadow`
+
+Light-only gold text, glyphs and dots are painted with
+`QtQuick.Effects.MultiEffect`. Four rules, each found the hard way:
+
+1. **Build effect items in a `Loader { active: colors.isLight }`**, with
+   their layers on from creation. Toggling `layer.enabled` at runtime
+   stopped masking after a dark -> light flip (17.19.0, `CardShadow.qml`).
+   Keep the plain Label/Shape in the layout with transparent text and
+   paint the gold over it, so geometry is identical in both themes.
+2. **Mask edges:** MultiEffect's default mask (threshold 0, spread 0) is a
+   hard cut - strokes come out about a device pixel fatter per side and
+   jagged. `GradientMask.qml` sets `maskThresholdMin` 0.5 /
+   `maskSpreadAtMin` 1.0. Item layers are already at device pixels; do
+   not force `layer.textureSize` (it made things worse).
+3. **A MultiEffect with a shadow keeps its creation-time geometry.** When
+   the item is resized later (the readout's "—" placeholder becoming
+   "-25.0"), the shadow stage paints the old texture stretched.
+   `GradientMask.qml` switches its shadow off and on after every size
+   change. Any new effect item whose size can change must be tested
+   through a resize after creation.
+4. **Mask + shadow needs two stages** (mask first, then shadow the
+   result); one MultiEffect doing both misaligns the mask (17.0.2).
+
+**Capture rule for anything painted by an effect:** `QT_QPA_PLATFORM=
+offscreen` uses the software scenegraph and renders effects blank, so a
+blank gold item "passes" a naive compare. Pixel captures run on Wayland;
+`grabToImage` output is composited on a solid backdrop before judging.
+`scripts/test-qml.sh` runs offscreen and must stay geometry-only. And
+open every capture of a run: the garbled readout was sitting in a harness
+run that had only been measured for something else.
+
+**Verification tooling:** the flyout harness has a `theme` dimension
+(`--vary theme,...`; pinned per state through
+`FlyoutContent.themeOverride`, cleared on teardown) and
+`expected-17.json` is the current allowlist. `fakeamp.py --ui
+themeOverride=light --notify volume=<dB>|mute=<bool>` shows the real
+toast for a spectacle capture. The toast, tooltip and settings page
+render standalone under `/usr/lib/qt6/bin/qml` on Wayland (reparent a
+Dialog's `mainItem` into a plain Window; for the page set
+`page.pageScheme.dark` after the portal reply and pin window colours
+with a scratch `XDG_CONFIG_HOME/kdeglobals`). The real ConfigDialog and
+the tooltip hover remain owner checks.
 
 ## Environment
 

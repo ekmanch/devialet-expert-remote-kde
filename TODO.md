@@ -9708,6 +9708,58 @@ architecture decisions; this file is just sequencing and status.
     the approximation `ThemeDropdown.qml` already flags; the driver's row
     labels use the scratch config's default font, not the owner's.
 
+- [x] **Phase 17.28.0 — Wrap-up.** Done 2026-10-03, apart from the owner's
+      soak.
+      - `CLAUDE.md`: new section "Light theme: palettes, scheme readers,
+        gold effects (Phase 17, settled)" - `Theme.qml` holds no colours and
+        the typed `ColorPalette` / `colors` rule; who picks which palette
+        (ThemeSettings for flyout/OSD/tooltip, the desktop scheme for the
+        settings page, `SystemPalette` for the sidebar icon); the
+        `SystemScheme.qml` portal contract; the four MultiEffect rules found
+        in the arc (Loader-built layers, antialiased mask, shadow rebuilt on
+        resize, two stages); the capture rule; the harness `theme` dimension
+        and the standalone drivers. Pointer added from the "Shared
+        cross-view state" bullet; the Testing section names the six-source
+        guard.
+      - `README.md`: "Dark and light themes" feature line; theme listed in
+        the settings caption; the transparency line corrected (it said
+        flyout, tooltip and OSD; only the flyout is adjustable, D3).
+      - PKGBUILD: no dependency added. Every QML module the plasmoid
+        imports is owned by a package already in `depends`
+        (`pacman -Qo`: QtQuick.Effects / Shapes / Dialogs / QtCore →
+        qt6-declarative; `org.kde.plasma.workspace.dbus` →
+        plasma-workspace; plasma5support; kcmutils; kirigami; libplasma;
+        kquickcontrolsaddons → kdeclarative).
+      - Removed `tools/spike-gradient-rendering/` and
+        `tools/spike-light-glass/` (32 tracked files; findings are in the
+        17.0.2 and 17.19.1 entries). The three promoted components' headers
+        say so.
+      - `expected-17.json` is final as of 17.21.0 (no rule added since).
+  - Verified:
+    - Full flyout harness, dark: `20261003-160157-final-17.28.0-full-dark`,
+      `--set full`, 870 states, 5217 single-dimension pairs, exit 0
+      (control stable, no size mismatch, 0 unexpected moves, 0 warnings).
+    - Light: `20261003-163229-final-17.28.0-light` (`--vary
+      theme,amp,mute,pow,slist,list`, 204 states) and
+      `-163949-final-17.28.0-light-vol-src` (`theme,vol,src`, 18 states),
+      both exit 0. The readout area of all 111 light captures was put on
+      one sheet and looked at: every uncovered readout shows its digits or
+      the "—" placeholder, none garbled (the 17.20.0 resize case, which
+      these runs cross repeatedly). Runs were made with the owner's
+      current settings (transparency on, 40 %) over the live desktop.
+    - `scripts/test-qml.sh` 62/62; no qmllint errors in `contents/ui` or
+      `contents/config`.
+    - **Not run:** `cargo test`. `rustc` fails to start on this machine
+      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
+      system package mismatch). No Rust file changed in Phase 17.
+    - Installed (installed copy identical to `plasmoid/`); daemon active on
+      192.168.0.22.
+  - Left for the owner: the soak (flyout, toast, tooltip in both themes on
+    the real panel with transparency and Better Blur DX; the settings
+    dialog under a light and a dark desktop scheme, including the sidebar
+    icon and Apply/OK persistence, which also closes 17.17.0), then the
+    commits and the merge of `feature/light-theme`.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9831,17 +9883,9 @@ architecture decisions; this file is just sequencing and status.
   are byte-identical renames of the files the entries below were written
   against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
   17.21.1 (the flyout), 17.22.0 / 17.23.0 (OSD toast, tooltip) and
-  17.24.0 - 17.27.0 (the settings page) are in "## Done". Only 17.28.0
-  (wrap-up) and 17.17.0's owner check remain.
-- [ ] **Phase 17.28.0 — Wrap-up.** CLAUDE.md (Theme.qml = fonts/sizes
-      only; typed ColorPalette/`colors` rule; portal reader contract; harness `theme`
-      dim), README settings section, PKGBUILD dependency check (none
-      added), final `expected-17.json`, owner soak; then ready for the
-      owner's commits/merge. Also removes `tools/spike-gradient-rendering/`
-      (its components were promoted in 17.19.0-17.21.0; its README's
-      findings are already recorded in the 17.0.2 entry and the saved
-      report).
-  - Verify: full harness + `scripts/test-qml.sh` + owner soak report.
+  17.24.0 - 17.27.0 (the settings page) and 17.28.0 (wrap-up) are in
+  "## Done". What remains is the owner's: the soak, 17.17.0's
+  close/reopen persistence check, and the merge.
 
 ## Bugs
 

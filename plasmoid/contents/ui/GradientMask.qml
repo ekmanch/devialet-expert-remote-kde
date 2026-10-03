@@ -1,4 +1,5 @@
-// Promoted from tools/spike-gradient-rendering/ (Phase 17.0.2) in Phase
+// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
+// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
 // 17.19.0 alongside GoldSphere; used from 17.20.0/17.21.0 (which set the
 // mask's edge handling, see maskThreshold below).
 //
