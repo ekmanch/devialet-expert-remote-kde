@@ -9754,11 +9754,38 @@ architecture decisions; this file is just sequencing and status.
       system package mismatch). No Rust file changed in Phase 17.
     - Installed (installed copy identical to `plasmoid/`); daemon active on
       192.168.0.22.
-  - Left for the owner: the soak (flyout, toast, tooltip in both themes on
-    the real panel with transparency and Better Blur DX; the settings
-    dialog under a light and a dark desktop scheme, including the sidebar
-    icon and Apply/OK persistence, which also closes 17.17.0), then the
-    commits and the merge of `feature/light-theme`.
+  - **Owner soak, 2026-10-03: done, no issues seen** (owner's words: "I
+    have done a soak. Did not see any issues."). The Rust test re-run is
+    split off as 17.29.0. The owner merges `feature/light-theme` through a
+    pull request and bumps the version on `main` afterwards.
+
+- [x] **Phase 17.17.0 — Theme row.** Code done 2026-09-27; closed
+      2026-10-03 by the owner's soak (last bullet). First Appearance row in
+      `ConfigGeneral.qml`: "Theme" / "Colors for the popup, hover tooltip
+      and volume overlay" (configDialog mockup v2 :574-584) with the shared
+      `SegmentedControl` - Dark / Light / Follow system → `cfg_theme`
+      "dark" / "light" / "system" (`themeModes`). Same pattern as every other
+      setting: `cfg_theme` + `cfg_themeDefault` (from `shippedDefaults.theme:
+      "system"`, matching main.xml), and the Reset section's Defaults button
+      resets it. **Picking Light (or Follow system on a light desktop) is
+      still visually a no-op until 17.19.0.**
+  - Verified: ConfigGeneral lint 0; QML suite 38/38; render shows the row
+    above Transparency with Follow system highlighted. Scratch QtTest driver
+    on the real page (own Window): default `system`, Follow system
+    highlighted; clicks Dark/Light/Follow system → `cfg_theme` dark/light/
+    system with the highlight following; the step-size and chime controls
+    (now 2nd and 3rd on the page) still write their settings; Defaults
+    resets `cfg_theme` from light to system. Installed; daemon active.
+  - Owner's real-dialog check, from the journal (2026-09-27): 18:43:10
+    Apply with Light → `[ThemeSettings] mode light … resolvedDark false`
+    live; 18:43:17 back to Follow system → `mode system`; the config group
+    then has no `theme=` key (writing the default back removes it). The
+    close/reopen and shell-reload steps are not visible in the journal and
+    were not observed - still to confirm by the owner if wanted.
+  - Closed 2026-10-03: the owner soaked the finished arc, including the
+    settings dialog, and reported no issues. The report was general, not
+    a per-step list; the close/reopen and shell-reload steps are taken as
+    covered by it.
 
 ## Up next
 
@@ -9854,38 +9881,30 @@ architecture decisions; this file is just sequencing and status.
     behaviour checks and must switch to Wayland for any light-theme
     pixel capture (17.23.0-17.27.0).
 
-- [ ] **Phase 17.17.0 — Theme row.** Code done 2026-09-27; open for the
-      owner's real-dialog persistence check (below). First Appearance row in
-      `ConfigGeneral.qml`: "Theme" / "Colors for the popup, hover tooltip
-      and volume overlay" (configDialog mockup v2 :574-584) with the shared
-      `SegmentedControl` - Dark / Light / Follow system → `cfg_theme`
-      "dark" / "light" / "system" (`themeModes`). Same pattern as every other
-      setting: `cfg_theme` + `cfg_themeDefault` (from `shippedDefaults.theme:
-      "system"`, matching main.xml), and the Reset section's Defaults button
-      resets it. **Picking Light (or Follow system on a light desktop) is
-      still visually a no-op until 17.19.0.**
-  - Verified: ConfigGeneral lint 0; QML suite 38/38; render shows the row
-    above Transparency with Follow system highlighted. Scratch QtTest driver
-    on the real page (own Window): default `system`, Follow system
-    highlighted; clicks Dark/Light/Follow system → `cfg_theme` dark/light/
-    system with the highlight following; the step-size and chime controls
-    (now 2nd and 3rd on the page) still write their settings; Defaults
-    resets `cfg_theme` from light to system. Installed; daemon active.
-  - Owner's real-dialog check, from the journal (2026-09-27): 18:43:10
-    Apply with Light → `[ThemeSettings] mode light … resolvedDark false`
-    live; 18:43:17 back to Follow system → `mode system`; the config group
-    then has no `theme=` key (writing the default back removes it). The
-    close/reopen and shell-reload steps are not visible in the journal and
-    were not observed - still to confirm by the owner if wanted.
-
 - **Mockups came back 2026-10-03 (commit 3de775c): flyout v22, OSD v4,
   tooltip v5, configDialog v30.** Only the flyout changed; the other three
   are byte-identical renames of the files the entries below were written
   against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
   17.21.1 (the flyout), 17.22.0 / 17.23.0 (OSD toast, tooltip) and
   17.24.0 - 17.27.0 (the settings page) and 17.28.0 (wrap-up) are in
-  "## Done". What remains is the owner's: the soak, 17.17.0's
-  close/reopen persistence check, and the merge.
+  "## Done", as is 17.17.0 (owner soak 2026-10-03). Only 17.29.0 below is
+  open.
+- [ ] **Phase 17.29.0 — Re-run the Rust tests on `main`.** The branch
+      carries Rust changes from earlier in the arc (devialet-chime reading
+      its volumes from the daemon, `volume_db_from_raw`, the AIR source
+      name; last Rust commit daadf97, 2026-09-29) that passed
+      `cargo test --workspace` and clippy when they landed, but could not
+      be re-run at the wrap-up: `rustc` fails to start on the dev machine
+      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
+      system Rust/LLVM package mismatch). The installed binaries are from
+      2026-10-01, after that commit, and identical to `target/release`.
+      To do on `main` once the toolchain works again (owner decision
+      2026-10-03).
+  - Verify: `cargo test --workspace` and `cargo clippy --workspace` clean;
+    `./install.sh` reports the three binaries unchanged or reinstalls
+    them, and the daemon runs the installed binary. Until then, do not run
+    `./install.sh` or `cargo clean` (use `scripts/install-plasmoid.sh` for
+    QML-only reinstalls).
 
 ## Bugs
 
