@@ -9834,6 +9834,29 @@ architecture decisions; this file is just sequencing and status.
     only).
 
 
+- [x] **Phase 17.29.0 — Re-run the Rust tests on `main`.** The branch
+      carries Rust changes from earlier in the arc (devialet-chime reading
+      its volumes from the daemon, `volume_db_from_raw`, the AIR source
+      name; last Rust commit daadf97, 2026-09-29) that passed
+      `cargo test --workspace` and clippy when they landed, but could not
+      be re-run at the wrap-up: `rustc` fails to start on the dev machine
+      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
+      system Rust/LLVM package mismatch). The installed binaries are from
+      2026-10-01, after that commit, and identical to `target/release`.
+      To do on `main` once the toolchain works again (owner decision
+      2026-10-03).
+  - Closed 2026-10-08: the owner updated llvm-libs (23.1.1-3) and
+    `rustc` starts again. `cargo test --workspace` passed (34 protocol,
+    8 chime, 43 ctl, 42 daemon - the last including the three new
+    unheard-boot tests) and `cargo clippy --workspace --all-targets` is
+    clean, run with the "Flyout stuck on Booting" daemon fix in the tree.
+    `./install.sh` rebuilt and reinstalled all three binaries (they differ
+    from the 2026-10-01 copies after the toolchain rebuild, as expected);
+    the daemon restarted 19:49:13 on the installed binary,
+    `/proc/<pid>/exe` -> `/usr/local/bin/devialet-remote-daemon`,
+    byte-identical to `target/release`. The "do not run `./install.sh`"
+    restriction is lifted.
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9934,24 +9957,8 @@ architecture decisions; this file is just sequencing and status.
   against, so their line numbers still hold. 17.19.3, 17.20.0, 17.21.0 and
   17.21.1 (the flyout), 17.22.0 / 17.23.0 (OSD toast, tooltip) and
   17.24.0 - 17.27.0 (the settings page) and 17.28.0 (wrap-up) are in
-  "## Done", as is 17.17.0 (owner soak 2026-10-03). Only 17.29.0 below is
-  open.
-- [ ] **Phase 17.29.0 — Re-run the Rust tests on `main`.** The branch
-      carries Rust changes from earlier in the arc (devialet-chime reading
-      its volumes from the daemon, `volume_db_from_raw`, the AIR source
-      name; last Rust commit daadf97, 2026-09-29) that passed
-      `cargo test --workspace` and clippy when they landed, but could not
-      be re-run at the wrap-up: `rustc` fails to start on the dev machine
-      (`symbol lookup error ... librustc_driver ... version LLVM_23.1`, a
-      system Rust/LLVM package mismatch). The installed binaries are from
-      2026-10-01, after that commit, and identical to `target/release`.
-      To do on `main` once the toolchain works again (owner decision
-      2026-10-03).
-  - Verify: `cargo test --workspace` and `cargo clippy --workspace` clean;
-    `./install.sh` reports the three binaries unchanged or reinstalls
-    them, and the daemon runs the installed binary. Until then, do not run
-    `./install.sh` or `cargo clean` (use `scripts/install-plasmoid.sh` for
-    QML-only reinstalls).
+  "## Done", as is 17.17.0 (owner soak 2026-10-03) and 17.29.0 (Rust
+  tests re-run 2026-10-08). Nothing from Phase 17 is open.
 
 ## Bugs
 
