@@ -130,6 +130,16 @@ pub struct AmpState {
     /// been chosen" state. See the struct doc's "Post-Phase-4.1 correction"
     /// above for why this exists separately from `selected_ip.is_empty()`.
     has_explicit_selection: bool,
+    /// Boot deadlines for IPs with no `TrackedAmp` entry yet - a
+    /// `BeginPowerOnBoot` for the persisted selection before that amp has
+    /// been heard since daemon start (found live 2026-10-04: with no entry
+    /// to hold a `boot_deadline`, the call was a no-op, `PowerState` never
+    /// left "Off", no signal was emitted, and the widget's optimistic
+    /// "Booting" never ended). Same lifetime as `TrackedAmp::boot_deadline`:
+    /// moved onto the entry by `ingest_status` when the amp's first
+    /// broadcast arrives, dropped by `resolve_boot_deadlines` at
+    /// `BOOT_TIMEOUT`.
+    unheard_boot_deadlines: HashMap<String, Instant>,
 
     // ---- exposed fields below, all derived from the two above by
     // `recompute()` - never written to directly outside of it. ----
@@ -315,11 +325,12 @@ impl AmpState {
     /// real UDP packet AND the receive loop's 1s staleness tick, so no
     /// separate timer/task is needed here).
     ///
-    /// No-ops (no state change, no signal) in two cases:
-    /// - `ip` has no `TrackedAmp` entry yet (never heard broadcasting) -
-    ///   mirrors `resolve_model_name`'s existing "unknown ip" guard. Can't
-    ///   realistically happen via a legitimate caller, since a power-on is
-    ///   only ever requested for an amp already known to be broadcasting.
+    /// An `ip` with no `TrackedAmp` entry yet (never heard broadcasting
+    /// since daemon start - reachable for real via a persisted selection,
+    /// see `unheard_boot_deadlines`) gets the same `BOOT_TIMEOUT`, held in
+    /// `unheard_boot_deadlines` until its first broadcast arrives.
+    ///
+    /// No-ops (no state change, no signal) in one case:
     /// - A boot is already in progress for `ip` (`boot_deadline` already
     ///   `Some`) - deliberately does NOT reset/extend the deadline, so a
     ///   repeated call (a race, a stale/reconnecting client re-sending)
@@ -341,7 +352,12 @@ impl AmpState {
             Some(amp) if amp.boot_deadline.is_none() => {
                 amp.boot_deadline = Some(Instant::now() + BOOT_TIMEOUT);
             }
-            _ => return Ok(()), // unknown ip, or a boot is already in progress - no-op either way
+            Some(_) => return Ok(()), // a boot is already in progress - no-op
+            None => {
+                if !self.begin_unheard_boot(ip) {
+                    return Ok(()); // a boot is already in progress - no-op
+                }
+            }
         }
         self.recompute();
         if !states_equal(&before, self) {
@@ -480,7 +496,10 @@ impl AmpState {
         // Same reasoning, Phase 4.3.0: an in-progress boot_deadline must
         // not be wiped by the very next status broadcast that arrives
         // while still mid-boot (the amp can broadcast up to ~5Hz).
-        let boot_deadline = self.amps.get(&ip).and_then(|amp| amp.boot_deadline);
+        // A deadline started before this amp was ever heard moves onto its
+        // entry here (see `unheard_boot_deadlines`).
+        let boot_deadline =
+            self.amps.get(&ip).and_then(|amp| amp.boot_deadline).or(self.unheard_boot_deadlines.remove(&ip));
         // Phase 5.0.0: same reasoning again - an in-progress pending
         // command must survive this re-insertion so `resolve_pending_
         // commands` (called from `recompute` below) can actually compare
@@ -543,6 +562,18 @@ impl AmpState {
     /// load while `isAmpRecentlyHeard`/`discoveredAmps` (empty at startup
     /// here, exactly like a fresh `amps: HashMap::new()`) independently
     /// governs whether it's shown as actually connected.
+    /// `BeginPowerOnBoot`'s path for an `ip` with no `TrackedAmp` entry -
+    /// see `unheard_boot_deadlines`. Returns `false` (nothing changed) if
+    /// a boot is already pending for it, so a repeated call can't extend
+    /// the deadline, same as the tracked-amp path.
+    fn begin_unheard_boot(&mut self, ip: String) -> bool {
+        if self.unheard_boot_deadlines.contains_key(&ip) {
+            return false;
+        }
+        self.unheard_boot_deadlines.insert(ip, Instant::now() + BOOT_TIMEOUT);
+        true
+    }
+
     pub fn set_persisted_selection(&mut self, ip: String) {
         self.selected_ip = ip;
         self.has_explicit_selection = true;
@@ -599,6 +630,7 @@ impl AmpState {
                 }
             }
         }
+        self.unheard_boot_deadlines.retain(|_, deadline| now < *deadline);
     }
 
     /// Clears `pending_volume_db`/`pending_muted` for every tracked amp
@@ -664,6 +696,11 @@ impl AmpState {
         let effective_ip = self.effective_ip();
         self.amp_ip = effective_ip.clone().unwrap_or_default();
 
+        // Selected but never heard: "Booting" only while a deadline from
+        // `begin_unheard_boot` is pending for it.
+        let unheard_booting =
+            effective_ip.as_ref().is_some_and(|ip| self.unheard_boot_deadlines.contains_key(ip));
+
         match effective_ip.and_then(|ip| self.amps.get(&ip)) {
             Some(amp) => {
                 // `modelName ?: udpName` - ported from
@@ -715,7 +752,7 @@ impl AmpState {
                 self.device_name = String::new();
                 self.online = false;
                 self.power = false;
-                self.power_state = "Off".to_string();
+                self.power_state = if unheard_booting { "Booting" } else { "Off" }.to_string();
                 self.muted = false;
                 self.volume_raw = 0;
                 self.volume_db = 0.0;
@@ -1233,6 +1270,58 @@ mod tests {
             state.amps.get("192.168.1.51").unwrap().boot_deadline.is_none(),
             "the non-primary amp's expired deadline must still be cleared"
         );
+    }
+
+    // ---- 2026-10-04: boot of a selected amp that has not been heard
+    // since daemon start (persisted selection, amp unreachable) ----
+
+    #[test]
+    fn a_boot_of_a_selected_but_never_heard_amp_reports_booting_then_times_out_to_off() {
+        let mut state = AmpState::default();
+        state.set_persisted_selection("192.168.1.50".to_string());
+        assert_eq!(state.power_state, "Off");
+
+        assert!(state.begin_unheard_boot("192.168.1.50".to_string()));
+        state.recompute();
+        assert_eq!(state.power_state, "Booting");
+        assert!(!state.power);
+
+        // A repeated call must not extend the deadline.
+        let deadline = state.unheard_boot_deadlines["192.168.1.50"];
+        assert!(!state.begin_unheard_boot("192.168.1.50".to_string()));
+        assert_eq!(state.unheard_boot_deadlines["192.168.1.50"], deadline);
+
+        // BOOT_TIMEOUT elapsed with the amp still silent.
+        state.unheard_boot_deadlines.insert("192.168.1.50".to_string(), Instant::now() - Duration::from_millis(1));
+        state.recompute_staleness();
+        assert_eq!(state.power_state, "Off", "the widget's Booting state must end");
+        assert!(state.unheard_boot_deadlines.is_empty(), "an expired deadline must be dropped");
+    }
+
+    #[test]
+    fn an_unheard_boot_deadline_moves_onto_the_amp_when_its_first_broadcast_arrives() {
+        let mut state = AmpState::default();
+        state.set_persisted_selection("192.168.1.50".to_string());
+        assert!(state.begin_unheard_boot("192.168.1.50".to_string()));
+
+        // First broadcast still reports off (mid-boot): stays Booting.
+        state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp"));
+        assert_eq!(state.power_state, "Booting");
+        assert!(state.unheard_boot_deadlines.is_empty());
+        assert!(state.amps.get("192.168.1.50").unwrap().boot_deadline.is_some());
+
+        state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp"));
+        assert_eq!(state.power_state, "On");
+        assert!(state.amps.get("192.168.1.50").unwrap().boot_deadline.is_none());
+    }
+
+    #[test]
+    fn an_unheard_boot_of_a_non_selected_ip_does_not_touch_the_primary_power_state() {
+        let mut state = AmpState::default();
+        state.set_persisted_selection("192.168.1.50".to_string());
+        assert!(state.begin_unheard_boot("192.168.1.99".to_string()));
+        state.recompute();
+        assert_eq!(state.power_state, "Off");
     }
 
     // ---- Phase 5.0.0: daemon-owned pending-command state (VolumeDb/
