@@ -443,7 +443,9 @@ Item {
     // ordering that forced Qt.callLater in 8.4.0 doesn't apply, and the
     // Timer defers the send past the whole handler regardless. Every armed
     // state resolves: the daemon guarantees Booting -> On or Off within
-    // BOOT_TIMEOUT, and "Off" (timeout or a power-off click) disarms.
+    // BOOT_TIMEOUT for a boot it tracks, bootWatchdog below ends "Booting"
+    // when the daemon stays silent, and "Off" (either timeout or a
+    // power-off click) disarms.
     //
     // Display: on "On" the hold in PendingAmpState.qml is armed with the
     // target so no surface shows the amp's pre-shutdown or misreported
@@ -459,6 +461,22 @@ Item {
         interval: root.startupVolumeAfterBootMs
         repeat: false
         onTriggered: root.sendStartupVolume()
+    }
+
+    // 2026-10-04: bounds "Booting" when the daemon never ends it - see
+    // BootWatchdog.qml. Assigning "Off" here runs onPowerStateChanged's
+    // "Off" branch below, which also disarms the startup volume.
+    // daemonPowerState is the unguarded copy of the daemon's PowerState
+    // (the mirror above skips pushes inside the 400 ms click guard).
+    property string daemonPowerState: "Off"
+    readonly property BootWatchdog bootWatchdog: BootWatchdog {
+        powerState: root.powerState
+        daemonPowerState: root.daemonPowerState
+        onExpired: (fallbackState, reason) => {
+            console.log("[WARN] ending Booting ->", fallbackState, "-", reason);
+            root.power = fallbackState === "On";
+            root.powerState = fallbackState;
+        }
     }
 
     onPowerStateChanged: {
@@ -698,6 +716,7 @@ Item {
             root.ampIp = root.unwrap(properties.AmpIp, "");
             root.power = root.unwrap(properties.Power, false);
             root.powerState = root.unwrap(properties.PowerState, "Off");
+            root.daemonPowerState = root.powerState;
             root.activeSourceName = root.unwrap(properties.ActiveSourceName, "");
             root.activeSourceIndex = root.unwrap(properties.ActiveSourceIndex, -1);
             const initialSources = root.unwrapSources(root.unwrap(properties.Sources, []));
@@ -727,6 +746,7 @@ Item {
                 }
             }
             if ("PowerState" in changed) {
+                root.daemonPowerState = root.unwrap(changed.PowerState, root.daemonPowerState);
                 if (!root.within(root.lastPowerChangeAtMs, root.debounceMs)) {
                     root.powerState = root.unwrap(changed.PowerState, root.powerState);
                 }

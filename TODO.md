@@ -9787,6 +9787,53 @@ architecture decisions; this file is just sequencing and status.
     a per-step list; the close/reopen and shell-reload steps are taken as
     covered by it.
 
+- [x] **Flyout stuck on "Booting…" with the power button disabled** (owner
+  report 2026-10-04, over a minute with no timeout). Journal + live D-Bus
+  state: daemon started 10:06:50 at login with the persisted selection
+  `192.168.0.22`, never heard the amp (`KnownAmps` empty, no ping reply);
+  power-on clicked 10:07:06. `BeginPowerOnBoot` was a no-op for an IP with
+  no `TrackedAmp` entry, so the daemon's `PowerState` stayed "Off", no
+  signal was emitted, and nothing ended `FlyoutContent.qml`'s optimistic
+  "Booting" (`togglePower()` returns early while it is set). Two parts:
+  - [x] **Daemon: start `BOOT_TIMEOUT` for a selected-but-unheard IP.**
+        Written 2026-10-04 in `interface.rs` (`unheard_boot_deadlines`,
+        three unit tests), uncommitted. 2026-10-08, toolchain repaired:
+        `cargo test --workspace` (34/8/43/42 passed) and
+        `cargo clippy --workspace --all-targets` clean, so this also
+        covers Phase 17.29.0's re-run. Installed by the owner with
+        `./install.sh` (daemon restarted 19:49:13 on the new binary,
+        `/proc/<pid>/exe` -> `/usr/local/bin/devialet-remote-daemon`,
+        byte-identical to `target/release`).
+  - [x] **QML: the optimistic "Booting" must end without the daemon.**
+        Written 2026-10-04, uncommitted, not installed: `BootWatchdog.qml`
+        (22 s timer while the flyout shows "Booting", plus an immediate
+        end when the daemon's bus name vanishes or reappears), wired in
+        `FlyoutContent.qml` with an unguarded `daemonPowerState` copy as
+        the fallback value. Covers the cases the daemon fix cannot: daemon
+        down, restarted mid-boot (deadline is in memory only), or a failed
+        `BeginPowerOnBoot` call - and on its own would have ended today's
+        stuck state. `tests/qml/tst_BootWatchdog.qml` (9 cases, incl. the
+        never-arriving result); `scripts/test-qml.sh` 73 passed.
+  - Verified 2026-10-08 (owner, live, after `./install.sh` + shell
+    restart). Amp's ethernet unplugged, power on clicked 19:51:00:
+    "Booting…" timed out and the flyout returned to "Not responding" /
+    "Power On" with the button usable (screenshot). Cable back, power on
+    19:53:08: "Connected" / "Power Off" after ~15 s, startup volume sent.
+    Mechanism, not just outcome: the daemon had heard the amp after its
+    19:49:13 restart (power off sent 19:50:38 while connected), so the
+    unplugged click took the *existing* tracked-amp `BOOT_TIMEOUT` path,
+    and no `[WARN] ending Booting` line in the journal confirms the QML
+    watchdog stayed behind it as designed. The new unheard-IP path was
+    then exercised hands-free against the daemon alone: `SelectAmp
+    10.255.255.1` (never heard) + `BeginPowerOnBoot` -> `PowerState`
+    "Booting" at 19:55:02.787, still "Booting" at +19 s, "Off" at +22 s
+    (20 s deadline + the 1 s tick), repeated call did not extend it; the
+    widget logged a push at 19:55:02 and 19:55:22, so the timeout was
+    signalled; selection restored to 192.168.0.22 afterwards. Not
+    exercised live: the watchdog's daemon-down/restart cases (unit tests
+    only).
+
+
 ## Up next
 
 - [ ] **Phase 14.1.0 — Submit to AUR.** Clone the AUR git repo
@@ -9942,14 +9989,6 @@ architecture decisions; this file is just sequencing and status.
   and one settings row; `VolumeToast`/`VolumeHoverTooltip` already read the
   separate `osdPalette`. Best scheduled after 17.15.0 (the portal reader
   that drives `systemDark`) and 17.19.0 (a light palette to switch to).
-
-- **Amp list: rows under the scrollbar once it scrolls** (found in Phase
-  17.1.1, 2026-09-26). `AmpListOverlay.qml:105` binds its column to the
-  Popup's `availableWidth`, not the ScrollView's, so with enough amps to
-  exceed its 230 px cap the desktop style's 21 px scrollbar would cover
-  the rows' right edge (the tick). Same fix and test shape as 17.1.1's
-  `SourceListOverlay.qml`; also scroll the selected amp into view on
-  open. Not reachable with one or two amps.
 
 
 
