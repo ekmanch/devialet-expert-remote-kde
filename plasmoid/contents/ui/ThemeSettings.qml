@@ -1,20 +1,16 @@
-// Phase 17.12.0 - which colour palette each surface paints: the widget's
-// Dark / Light / Follow-system setting resolved to ColorPalette objects.
+// Which colour palette each surface paints: the widget's Dark / Light /
+// Follow-system setting resolved to ColorPalette objects.
 //
 // Root-anchored in main.qml and forwarded like TransparencySettings.qml
 // (main.qml -> CompactRepresentation -> FlyoutPopup -> FlyoutContent, and
-// CompactRepresentation -> VolumeToast / VolumeHoverTooltip), because the flyout, OSD
-// and tooltip must never disagree about the theme (CLAUDE.md "Shared
-// cross-view state"). The ConfigDialog page cannot reach main.qml's root and
-// resolves its own page palette (17.14.0/17.15.0).
+// CompactRepresentation -> VolumeToast / VolumeHoverTooltip), because the
+// flyout, OSD and tooltip must never disagree about the theme
+// (docs/DESIGN.md §3). The settings page cannot reach main.qml's root and
+// resolves its own palette from the desktop's scheme (§6).
 //
-// Two palettes are exposed from day one - flyoutPalette and osdPalette -
-// both following the one `theme` setting today, so a later per-surface
-// setting (the owner may theme the OSD/tooltip separately) is one more kcfg
-// key and one binding here, with no consumer changes.
-//
-// Since 17.19.0 the flyout paints LightPalette when the theme resolves light;
-// since 17.22.0/17.23.0 the OSD toast and tooltip do too.
+// flyoutPalette and osdPalette are separate, though both follow the one
+// `theme` setting, so a per-surface setting later is one more kcfg key
+// and one binding here, with no consumer changes.
 
 import QtQuick
 
@@ -26,8 +22,8 @@ QtObject {
     required property string mode
 
     // What the desktop's colour scheme says when mode is "system". Starts
-    // true (today's look) and changes only when a value arrives; main.qml
-    // binds it to SystemScheme.dark (the XDG portal reader, 17.15.0).
+    // true (dark) and changes only when a value arrives; main.qml binds it
+    // to SystemScheme.dark (the XDG portal reader).
     property bool systemDark: true
 
     // Harness-only: when non-empty ("dark"/"light"), wins over `mode`, so
@@ -44,10 +40,9 @@ QtObject {
         return m === "system" ? ts.systemDark : m !== "light";
     }
 
-    // The OSD toast + hover tooltip's own resolution (Phase 17.13.0 seam).
-    // Today they simply follow the widget's Theme. A later option to let
-    // them follow the desktop's appearance instead (owner idea, 2026-09-27)
-    // is one kcfg key plus this binding, e.g.
+    // The OSD toast + hover tooltip's own resolution. They follow the
+    // widget's theme; an option to follow the desktop's appearance instead
+    // would be one kcfg key plus this binding, e.g.
     //     osdResolvedDark: osdFollowsSystem ? systemDark : resolvedDark
     // - no change in VolumeToast/VolumeHoverTooltip, which read osdPalette.
     // The harness override applies through resolvedDark, so it still pins
@@ -73,8 +68,8 @@ QtObject {
                     "systemDark", ts.systemDark, "resolvedDark", ts.resolvedDark);
     }
 
-    // Phase 17.19.0: the flyout follows the resolved theme. Phase 17.22.0/
-    // 17.23.0: so do the OSD toast and the tooltip, through their own seam.
+    // The flyout follows the resolved theme; the OSD toast and tooltip do
+    // too, through their own seam above.
     readonly property ColorPalette flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
     readonly property ColorPalette osdPalette: ts.osdResolvedDark ? ts.dark : ts.light
 }

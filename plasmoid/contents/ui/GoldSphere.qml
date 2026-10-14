@@ -1,8 +1,4 @@
-// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
-// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
-// 17.19.0 (slider thumb); 17.21.0 uses it for the status dots, unchanged apart from this header.
-//
-// Spike: the light theme's gold sphere (thumb, status dots):
+// The light theme's gold sphere (slider thumb, status dots):
 // radial-gradient(circle at 32% 28%, #fcecc0 0%, #f0a623 38%, #a8710b 100%)
 // + a warm drop shadow, and an optional translucent halo ring (the thumb's
 // "0 0 0 3px rgba(240,166,35,0.14)").

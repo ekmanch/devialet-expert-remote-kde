@@ -1,12 +1,8 @@
-// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
-// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
-// 17.19.0 alongside GoldSphere; used from 17.20.0/17.21.0 (which set the
-// mask's edge handling, see maskThreshold below).
-//
-// Spike (spike/gradient-rendering): paint a gradient through the alpha of
-// another item. This is the one mechanism the light theme needs for
-// gradient text (readout, headings), gradient-"stroked" glyphs (Shapes has
-// no stroke gradient) and gradient-filled SVG icons.
+// Paint a gradient through the alpha of another item. This is the one
+// mechanism the light theme needs for gradient text (readout, headings),
+// gradient-"stroked" glyphs (Shapes has no stroke gradient) and
+// gradient-filled SVG icons. The gold-effect rules are in docs/DESIGN.md
+// §6.
 //
 // Usage: the caller places an invisible alpha source (Text, Shape, Image)
 // as a child of this item, sized like it, and points `maskSource` at it.
@@ -15,9 +11,9 @@
 // auto padding can draw the shadow outside our bounds) applies the mask and
 // optionally a drop shadow / glow.
 //
-// `twoStage` answered the spike's first question: one MultiEffect cannot do
-// mask + shadow (its shadow padding misaligns the mask); the mask is applied
-// first and a second MultiEffect shadows the masked result.
+// One MultiEffect cannot do mask + shadow (its shadow padding misaligns
+// the mask), so the mask is applied first and a second MultiEffect
+// shadows the masked result (`twoStage`).
 import QtQuick
 import QtQuick.Shapes
 import QtQuick.Effects
@@ -54,26 +50,23 @@ Item {
 
     // Single stage is only kept for the record: with shadowEnabled its auto
     // padding enlarges the effect and the mask texture is stretched over the
-    // padded area (spike sheet 1), so two stages is the default.
+    // padded area, so two stages is the default.
     property bool twoStage: true
 
-    // Phase 17.20.0: MultiEffect's defaults (threshold 0, spread 0) cut the
-    // mask hard - every pixel with any coverage becomes fully opaque, so
-    // text and glyph strokes came out about a device pixel fatter per side
-    // and jagged in the real flyout (harness runs 20261003-141153 and
-    // -141717). Threshold 0.5 with spread 1 maps the mask's alpha
-    // linearly, which keeps its antialiased edges.
+    // MultiEffect's defaults (threshold 0, spread 0) cut the mask hard -
+    // every pixel with any coverage becomes fully opaque, so text and glyph
+    // strokes come out about a device pixel fatter per side and jagged.
+    // Threshold 0.5 with spread 1 maps the mask's alpha linearly, which
+    // keeps its antialiased edges.
     readonly property real maskThreshold: 0.5
     readonly property real maskSpread: 1.0
 
-    // Phase 17.20.0 fix (2026-10-03): a MultiEffect with a shadow keeps its
-    // padded shadow geometry from the size it was created at. When this
-    // item is resized afterwards (the readout's "—" placeholder becoming
-    // "-25.0" once the amp answers, or the value changing length), the
-    // shadow stage painted the old texture stretched over the new size -
-    // a long dash and a skewed fragment instead of digits. Reproduced in a
-    // standalone driver; the mask stage alone resizes correctly. Switching
-    // the shadow off and on again after a resize rebuilds it.
+    // A MultiEffect with a shadow keeps its padded shadow geometry from the
+    // size it was created at. When this item is resized afterwards (the
+    // readout's "—" placeholder becoming "-25.0", or the value changing
+    // length), the shadow stage paints the old texture stretched over the
+    // new size. The mask stage alone resizes correctly. Switching the
+    // shadow off and on again after a resize rebuilds it.
     property bool shadowRefreshing: false
     function refreshShadow() { root.shadowRefreshing = false; }
     function sizeChanged() {

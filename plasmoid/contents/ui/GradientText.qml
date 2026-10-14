@@ -1,16 +1,14 @@
-// Promoted from the gradient-rendering spike (Phase 17.0.2; its directory
-// tools/spike-gradient-rendering/ was removed in 17.28.0) in Phase
-// 17.20.0: gradient-filled text with an optional soft glow, for the light
-// theme's volume readout and "DEVIALET" wordmark (flyout mockup v22
-// :109-120), and since 17.22.0/17.23.0 the OSD toast's and tooltip's values.
+// Gradient-filled text with an optional soft glow, for the light theme's
+// volume readout and "DEVIALET" wordmark (flyout mockup v22 :109-120) and
+// the OSD toast's and tooltip's values.
 //
 // A hidden Label is the alpha mask; GradientMask.qml paints a horizontal
 // gradient through it. Size this item like the text it replaces (the
 // gradient spans this item's width, so give it the text's own width when
 // the sweep should end at the last glyph). Create it inside a Loader that
 // is active only in the light theme: its layers must exist from the start
-// (toggling `layer.enabled` at runtime stopped masking after a dark ->
-// light flip, see CardShadow.qml).
+// (toggling `layer.enabled` at runtime stops masking after a dark -> light
+// flip; docs/DESIGN.md §6).
 import QtQuick
 import QtQuick.Controls
 
