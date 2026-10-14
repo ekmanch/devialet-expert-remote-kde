@@ -275,7 +275,7 @@ devialet-expert-remote-kde/
 │                                   #   KPackage payload (the plasmoid bundles
 │                                   #   its own copies); hicolor/ holds the
 │                                   #   Add Widgets picker icon
-├── design/mockups/                 # HTML mockups: configDialog/, flyout/,
+├── design/                         # HTML mockups: configDialog/, flyout/,
 │                                   #   OSD/, tooltip/
 ├── scripts/                        # install-binaries.sh, install-daemon-unit.sh,
 │                                   #   install-plasmoid.sh, test-qml.sh

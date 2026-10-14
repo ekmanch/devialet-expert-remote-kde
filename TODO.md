@@ -154,7 +154,7 @@ An install script for the binaries, the systemd unit and the plasmoid, then the 
 
 ## Phase 17: Light theme
 
-A Dark / Light / Follow system setting across the flyout, OSD, tooltip and settings page. Spec: the mockups under `design/mockups/{configDialog,flyout,OSD,tooltip}/`; design and decisions in `docs/context-on-light-theme-arc-phase-17.md`.
+A Dark / Light / Follow system setting across the flyout, OSD, tooltip and settings page. Spec: the mockups under `design/{configDialog,flyout,OSD,tooltip}/`; design and decisions in `docs/context-on-light-theme-arc-phase-17.md`.
 
 - [x] 17.0.0 Record the arc
 - [x] 17.0.1 Two-context `Kirigami.Theme` measurement
