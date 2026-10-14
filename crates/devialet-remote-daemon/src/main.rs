@@ -1,40 +1,20 @@
 //! Status-listener daemon. Owns the UDP 45454 socket, parses every status
 //! broadcast via `devialet_protocol`, and pushes the latest state out over
-//! the session D-Bus bus (`com.ekmanch.DevialetRemote`, see interface.rs)
-//! with `PropertiesChanged` signals - no polling, no status file. See
-//! CLAUDE.md for the settled architecture this implements.
+//! the session bus (`com.ekmanch.DevialetRemote`, see interface.rs) with
+//! `PropertiesChanged` signals - no polling, no status file. Architecture:
+//! docs/DESIGN.md §1, D-Bus surface: §2.
 //!
-//! Phase 3.5: every amp heard broadcasting is tracked (not just the most
-//! recent), exposed via the `KnownAmps` property, alongside an explicit
-//! `SelectedAmpIp`/`SelectAmp()` selection surface - see interface.rs's
-//! `AmpState` doc for the full model (ported from the Kotlin app's
-//! `discoveredAmps`/`selectedIp`). All of `AmpState`'s tracking/selection/
-//! staleness logic lives in interface.rs; this file is just the I/O shim
-//! around it (receive loop + D-Bus registration), consistent with the
-//! protocol crate's own "logic has no I/O, I/O has no logic" split.
+//! Every amp heard broadcasting is tracked, with an explicit selection on
+//! top; all tracking/selection/staleness logic lives in `AmpState`
+//! (interface.rs). This file is only the I/O shim: receive loop, D-Bus
+//! registration, mDNS.
 //!
-//! Phase 3.7: resolves each known amp's real model name over mDNS
-//! (`AmpModelNameResolver.kt`'s Devialet-side equivalent), best-effort in
-//! the background - see `start_mdns_browse`/`drain_mdns_events` below.
-//! Resolution policy (stated explicitly, not left implicit): one
-//! continuous `browse()` session is started once at daemon startup for the
-//! whole process lifetime, not restarted or re-queried per amp or on any
-//! schedule - confirmed by reading `mdns-sd` 0.21.0's own source (not just
-//! inferred from its description), `mdns-sd` already re-queries/refreshes
-//! its cache internally: `dns_cache.rs`'s `refresh_due_ptr`/
-//! `refresh_due_srv_txt`/`refresh_due_hosts` (citing RFC 6762 section 7.1
-//! for the refresh timing) are called every iteration of the daemon's own
-//! event loop via `refresh_active_services()`
-//! (`service_daemon.rs:1622`), which sends real re-queries
-//! (`send_query`/`send_query_vec`) whenever a cached record's TTL
-//! approaches expiry. Android's `NsdManager` needed
-//! `AmpModelNameResolver`'s own manual restart-burst workaround for
-//! sluggish re-querying (that mechanism is Android-API-specific, not a
-//! general mDNS requirement, so it isn't ported here). Every
-//! `ServiceResolved` event the session ever produces is drained
-//! non-blockingly and matched against known amps by IP; once an amp
-//! resolves, it's never re-attempted or cleared (matches the Kotlin app -
-//! see `AmpState::resolve_model_name`'s doc in interface.rs).
+//! Model names are resolved over mDNS, best-effort, with one continuous
+//! `browse()` session started at startup for the process lifetime and
+//! never restarted. `mdns-sd` re-queries cached records itself as their
+//! TTL nears expiry (RFC 6762 §7.1), so no manual refresh is needed.
+//! `ServiceResolved` events are drained non-blockingly and matched to
+//! known amps by IP; a resolved name is never re-attempted or cleared.
 
 mod config;
 mod interface;
@@ -46,22 +26,14 @@ use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
-/// `_spotify-connect._tcp` - not Devialet-specific (see interface.rs's
-/// `resolve_model_name` doc for why that's safe: matches are confirmed
-/// against known amps before being trusted). Format confirmed against
-/// `ServiceDaemon::browse`'s own validation
-/// (`check_domain_suffix`/its doc: "must end with a valid mDNS domain:
-/// '._tcp.local.' or '._udp.local.'").
+/// Not Devialet-specific; `resolve_model_name` only trusts a match for an
+/// amp already heard over UDP. `browse()` requires the `._tcp.local.`
+/// suffix.
 const MDNS_SERVICE_TYPE: &str = "_spotify-connect._tcp.local.";
 
-/// How often the receive loop wakes up even with no incoming packet, purely
-/// so it can re-evaluate staleness (see module doc / CLAUDE.md's
-/// "Environment" section for why this exists despite the "no async
-/// runtime, blocking loop" constraint: a plain indefinite blocking
-/// `recv_from` would never notice an amp going silent, since nothing
-/// happens to wake the loop up. A short read timeout keeps the loop
-/// genuinely blocking/synchronous - not async - while still being able to
-/// notice silence.)
+/// Read timeout of the blocking receive loop. Without it an indefinite
+/// `recv_from` would never wake to notice an amp going silent; the tick
+/// also drives the boot and pending-command deadlines in `AmpState`.
 const POLL_TICK: Duration = Duration::from_secs(1);
 
 fn bind_status_socket() -> std::io::Result<UdpSocket> {
@@ -78,8 +50,7 @@ fn bind_status_socket() -> std::io::Result<UdpSocket> {
 /// every `recv_from` outcome, a full hex dump of the first few real packets
 /// received, parse success/failure detail, and a read-back check proving
 /// the property getters see the same state the receive loop just wrote.
-/// Off by default to avoid log spam at the amp's ~1-5Hz broadcast rate
-/// during normal operation.
+/// Off by default: the amp broadcasts at ~1-5 Hz.
 fn debug_enabled() -> bool {
     std::env::var("DEVIALET_DAEMON_DEBUG").as_deref() == Ok("1")
 }
@@ -88,13 +59,9 @@ fn hex_dump(data: &[u8]) -> String {
     data.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ")
 }
 
-/// Starts the mDNS browse session used for Phase 3.7 model-name
-/// resolution. Best-effort/cosmetic only, mirroring `AmpModelNameResolver`'s
-/// own framing ("this is a cosmetic enhancement, not something the app
-/// depends on"): if setup fails for any reason (no usable network
-/// interface, permission issue, etc.), this logs a warning and returns
-/// `None` - the daemon then runs exactly as it did before this phase
-/// existed (raw UDP device names only). Never a fatal startup error.
+/// Starts the mDNS browse session for model-name resolution. Cosmetic
+/// only: on any setup failure this logs and returns `None`, and the
+/// daemon runs with raw UDP device names. Never a fatal startup error.
 fn start_mdns_browse() -> Option<mdns_sd::Receiver<ServiceEvent>> {
     let daemon = match ServiceDaemon::new() {
         Ok(d) => d,
@@ -115,13 +82,9 @@ fn start_mdns_browse() -> Option<mdns_sd::Receiver<ServiceEvent>> {
     }
 }
 
-/// Drains every mDNS event currently queued, non-blockingly (`try_recv`
-/// returns immediately whether the queue is empty or not) - called once per
-/// main-loop iteration, not just once per `POLL_TICK` tick, so a burst of
-/// real UDP packets arriving back-to-back (the amp can broadcast up to
-/// ~5Hz) can't starve this of a chance to run; either way it never adds any
-/// blocking delay to UDP processing, since it's a separate non-blocking
-/// check each time, not something UDP receipt waits on.
+/// Drains every queued mDNS event without blocking (`try_recv`). Called on
+/// every main-loop iteration, not only on a `POLL_TICK` timeout, so a
+/// steady stream of UDP packets cannot starve it.
 fn drain_mdns_events(
     receiver: &mdns_sd::Receiver<ServiceEvent>,
     iface_ref: &zbus::blocking::object_server::InterfaceRef<AmpState>,
@@ -136,13 +99,8 @@ fn drain_mdns_events(
             continue;
         };
 
-        // Prefer IPv4 explicitly - same reasoning as
-        // AmpModelNameResolver.onServiceResolved: `AmpState::amps` is keyed
-        // by IPv4 dotted-quad strings (src.ip() off the IPv4-only socket
-        // bound in bind_status_socket), so an IPv6-only match would never
-        // find its known-amp entry and get silently dropped by
-        // resolve_model_name's membership check - not wrong, just
-        // pointless to even attempt.
+        // IPv4 only: `AmpState::amps` is keyed by the IPv4 source address
+        // of the status socket, so an IPv6 address could never match.
         let Some(ip) = resolved.addresses.iter().find(|addr| addr.is_ipv4()).map(|addr| addr.to_ip_addr().to_string()) else {
             continue;
         };
@@ -176,21 +134,14 @@ fn main() -> std::io::Result<()> {
     if debug {
         eprintln!("[debug] DEVIALET_DAEMON_DEBUG=1: verbose diagnostics on");
     }
-    // Item 3 from the real-device debugging request: this receive loop runs
-    // directly on main() - no thread::spawn anywhere in this binary. A
-    // panic here would unwind out of main and kill the whole process
-    // (D-Bus registration included), not silently freeze it while the
-    // service stays responsive. If the daemon is observed staying
-    // responsive on D-Bus while state is frozen, the cause is NOT a dead
-    // background thread - this process has none.
+    // The receive loop runs on main() itself; this binary spawns no
+    // thread. A panic kills the whole process, D-Bus name included, so a
+    // daemon answering on D-Bus with frozen state is not a dead thread.
     eprintln!("receive loop runs on main() directly - no spawned thread in this binary");
 
-    // Phase 4.2: apply any persisted selection before the object server
-    // starts (so no signal emission is needed - see
-    // AmpState::set_persisted_selection's doc). `None` (nothing ever
-    // persisted, e.g. pre-4.2 install or fresh config dir) leaves the
-    // default `has_explicit_selection = false`, preserving Phase 3.5's
-    // auto-select-if-alone behavior for a genuinely first-ever run.
+    // Apply any persisted selection before the object server starts, so
+    // no signal is needed. `None` (nothing ever persisted) leaves
+    // `has_explicit_selection` false, so auto-select-if-alone applies.
     let mut initial_state = AmpState::default();
     match config::load_selected_ip() {
         Some(ip) => {
@@ -227,8 +178,7 @@ fn main() -> std::io::Result<()> {
 
     let mut buf = [0u8; 2048];
     loop {
-        // Runs every iteration (not gated on the WouldBlock/tick branch
-        // below) - see drain_mdns_events's own doc for why.
+        // Every iteration, not only on timeout - see drain_mdns_events.
         if let Some(receiver) = &mdns_receiver {
             drain_mdns_events(receiver, &iface_ref, debug).map_err(std::io::Error::other)?;
         }
@@ -236,14 +186,11 @@ fn main() -> std::io::Result<()> {
         match socket.recv_from(&mut buf) {
             Ok((len, src)) => {
                 packets_seen += 1;
-                // Item 1: recv_from's actual outcome, unconditionally on
-                // every real packet when debug is on.
                 if debug {
                     eprintln!("[debug] recv_from: Ok, {len} bytes from {src} (packet #{packets_seen})");
                 }
-                // Item 2: raw bytes of the first few real packets, to
-                // compare directly against docs/protocol.md's assumed
-                // offsets/minimum length.
+                // Raw bytes of the first few packets, to check against
+                // docs/protocol.md's offsets and minimum length.
                 if debug && packets_seen <= 3 {
                     eprintln!("[debug] raw bytes (packet #{packets_seen}, {len} bytes):\n{}", hex_dump(&buf[..len]));
                 }
@@ -260,9 +207,7 @@ fn main() -> std::io::Result<()> {
                 }
 
                 let Ok(status) = parse_result else {
-                    // Too short / malformed - drop and keep listening,
-                    // matching DevialetStatusListener.parseStatus()'s
-                    // "catch, drop packet, keep running" behavior.
+                    // Too short or malformed: drop it and keep listening.
                     continue;
                 };
                 let ip = src.ip().to_string();
@@ -270,13 +215,9 @@ fn main() -> std::io::Result<()> {
 
                 ingest_and_maybe_emit(&iface_ref, ip.clone(), status).map_err(std::io::Error::other)?;
 
-                // Item 4: read back through the SAME InterfaceRef the D-Bus
-                // property getters are registered against, immediately
-                // after writing, to prove this isn't a separate/stale copy.
-                // Note device_name/online below reflect the *primary*
-                // (selected/auto-selected) amp, which may differ from this
-                // packet's own amp if it isn't the one currently selected -
-                // see interface.rs's AmpState doc.
+                // Read back through the same InterfaceRef the property
+                // getters use, to show they see this write. The values are
+                // the primary amp's, which may not be this packet's amp.
                 if debug {
                     let read_back = iface_ref.get();
                     eprintln!(
@@ -289,27 +230,21 @@ fn main() -> std::io::Result<()> {
                 if debug {
                     eprintln!("[debug] recv_from: timed out (no packet in {POLL_TICK:?}) - loop is alive, {packets_seen} real packets seen so far");
                 }
-                // No packet within POLL_TICK - re-check staleness for every
-                // known amp (not just the primary), since a non-primary amp
-                // going quiet still needs to be reflected in KnownAmps.
+                // No packet within POLL_TICK: re-check staleness for every
+                // known amp, since KnownAmps reports non-primary ones too.
                 recompute_staleness_and_maybe_emit(&iface_ref).map_err(std::io::Error::other)?;
             }
             Err(e) => {
-                // Transient receive error - matches
-                // DevialetStatusListener's "loop continues, treated as
-                // transient" behavior.
+                // Treated as transient; keep looping.
                 eprintln!("recv_from error (continuing): {e}");
             }
         }
     }
 }
 
-/// Records a freshly-parsed status broadcast and, only if doing so actually
-/// changed any exposed property (primary fields, `KnownAmps`, or
-/// `SelectedAmpIp`), emits `PropertiesChanged` for all of them. Guarding on
-/// an actual change (rather than Phase 1's unconditional re-emission) is
-/// needed now that a packet from a non-primary amp can otherwise cause a
-/// no-op emit every ~1s it broadcasts.
+/// Records a freshly parsed status broadcast and emits `PropertiesChanged`
+/// only if an exposed property actually changed; otherwise every packet
+/// from a non-primary amp would cause a no-op emit.
 fn ingest_and_maybe_emit(
     iface_ref: &zbus::blocking::object_server::InterfaceRef<AmpState>,
     ip: String,
@@ -321,9 +256,8 @@ fn ingest_and_maybe_emit(
     emit_if_changed(iface_ref, &iface, &before)
 }
 
-/// Re-derives staleness for every known amp (no new packet) and emits only
-/// if something actually changed - see `POLL_TICK`'s doc comment for why
-/// this tick exists at all.
+/// Re-derives staleness and deadlines with no new packet and emits only if
+/// something changed. Driven by `POLL_TICK`.
 fn recompute_staleness_and_maybe_emit(
     iface_ref: &zbus::blocking::object_server::InterfaceRef<AmpState>,
 ) -> zbus::Result<()> {

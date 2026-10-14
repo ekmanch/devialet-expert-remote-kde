@@ -9,151 +9,89 @@ pub const BUS_NAME: &str = "com.ekmanch.DevialetRemote";
 pub const OBJECT_PATH: &str = "/com/ekmanch/DevialetRemote/Amp";
 pub const INTERFACE_NAME: &str = "com.ekmanch.DevialetRemote.Amp1";
 
-/// Phase 4.3.0: how long the daemon waits, after `BeginPowerOnBoot` is
-/// called for an amp, for a real UDP status broadcast to confirm
-/// `power_on = true` before silently giving up and reporting `PowerState =
-/// "Off"` again - see `AmpState::resolve_boot_deadlines`. No retry, no
-/// distinct error/failure state - amp boot failures are expected to be
-/// extremely rare (not yet observed even once), so this isn't polished
-/// beyond a silent fallback.
+/// How long after `BeginPowerOnBoot` the daemon waits for a broadcast
+/// confirming `power_on = true` before reporting `PowerState = "Off"`
+/// again (see `resolve_boot_deadlines`). Silent fallback, no error state:
+/// boot failures have not been observed.
 ///
-/// 20s, not the originally-specified 15s: live verification against a
-/// real Devialet Expert 140 Pro measured an actual boot time of ~16.07s
-/// (BeginPowerOnBoot -> real UDP confirmation, busctl-monitor timestamps,
-/// see TODO.md's Phase 4.3.0 verification log) - with 15s, an ordinary
-/// successful boot would flash "Off" for about a second before settling
-/// on "On". 20s gives ~4s of headroom above that one real sample.
+/// 20 s: one measured boot of an Expert 140 Pro took ~16.07 s
+/// (`BeginPowerOnBoot` to UDP confirmation); 15 s flashed "Off" for about
+/// a second before "On".
 const BOOT_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// Phase 5.0.0: how long a `NotifyVolumeCommand`/`NotifyMuteCommand`
-/// optimistic value is trusted before falling back to the amp's real
-/// last-known status, absent a confirming broadcast - see
-/// `AmpState::resolve_pending_commands`. Settled input, not re-derived here:
-/// 400ms is already proven across three independent client implementations
-/// (the Kotlin Android app, the Flutter port, and this widget's own
-/// existing QML `debounceMs`) as the window that prevents a stale in-flight
-/// broadcast from contradicting a command the PC just sent - see TODO.md's
-/// Phase 5.0.0 entry.
+/// How long a `NotifyVolumeCommand`/`NotifyMuteCommand` value is shown
+/// before falling back to the amp's last-known status, absent a
+/// confirming broadcast (see `resolve_pending_commands`). 400 ms is the
+/// window the Kotlin app, the Flutter port and the widget's QML use to
+/// keep a stale in-flight broadcast from contradicting a just-sent
+/// command (docs/DESIGN.md §3, docs/known-gotchas.md #1).
 const PENDING_COMMAND_TIMEOUT: Duration = Duration::from_millis(400);
 
 /// One amp's last-known status broadcast, keyed by IP in `AmpState::amps`.
-/// Never evicted once seen - matches the Kotlin app's `discoveredAmps`
-/// (`LinkedHashMap`, entries linger forever, staleness is only checked at
-/// read time via `isAmpRecentlyHeard`/`ampStaleTimeoutMs`), not pruned here
-/// either.
+/// Never evicted once seen; staleness is derived from `last_seen`.
 #[derive(Debug, Clone)]
 struct TrackedAmp {
     status: proto::Status,
     last_seen: Instant,
-    /// Resolved via mDNS (Phase 3.7) - `None` until/unless resolution
-    /// succeeds for this IP. Mirrors `DiscoveredAmp.modelName` (nullable,
-    /// resolved separately, carried forward across UDP-driven updates - see
-    /// `ingest_status`, ported from `DiscoveredAmp.kt`'s doc comment
-    /// warning that recreating the record on every broadcast "gets wiped
-    /// every ~1s" if the previous value isn't explicitly carried forward).
-    /// Once set, never cleared - matches the Kotlin app, which also never
-    /// resets a resolved `modelName` back to `null`.
+    /// Resolved via mDNS; `None` until resolution succeeds. Once set,
+    /// never cleared. Like every field below, carried forward by
+    /// `ingest_status`: rebuilding the entry on each broadcast would
+    /// otherwise wipe it.
     model_name: Option<String>,
-    /// Phase 4.3.0: set by `BeginPowerOnBoot` to `Some(deadline)`, cleared
-    /// back to `None` by `resolve_boot_deadlines` once the boot resolves
-    /// (real `power_on = true` confirmed, or `BOOT_TIMEOUT` elapses).
-    /// `Some` is what makes `PowerState` report "Booting" regardless of
-    /// the amp's last-known `power_on` bit. Carried forward across
-    /// re-ingestion in `ingest_status`, same reasoning as `model_name`
-    /// above - a naive overwrite would wipe it on the very next ~1s status
-    /// broadcast.
+    /// Set by `BeginPowerOnBoot`, cleared by `resolve_boot_deadlines` once
+    /// `power_on = true` is confirmed or `BOOT_TIMEOUT` elapses. `Some`
+    /// makes `PowerState` report "Booting" whatever `power_on` says.
     boot_deadline: Option<Instant>,
-    /// Phase 5.0.0: set by `NotifyVolumeCommand` to
-    /// `Some((requested_db, deadline))`, cleared back to `None` by
-    /// `resolve_pending_commands` once a real broadcast confirms
+    /// `(requested_db, deadline)`, set by `NotifyVolumeCommand`, cleared by
+    /// `resolve_pending_commands` once a broadcast confirms
     /// `status.volume_db() == requested_db` or `PENDING_COMMAND_TIMEOUT`
-    /// elapses - same shape as `boot_deadline` above, generalized from a
-    /// single boolean condition to an arbitrary value + deadline pair.
-    /// `Some` is what makes the exposed `VolumeDb` property report the PC's
-    /// just-issued value instead of the amp's last-known one. Carried
-    /// forward across re-ingestion in `ingest_status`, same reasoning as
-    /// `boot_deadline` - a naive overwrite would wipe it on the very next
-    /// status broadcast, before it's ever had a chance to be compared
-    /// against for confirmation.
+    /// elapses. `Some` makes `VolumeDb` report the requested value instead
+    /// of the amp's last-known one.
     pending_volume_db: Option<(f64, Instant)>,
-    /// Phase 5.0.0: `NotifyMuteCommand`'s equivalent of `pending_volume_db`
-    /// above - same shape, same carry-forward reasoning, confirmed against
-    /// `status.muted` instead of `status.volume_db()`.
+    /// `NotifyMuteCommand`'s equivalent of `pending_volume_db`, confirmed
+    /// against `status.muted`.
     pending_muted: Option<(bool, Instant)>,
 }
 
-/// D-Bus-exposed state, covering both the Phase 1-3 "primary amp" surface
-/// (kept for backward compatibility with the already-verified Phase 3 QML)
-/// and the Phase 3.5 multi-amp discovery/selection surface added alongside
-/// it.
+/// D-Bus-exposed state: the "primary amp" properties plus the multi-amp
+/// discovery/selection surface (docs/DESIGN.md §2).
 ///
-/// Ported concept, not guessed: `selected_ip` mirrors
-/// `MainActivity.selectedIp` (an empty string is the "no amp selected"
-/// sentinel, same value whether nothing has ever been chosen or "None" was
-/// explicitly chosen - see `MainActivity.clearAmpSelection()`). `amps`
-/// mirrors `MainActivity.discoveredAmps` (every amp ever heard broadcasting,
-/// keyed by IP, regardless of selection).
+/// `amps` holds every amp ever heard, keyed by IP. `selected_ip` is the
+/// explicit selection (`""` = none). When nothing has ever been chosen and
+/// exactly one amp is known, that amp drives the primary properties (see
+/// `effective_ip`); with zero or 2+ known amps they show the empty
+/// "not connected" state instead of guessing.
 ///
-/// Unlike the Kotlin app, there is no amp-picker UI yet (that's Phase 4), so
-/// nothing calls `SelectAmp` in practice yet except manual `busctl`/testing
-/// calls. To avoid regressing Phase 3's already-verified single-amp
-/// behavior in the meantime: when `selected_ip` is empty AND exactly one amp
-/// is currently known, that amp is auto-selected for the primary properties
-/// below (see `effective_ip`). With zero or 2+ known amps and nothing
-/// explicitly selected, the primary properties fall back to the empty
-/// "not connected" state instead of guessing which one to show.
-///
-/// **Post-Phase-4.1 correction:** the paragraph above ("selected_ip... same
-/// value whether nothing has ever been chosen or 'None' was explicitly
-/// chosen") described Android's own collapsing of those two states, which
-/// is fine for Android since it has no auto-select-if-alone behavior to
-/// collapse *into*. Porting that collapse here was a real bug once Phase
-/// 4.1 added a real picker: explicitly choosing "None" (`SelectAmp("")`)
-/// left `selected_ip` empty exactly like "never chosen", so
-/// `effective_ip()`'s auto-select-if-alone branch silently re-selected the
-/// sole known amp anyway - the user's explicit clear appeared to do
-/// nothing (picker closed, selection reverted). Fixed by adding
-/// `has_explicit_selection` below, set the moment `SelectAmp` is ever
-/// called (with any ip, including ""), which is what auto-select-if-alone
-/// now actually gates on instead of `selected_ip.is_empty()` alone - see
-/// `effective_ip`. This also matters for Phase 4.2 (persistence): loading a
-/// persisted selection - even a persisted "" (a previously-explicit
-/// None) - must also set `has_explicit_selection = true`, not just
-/// `selected_ip`, or a restart would silently resurrect the auto-select
-/// behavior for a user who'd explicitly opted out of it.
+/// "Never chosen" and "explicitly chose None" both leave `selected_ip`
+/// empty, so `has_explicit_selection` tells them apart. Without it,
+/// `SelectAmp("")` would be overridden by auto-select-if-alone, and a
+/// persisted "None" would be undone on every restart.
 #[derive(Debug, Clone, Default)]
 pub struct AmpState {
     amps: HashMap<String, TrackedAmp>,
     selected_ip: String,
-    /// True from the first `SelectAmp` call onward (any ip, including ""),
-    /// false only in the genuine "daemon just started, nothing has ever
-    /// been chosen" state. See the struct doc's "Post-Phase-4.1 correction"
-    /// above for why this exists separately from `selected_ip.is_empty()`.
+    /// True once `SelectAmp` has been called (any ip, including "") or a
+    /// selection was loaded from disk; false only when nothing has ever
+    /// been chosen. See the struct doc.
     has_explicit_selection: bool,
-    /// Boot deadlines for IPs with no `TrackedAmp` entry yet - a
+    /// Boot deadlines for IPs with no `TrackedAmp` entry yet: a
     /// `BeginPowerOnBoot` for the persisted selection before that amp has
-    /// been heard since daemon start (found live 2026-10-04: with no entry
-    /// to hold a `boot_deadline`, the call was a no-op, `PowerState` never
-    /// left "Off", no signal was emitted, and the widget's optimistic
-    /// "Booting" never ended). Same lifetime as `TrackedAmp::boot_deadline`:
-    /// moved onto the entry by `ingest_status` when the amp's first
-    /// broadcast arrives, dropped by `resolve_boot_deadlines` at
-    /// `BOOT_TIMEOUT`.
+    /// been heard since daemon start. Without this the call had nowhere to
+    /// store a deadline, `PowerState` never left "Off" and the widget's
+    /// optimistic "Booting" never ended. Moved onto the entry by
+    /// `ingest_status` on the amp's first broadcast, dropped by
+    /// `resolve_boot_deadlines` at `BOOT_TIMEOUT`.
     unheard_boot_deadlines: HashMap<String, Instant>,
 
-    // ---- exposed fields below, all derived from the two above by
+    // ---- exposed fields below, all derived from the fields above by
     // `recompute()` - never written to directly outside of it. ----
     device_name: String,
     amp_ip: String,
     online: bool,
     power: bool,
-    /// Phase 4.3.0: three-state `"Off"` / `"Booting"` / `"On"`, additive
-    /// alongside `power` above rather than replacing it - `power` keeps
-    /// its original bool wire type unchanged since already-shipped QML
-    /// binds to it directly (see this field's `#[zbus(property)]` doc for
-    /// the full reasoning). Empty string only transiently, before the
-    /// first `recompute()` call ever runs (same as `device_name`/`amp_ip`
-    /// below) - never a value a real D-Bus client should see settle.
+    /// `"Off"` / `"Booting"` / `"On"`, alongside `power` (see the
+    /// `PowerState` property doc). Empty only before the first
+    /// `recompute()`.
     power_state: String,
     muted: bool,
     volume_raw: u8,
@@ -190,16 +128,9 @@ impl AmpState {
         self.power
     }
 
-    /// Phase 4.3.0: `"Off"` / `"Booting"` / `"On"` - additive alongside
-    /// `Power` above, not a replacement for it. `Power` remains a pure,
-    /// unfiltered reflection of the amp's real UDP `power_on` bit (so the
-    /// already-shipped QML reading it keeps working completely unchanged);
-    /// `PowerState` layers the transient "Booting" window on top, driven
-    /// by `BeginPowerOnBoot` below plus `resolve_boot_deadlines`. Nothing
-    /// calls `BeginPowerOnBoot` yet as of this phase - the widget-side
-    /// wiring is Phase 4.3.1, blocked on this property's shape - so in
-    /// practice this currently only ever reads "On"/"Off" until exercised
-    /// manually (e.g. via `busctl call ... BeginPowerOnBoot`).
+    /// `"Off"` / `"Booting"` / `"On"`. `Power` stays the amp's raw UDP
+    /// `power_on` bit; `PowerState` adds the "Booting" window started by
+    /// `BeginPowerOnBoot` and ended by `resolve_boot_deadlines`.
     #[zbus(property, name = "PowerState")]
     pub fn power_state(&self) -> String {
         self.power_state.clone()
@@ -210,9 +141,8 @@ impl AmpState {
         self.muted
     }
 
-    /// Raw 0-255 status byte, exposed alongside the decoded dB value for
-    /// manual/debug verification (busctl etc.) independent of the dB
-    /// formula.
+    /// Raw 0-255 status byte, never masked by a pending command (see
+    /// `recompute`).
     #[zbus(property, name = "VolumeRaw")]
     pub fn volume_raw(&self) -> u8 {
         self.volume_raw
@@ -242,61 +172,34 @@ impl AmpState {
         self.sources.clone()
     }
 
-    /// Every amp ever heard broadcasting on the LAN, not just the selected
-    /// one - `(ip, device_name, online, model_name)` tuples. `device_name`
-    /// is always the raw UDP-broadcast name (unlike the primary
-    /// `DeviceName` property, this one deliberately does *not* prefer
-    /// `model_name` - a future picker needs both, e.g. to show "Devialet
-    /// Expert 140 Pro" as the main label and the raw UDP name as a
-    /// subtitle, the way the Kotlin app's device card does). `online`
-    /// computed with the same 8s staleness rule as the `Online` property
-    /// above. `model_name` is `""` until mDNS resolution succeeds for that
-    /// IP (Phase 3.7 - see `resolve_model_name`); never cleared once
-    /// resolved, matching the Kotlin app. Never pruned; a since-gone amp
-    /// just shows `online = false` forever rather than disappearing
-    /// (mirrors `discoveredAmps` never being pruned in the Kotlin app -
-    /// only the picker *view* there filters stale entries, this property
-    /// intentionally doesn't so a future picker can decide its own
-    /// filtering/sorting). Sorted numerically by IP (octet-wise, e.g.
-    /// `192.168.0.9` before `192.168.0.10`), not lexicographically as a
-    /// string - for a stable order across emissions: the list only
-    /// reorders when the known-IP set itself changes (a new amp is first
-    /// heard), never as a side effect of an entry's `online` or
-    /// `model_name` fields changing.
+    /// Every amp ever heard broadcasting, as `(ip, device_name, online,
+    /// model_name)`. `device_name` is always the raw UDP name (unlike
+    /// `DeviceName`), so a picker can show both. `online` uses the same 8 s
+    /// rule as `Online`. `model_name` is `""` until mDNS resolves it and is
+    /// never cleared. Never pruned: a gone amp stays with `online = false`,
+    /// and filtering is left to the client. Sorted numerically by IP
+    /// (`192.168.0.9` before `192.168.0.10`), so the order only changes
+    /// when a new amp is first heard.
     #[zbus(property, name = "KnownAmps")]
     pub fn known_amps(&self) -> Vec<(String, String, bool, String)> {
         self.known_amps.clone()
     }
 
-    /// Explicitly selected amp's IP, or "" if none - mirrors
-    /// `MainActivity.selectedIp`/its SharedPreferences `amp_ip` sentinel.
-    /// Note this is the *explicit* selection only - it stays "" even while
-    /// the single-known-amp auto-select behavior (see struct doc) is
-    /// driving the primary properties above from exactly one known amp.
+    /// Explicitly selected amp's IP, or "" if none. Stays "" while
+    /// auto-select-if-alone (see struct doc) drives the primary properties.
     #[zbus(property, name = "SelectedAmpIp")]
     pub fn selected_amp_ip(&self) -> String {
         self.selected_ip.clone()
     }
 
-    /// Selects an amp by IP for the primary properties above; pass "" to
-    /// explicitly clear the selection (the "None" option in the Kotlin
-    /// app's amp sheet). Accepts any IP, including one never heard
-    /// broadcasting yet (mirrors the Kotlin app's manual-IP-entry fallback
-    /// for when discovery doesn't work) - the primary properties then show
-    /// that IP with the empty/not-connected state until/unless a broadcast
-    /// from it arrives.
+    /// Selects an amp by IP for the primary properties; "" explicitly
+    /// clears the selection. Accepts an IP never heard yet (manual entry):
+    /// the primary properties then show that IP as not connected until a
+    /// broadcast from it arrives.
     ///
-    /// Always sets `has_explicit_selection`, even when `ip` is "" - that's
-    /// the whole fix for the bug described on the struct doc's "Post-
-    /// Phase-4.1 correction": without this, `SelectAmp("")` was
-    /// indistinguishable from "never called" and got silently overridden
-    /// by `effective_ip()`'s auto-select-if-alone branch.
-    ///
-    /// Phase 4.2: also persists `ip` to disk (`config::save_selected_ip`)
-    /// on every call, including `SelectAmp("")`, so the selection survives
-    /// a daemon restart - see `set_persisted_selection` for the startup
-    /// side of this. Persistence is best-effort (see that module's doc);
-    /// a write failure never fails this D-Bus call.
+    /// Always sets `has_explicit_selection`, even for "" (see struct doc),
+    /// and persists `ip` via `config::save_selected_ip`. Persistence is
+    /// best-effort; a write failure never fails this call.
     #[zbus(name = "SelectAmp")]
     async fn select_amp(
         &mut self,
@@ -316,31 +219,20 @@ impl AmpState {
         Ok(())
     }
 
-    /// Phase 4.3.0: marks `ip` as beginning a power-on boot sequence.
-    /// `PowerState` reports `"Booting"` for it (once it's the effective/
-    /// primary amp - see `recompute`'s `effective_ip` logic) until either a
-    /// real UDP broadcast confirms `Power = true`, or `BOOT_TIMEOUT` (20s)
-    /// elapses with no confirmation - whichever happens first, resolved by
-    /// `resolve_boot_deadlines` on the next `recompute()` (driven by every
-    /// real UDP packet AND the receive loop's 1s staleness tick, so no
-    /// separate timer/task is needed here).
+    /// Marks `ip` as booting. `PowerState` reports "Booting" for it (once
+    /// it is the effective amp) until a broadcast confirms `Power = true`
+    /// or `BOOT_TIMEOUT` (20 s) elapses. Resolved by
+    /// `resolve_boot_deadlines` on the next `recompute()`, which every
+    /// packet and the receive loop's 1 s tick trigger, so no timer is
+    /// needed.
     ///
-    /// An `ip` with no `TrackedAmp` entry yet (never heard broadcasting
-    /// since daemon start - reachable for real via a persisted selection,
-    /// see `unheard_boot_deadlines`) gets the same `BOOT_TIMEOUT`, held in
-    /// `unheard_boot_deadlines` until its first broadcast arrives.
+    /// An `ip` not heard since daemon start gets the same timeout through
+    /// `unheard_boot_deadlines`.
     ///
-    /// No-ops (no state change, no signal) in one case:
-    /// - A boot is already in progress for `ip` (`boot_deadline` already
-    ///   `Some`) - deliberately does NOT reset/extend the deadline, so a
-    ///   repeated call (a race, a stale/reconnecting client re-sending)
-    ///   can't keep an amp reporting "Booting" indefinitely. Phase 4.3.1's
-    ///   widget is expected to disable the power button for the whole
-    ///   booting window anyway - this is defense-in-depth against races,
-    ///   not the primary protection against a user spamming the button.
-    ///
-    /// Nothing calls this yet as of this phase - see this struct's
-    /// `power_state` doc.
+    /// No-op (no state change, no signal) while a boot is already in
+    /// progress for `ip`: the deadline is not reset, so repeated calls
+    /// cannot keep an amp "Booting" indefinitely. The widget also disables
+    /// the power button while booting; this guard covers races.
     #[zbus(name = "BeginPowerOnBoot")]
     async fn begin_power_on_boot(
         &mut self,
@@ -368,46 +260,26 @@ impl AmpState {
         Ok(())
     }
 
-    /// Phase 5.0.0: tells the daemon "the PC just sent `ip` a volume
-    /// command for `db`, treat it as authoritative until you see the amp
-    /// confirm it or `PENDING_COMMAND_TIMEOUT` passes" - the daemon-owned
-    /// equivalent of what each QML representation previously tracked
-    /// independently and locally (see TODO.md's Phase 5.0.0 entry for the
-    /// full architecture decision). Called directly from QML, side by side
-    /// with the actual `devialet-ctl` invocation that sends the real UDP
-    /// command - mirrors `BeginPowerOnBoot`'s own integration point
-    /// exactly, not routed through `devialet-ctl` itself (which stays
-    /// daemon-unaware, per CLAUDE.md's settled "No daemon involvement"
-    /// architecture note for that CLI).
+    /// Records that a volume command for `db` was just sent to `ip`;
+    /// `VolumeDb` reports it until the amp confirms it or
+    /// `PENDING_COMMAND_TIMEOUT` passes (docs/DESIGN.md §3). Called from
+    /// QML next to the `devialet-ctl` invocation; the CLI itself never
+    /// talks to the daemon.
     ///
-    /// No-ops (no state change, no signal) only when `ip` has no
-    /// `TrackedAmp` entry yet (never heard broadcasting) - mirrors
-    /// `resolve_model_name`'s and `begin_power_on_boot`'s existing
-    /// "unknown ip" guard. Unlike `begin_power_on_boot`, a repeated call
-    /// is NOT a no-op while a previous pending command is still live -
-    /// every call unconditionally replaces the pending value and resets
-    /// its deadline, which is exactly what correctly collapses a rapid
-    /// sequence of commands (e.g. fast scrolling) onto whichever one was
-    /// sent most recently, rather than getting stuck reporting the first
-    /// of several superseded values.
+    /// No-op only for an `ip` with no `TrackedAmp` entry. Otherwise every
+    /// call replaces the pending value and resets its deadline, so a rapid
+    /// series of commands settles on the most recent one.
     ///
-    /// PC-originated-command signal (2026-09-15, unnumbered phase): once
-    /// past the unknown-ip guard this also emits `VolumeCommandNotified(ip,
-    /// db)` - unconditionally, NOT gated on `states_equal` like the
-    /// `PropertiesChanged` burst above it, and after that burst so a client
-    /// handling the signal already sees the same call's property values.
-    /// Purpose: the widget's OSD toast is shown by the widget's own input
-    /// handlers only, so a command from any other caller of this method
-    /// (the MPV scroll-to-volume script, a future tool) changed the amp
-    /// without any on-screen feedback. Watching `VolumeDb` on the client
-    /// can't fix that - it fires just the same for changes the daemon
-    /// merely observed from the amp (physical remote), which must keep
-    /// showing nothing. A signal fired from this method alone is exactly
-    /// the "a PC command was sent" event, and it carries the value so the
-    /// client needs no `Get` round trip and still fires when the pending
-    /// value equals the current one (no `PropertiesChanged` at all then).
-    /// The widget filters out its own echoes client-side
-    /// (`PendingAmpState.qml`'s in-flight queue).
+    /// Then emits `VolumeCommandNotified(ip, db)` unconditionally (not
+    /// gated on `states_equal`), after the `PropertiesChanged` burst so a
+    /// handler already sees this call's property values. It marks "a
+    /// command was sent", which lets the widget show its OSD for commands
+    /// from other tools (e.g. the MPV script). Watching `VolumeDb` cannot
+    /// do that: it also changes for adjustments only observed from the
+    /// amp (physical remote), which must show nothing. The signal carries
+    /// the value, so it needs no `Get` and still fires when the value is
+    /// unchanged. The widget filters its own echoes in
+    /// `PendingAmpState.qml`.
     #[zbus(name = "NotifyVolumeCommand")]
     async fn notify_volume_command(
         &mut self,
@@ -432,11 +304,8 @@ impl AmpState {
         Ok(())
     }
 
-    /// Phase 5.0.0: `NotifyVolumeCommand`'s equivalent for mute - see its
-    /// doc comment for the full reasoning, identical here with `Muted`/
-    /// `pending_muted` in place of `VolumeDb`/`pending_volume_db` - and,
-    /// since 2026-09-15, `MuteCommandNotified(ip, muted)` in place of
-    /// `VolumeCommandNotified(ip, db)`, emitted under the same rules.
+    /// `NotifyVolumeCommand`'s equivalent for mute: `Muted`/`pending_muted`
+    /// and `MuteCommandNotified(ip, muted)`, under the same rules.
     #[zbus(name = "NotifyMuteCommand")]
     async fn notify_mute_command(
         &mut self,
@@ -462,10 +331,9 @@ impl AmpState {
     }
 
     /// `VolumeCommandNotified(s ip, d db)`: emitted by `NotifyVolumeCommand`
-    /// for every accepted call (see its doc). The only custom signals on
-    /// this interface; everything else is `PropertiesChanged`. Bodiless
-    /// declaration per zbus 5's `#[zbus(signal)]` form - the macro
-    /// generates the associated fn the method above calls.
+    /// for every accepted call. The only custom signals on this interface;
+    /// everything else is `PropertiesChanged`. Bodiless per zbus 5's
+    /// `#[zbus(signal)]` form; the macro generates the body.
     #[zbus(signal, name = "VolumeCommandNotified")]
     async fn volume_command_notified(
         emitter: &zbus::object_server::SignalEmitter<'_>,
@@ -488,24 +356,15 @@ impl AmpState {
     /// `ip` and re-derives every exposed field. Called once per real UDP
     /// packet from the daemon's receive loop.
     pub fn ingest_status(&mut self, ip: String, status: proto::Status) {
-        // Carry forward any already-resolved model name - ported from
-        // DiscoveredAmp.kt's doc comment (see TrackedAmp's own doc): a
-        // naive overwrite here would wipe a Phase 3.7 mDNS resolution on
-        // every single ~1s UDP broadcast from that amp.
+        // Carry the per-amp extras forward (see `TrackedAmp`): a naive
+        // overwrite would wipe them on the next broadcast (up to ~5 Hz).
         let model_name = self.amps.get(&ip).and_then(|amp| amp.model_name.clone());
-        // Same reasoning, Phase 4.3.0: an in-progress boot_deadline must
-        // not be wiped by the very next status broadcast that arrives
-        // while still mid-boot (the amp can broadcast up to ~5Hz).
         // A deadline started before this amp was ever heard moves onto its
         // entry here (see `unheard_boot_deadlines`).
         let boot_deadline =
             self.amps.get(&ip).and_then(|amp| amp.boot_deadline).or(self.unheard_boot_deadlines.remove(&ip));
-        // Phase 5.0.0: same reasoning again - an in-progress pending
-        // command must survive this re-insertion so `resolve_pending_
-        // commands` (called from `recompute` below) can actually compare
-        // the freshly-ingested `status` against it, rather than the
-        // pending value being silently wiped before it ever gets a chance
-        // to be confirmed.
+        // Pending commands must survive so `recompute` can compare the new
+        // status against them.
         let pending_volume_db = self.amps.get(&ip).and_then(|amp| amp.pending_volume_db);
         let pending_muted = self.amps.get(&ip).and_then(|amp| amp.pending_muted);
         self.amps.insert(
@@ -515,17 +374,11 @@ impl AmpState {
         self.recompute();
     }
 
-    /// Applies an mDNS-resolved model name to a *known* amp (one already
-    /// present in `amps` from a real UDP broadcast) and re-derives every
-    /// exposed field. Returns `false` (no-op, nothing recomputed) if `ip`
-    /// isn't a known amp - mirrors the Kotlin app's own guard
-    /// (`discoveredAmps[ip]?.let { ... }` in `MainActivity`'s
-    /// `AmpModelNameResolver` callback), needed because the mDNS service
-    /// type being browsed (`_spotify-connect._tcp`, see main.rs's mDNS
-    /// setup doc for why) isn't Devialet-specific, so an arbitrary Spotify
-    /// Connect receiver's resolved name must never be trusted for an IP
-    /// that was never actually heard broadcasting the Devialet UDP
-    /// protocol.
+    /// Applies an mDNS-resolved model name to a known amp (one already heard
+    /// over UDP) and re-derives every exposed field. Returns `false`
+    /// without change for an unknown `ip`: the browsed service type
+    /// (`_spotify-connect._tcp`) is not Devialet-specific, so a name must
+    /// never be trusted for an IP not heard speaking the Devialet protocol.
     pub fn resolve_model_name(&mut self, ip: &str, model_name: String) -> bool {
         let Some(amp) = self.amps.get_mut(ip) else {
             return false;
@@ -535,33 +388,6 @@ impl AmpState {
         true
     }
 
-    /// Applies a selection loaded from disk (`config::load_selected_ip`) at
-    /// daemon startup, before the D-Bus object server exists - called at
-    /// most once, from `main()`, on the `AmpState` passed into
-    /// `serve_at()`. No signal emission (nothing is listening yet).
-    ///
-    /// `ip` may legitimately be `""` - a persisted explicit `SelectAmp("")`
-    /// ("None") from before the last restart - and `has_explicit_selection`
-    /// must still be set `true` in that case. This is the load-bearing
-    /// half of Phase 4.2, carried over from the Phase 4.1 "None doesn't
-    /// stick" fix (see struct doc's "Post-Phase-4.1 correction"): if only
-    /// `selected_ip` were restored here and `has_explicit_selection` were
-    /// left at its `Default::default()` value of `false`, a user who'd
-    /// deliberately chosen "None" would see auto-select-if-alone silently
-    /// resurrect a selection on every daemon restart.
-    ///
-    /// Deliberately does NOT insert a synthetic `TrackedAmp` for `ip` -
-    /// `effective_ip()` will return `Some(ip)`, but `recompute()`'s
-    /// `self.amps.get(&ip)` lookup will miss until a real UDP broadcast
-    /// from that amp is actually ingested, so the primary properties
-    /// correctly show the not-connected state (`Online = false`,
-    /// `DeviceName = ""`, etc.) until then. This is exactly the
-    /// live-reconciliation Phase 4.2 asked for - it falls directly out of
-    /// `recompute()`'s existing None-branch, not new logic - and matches
-    /// the Kotlin app's own pattern of trusting `selectedIp` immediately on
-    /// load while `isAmpRecentlyHeard`/`discoveredAmps` (empty at startup
-    /// here, exactly like a fresh `amps: HashMap::new()`) independently
-    /// governs whether it's shown as actually connected.
     /// `BeginPowerOnBoot`'s path for an `ip` with no `TrackedAmp` entry -
     /// see `unheard_boot_deadlines`. Returns `false` (nothing changed) if
     /// a boot is already pending for it, so a repeated call can't extend
@@ -574,33 +400,35 @@ impl AmpState {
         true
     }
 
+    /// Applies a selection loaded from disk at startup, before the D-Bus
+    /// object server exists, so no signal is emitted. Called at most once,
+    /// from `main()`.
+    ///
+    /// `ip` may be `""` (a persisted explicit "None"), and
+    /// `has_explicit_selection` is set either way; otherwise a persisted
+    /// "None" would be undone by auto-select-if-alone on every restart.
+    ///
+    /// Inserts no `TrackedAmp` for `ip`: until a real broadcast arrives,
+    /// `recompute()` finds no entry and the primary properties show the
+    /// not-connected state with `AmpIp` set.
     pub fn set_persisted_selection(&mut self, ip: String) {
         self.selected_ip = ip;
         self.has_explicit_selection = true;
         self.recompute();
     }
 
-    /// Re-derives every exposed field with no new packet - staleness
-    /// (elapsed time since each amp's `last_seen`) and, since Phase 4.3.0,
-    /// any in-progress boot deadline can have changed. Called once per
-    /// receive-loop tick even with no incoming packet, so an amp going
-    /// quiet is still noticed and reflected (both in `Online` for the
-    /// primary amp and per-entry in `KnownAmps`) - and, not incidentally,
-    /// this is also what gives `BOOT_TIMEOUT` a place to actually get
-    /// checked without a dedicated timer/task: `resolve_boot_deadlines`
-    /// (called from `recompute` below) re-evaluates every tracked amp's
-    /// `boot_deadline` on this same tick.
+    /// Re-derives every exposed field with no new packet. Called on each
+    /// receive-loop tick, so an amp going quiet is reflected in `Online`
+    /// and `KnownAmps`, and the boot and pending-command deadlines get
+    /// checked without a dedicated timer.
     pub fn recompute_staleness(&mut self) {
         self.recompute();
     }
 
-    /// The IP whose status should drive the primary properties: the
-    /// explicit selection if one exists, else the sole known amp if there's
-    /// exactly one AND nothing has ever been explicitly selected (including
-    /// an explicit "None"), else nothing. See struct doc for the rationale.
-    /// The `!self.has_explicit_selection` guard is what makes an explicit
-    /// `SelectAmp("")` actually stick instead of being silently
-    /// re-overridden by the auto-select-if-alone branch below it.
+    /// The IP whose status drives the primary properties: the explicit
+    /// selection if any, else the sole known amp if there is exactly one
+    /// and nothing has ever been explicitly selected (including "None"),
+    /// else nothing. See the struct doc.
     fn effective_ip(&self) -> Option<String> {
         if !self.selected_ip.is_empty() {
             return Some(self.selected_ip.clone());
@@ -611,16 +439,10 @@ impl AmpState {
         None
     }
 
-    /// Phase 4.3.0: clears `boot_deadline` for every tracked amp whose
-    /// boot has resolved one way or the other - either a real UDP
-    /// broadcast confirmed `power_on = true`, or `BOOT_TIMEOUT` has
-    /// elapsed with no confirmation. The timeout fallback needs no
-    /// special-case code beyond this: once the deadline is cleared with
-    /// `power_on` still `false`, `recompute`'s normal derivation already
-    /// produces `PowerState = "Off"` - no distinct error state. Runs for
-    /// every tracked amp, not just the effective/primary one, so a
-    /// non-primary amp's boot still resolves correctly even without a
-    /// picker UI reading it yet.
+    /// Clears every boot deadline that has resolved: `power_on = true`
+    /// confirmed, or `BOOT_TIMEOUT` elapsed. A timed-out boot needs no
+    /// special case: with the deadline gone and `power_on` false,
+    /// `recompute` reports "Off". Runs for every amp, not just the primary.
     fn resolve_boot_deadlines(&mut self) {
         let now = Instant::now();
         for amp in self.amps.values_mut() {
@@ -634,21 +456,13 @@ impl AmpState {
     }
 
     /// Clears `pending_volume_db`/`pending_muted` for every tracked amp
-    /// whose pending command has resolved one way or the other (either a
-    /// real broadcast confirms it, or `PENDING_COMMAND_TIMEOUT` has
-    /// elapsed with no confirmation). Same shape as `resolve_boot_deadlines`
-    /// above, generalized to an arbitrary value-equality check instead of a
-    /// single boolean condition. Runs for every tracked amp, not just the
-    /// effective/primary one, matching `resolve_boot_deadlines`'s own
-    /// reasoning (a non-primary amp's pending command should still resolve
-    /// correctly even without a picker UI reading it yet).
+    /// once a broadcast confirms the value or `PENDING_COMMAND_TIMEOUT`
+    /// elapses. Runs for every amp, not just the primary.
     ///
-    /// Confirmation is exact equality, no epsilon: `Status::volume_db()` is
-    /// `(volume_raw - 195) / 2.0`, an exact linear integer/2 formula, and
-    /// every value this daemon is ever asked to treat as pending is itself
-    /// an exact 0.5dB step (QML's `volumeStepDb` only ever offers 0.5/1/2),
-    /// so both sides of the comparison are exact multiples of 0.5, safely
-    /// comparable with `==`.
+    /// Exact equality, no epsilon: `Status::volume_db()` is
+    /// `(volume_raw - 195) / 2.0` and the widget only sends 0.5 dB steps
+    /// (`volumeStepDb` is 0.5/1/2), so both sides are exact multiples of
+    /// 0.5.
     fn resolve_pending_commands(&mut self) {
         let now = Instant::now();
         for amp in self.amps.values_mut() {
@@ -681,12 +495,10 @@ impl AmpState {
                 )
             })
             .collect();
-        // Numeric (octet-wise), not lexicographic - a plain string sort
-        // would put "192.168.0.10" before "192.168.0.9". IPs in `amps` are
-        // always valid IPv4 dotted-quads (the only way one gets inserted is
-        // via `ingest_status`, fed by `src.ip().to_string()` off the
-        // IPv4-only socket bound in `bind_status_socket`), so parse failure
-        // here would mean that invariant broke, not a normal runtime case.
+        // Numeric (octet-wise), not lexicographic: a string sort puts
+        // "192.168.0.10" before "192.168.0.9". IPs in `amps` always come
+        // from the IPv4-only status socket, so a parse failure means that
+        // invariant broke.
         known_amps.sort_by_key(|(ip, _, _, _)| {
             ip.parse::<Ipv4Addr>()
                 .expect("amp IPs are always valid IPv4 dotted-quads - see bind_status_socket")
@@ -703,12 +515,8 @@ impl AmpState {
 
         match effective_ip.and_then(|ip| self.amps.get(&ip)) {
             Some(amp) => {
-                // `modelName ?: udpName` - ported from
-                // AmpModelNameResolver.kt's usage in
-                // MainActivity.updateDeviceCard()
-                // (`discoveredAmps[selectedIp]?.modelName ?: selectedName...`).
-                // The raw UDP name is still available unprefixed in
-                // `KnownAmps` above for anything that wants it regardless.
+                // The resolved model name if known, else the raw UDP name
+                // (which `KnownAmps` always carries).
                 self.device_name = amp
                     .model_name
                     .clone()
@@ -724,18 +532,10 @@ impl AmpState {
                     "Off"
                 }
                 .to_string();
-                // Phase 5.0.0: prefer a still-live pending command over the
-                // amp's last-known real status - see `pending_muted`/
-                // `pending_volume_db`'s own doc comments and
-                // `resolve_pending_commands` above. `VolumeRaw` deliberately
-                // stays a pure, unfiltered reflection of the amp's real
-                // status byte even while a pending VolumeDb is active - it's
-                // documented as a debug/manual-verification aid independent
-                // of the dB formula, so there is no matching "pending"
-                // concept for it to prefer. Since Phase 8.0.1 QML does read
-                // it for one thing (PendingAmpState.qml's post-boot hold
-                // confirms against it precisely *because* it is unmasked);
-                // keep it unfiltered.
+                // A live pending command wins over the amp's last-known
+                // status. `VolumeRaw` deliberately stays unmasked:
+                // PendingAmpState.qml's post-boot hold confirms against it
+                // because it reflects only what the amp reports.
                 self.muted = amp.pending_muted.map(|(v, _)| v).unwrap_or(amp.status.muted);
                 self.volume_raw = amp.status.volume_raw;
                 self.volume_db = amp.pending_volume_db.map(|(v, _)| v).unwrap_or_else(|| amp.status.volume_db());
@@ -764,11 +564,8 @@ impl AmpState {
     }
 }
 
-/// Compares every exposed field (deliberately excluding `amps`/its
-/// `Instant` timestamps, which change every tick regardless of anything
-/// worth emitting a signal over) - used to decide whether a `PropertiesChanged`
-/// round is actually needed. `pub(crate)` so main.rs's receive loop can
-/// gate its own emits on it too, not just the `SelectAmp` method above.
+/// Compares every exposed field, excluding `amps` (its timestamps change
+/// every tick), to decide whether a `PropertiesChanged` round is needed.
 pub(crate) fn states_equal(a: &AmpState, b: &AmpState) -> bool {
     a.device_name == b.device_name
         && a.amp_ip == b.amp_ip
@@ -785,11 +582,9 @@ pub(crate) fn states_equal(a: &AmpState, b: &AmpState) -> bool {
         && a.selected_ip == b.selected_ip
 }
 
-/// Emits every property's `PropertiesChanged` signal unconditionally, given
-/// `state` already reflects the desired new values (callers decide whether
-/// it's worth calling at all via `states_equal`). Shared between the
-/// receive-loop-driven path (main.rs) and the `SelectAmp` D-Bus method
-/// above, which has no other way to notify clients of a selection change.
+/// Emits `PropertiesChanged` for every property unconditionally; callers
+/// gate it on `states_equal`. Used by the receive loop (main.rs) and the
+/// D-Bus methods above.
 pub async fn emit_all(state: &AmpState, emitter: &zbus::object_server::SignalEmitter<'_>) -> zbus::Result<()> {
     state.device_name_changed(emitter).await?;
     state.amp_ip_changed(emitter).await?;
@@ -812,10 +607,8 @@ mod tests {
     use super::*;
     use devialet_protocol::fixtures::StatusFixtureBuilder;
 
-    /// Builds bytes via the protocol crate's own fixture builder, then
-    /// parses them via the real `parse_status` - end-to-end realism (bytes
-    /// -> parse -> track) rather than hand-constructing a `Status` literal,
-    /// per the Phase 3.5 testing strategy.
+    /// Builds bytes with the protocol crate's fixture builder and parses
+    /// them with the real `parse_status`, rather than a `Status` literal.
     fn parsed_status(device_name: &str) -> proto::Status {
         let bytes = StatusFixtureBuilder::new()
             .device_name(device_name)
@@ -827,9 +620,7 @@ mod tests {
         proto::parse_status(&bytes).expect("fixture packet should parse")
     }
 
-    /// Same as `parsed_status` but with `power_on = false` - used by the
-    /// Phase 4.3.0 boot-state tests below, which need to start from a real
-    /// "off" broadcast the way an amp actually mid-boot would report.
+    /// `parsed_status` with `power_on = false`, as an amp mid-boot reports.
     fn parsed_status_off(device_name: &str) -> proto::Status {
         let bytes = StatusFixtureBuilder::new()
             .device_name(device_name)
@@ -916,27 +707,10 @@ mod tests {
         assert!(!state.online);
     }
 
-    // Regression test for the bug reported after Phase 4.1 shipped a real
-    // amp picker: SelectAmp("") (choosing "None") left `selected_ip` empty
-    // exactly like "never selected", so `effective_ip()`'s
-    // auto-select-if-alone branch silently re-selected the sole known amp
-    // anyway - the user's explicit clear appeared to do nothing (picker
-    // closed, selection reverted). `has_explicit_selection` is set by the
-    // real `select_amp()` D-Bus method regardless of what `ip` is; mirrored
-    // by hand here since `select_amp` is an async zbus method this test
-    // module doesn't have an interface context to call directly - matches
-    // the existing pattern of the other tests in this file poking
-    // `selected_ip` directly rather than going through the D-Bus method.
-    //
-    // This replaces a previous test of the same name
-    // ("clearing_selection_back_to_empty_string_returns_to_auto_select_
-    // behavior") that asserted the OLD, buggy behavior (auto-select résumés
-    // after a raw `selected_ip = ""` write) - that assertion is exactly the
-    // bug, not a real invariant: a raw field write without also setting
-    // `has_explicit_selection` never happens in production code (only
-    // `select_amp()` ever writes `selected_ip`, and it always sets both
-    // together now), so the old test wasn't exercising anything a real
-    // client could actually trigger.
+    // SelectAmp("") must not fall back to auto-select-if-alone. The async
+    // `select_amp` cannot be called without a zbus context, so this sets
+    // `selected_ip` and `has_explicit_selection` together by hand, as
+    // `select_amp` does.
     #[test]
     fn explicit_none_selection_does_not_fall_back_to_auto_select() {
         let mut state = AmpState::default();
@@ -960,22 +734,17 @@ mod tests {
 
     #[test]
     fn never_explicitly_selected_still_auto_selects_the_sole_known_amp() {
-        // Companion to the regression test above: confirms the fix didn't
-        // overcorrect into disabling auto-select-if-alone entirely - it
-        // must still apply for the genuine "nothing has ever been chosen"
-        // case (has_explicit_selection left at its Default::default()
-        // value, false), which is what a fresh daemon startup with no
-        // persisted selection looks like.
+        // Companion to the test above: auto-select-if-alone must still
+        // apply when nothing has ever been chosen (a fresh start with
+        // nothing persisted).
         let mut state = AmpState::default();
         state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp"));
         state.selected_ip = "192.168.1.50".to_string();
         state.has_explicit_selection = true;
         state.recompute();
 
-        // Simulates a second amp being explicitly selected, then a fresh
-        // "never chosen" AmpState (e.g. after a restart with nothing
-        // persisted yet, pre-Phase-4.2) seeing only one amp - not a
-        // continuation of the state above.
+        // A fresh "never chosen" AmpState seeing one amp, independent of
+        // the state above.
         let mut fresh_state = AmpState::default();
         fresh_state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp"));
 
@@ -995,10 +764,8 @@ mod tests {
         assert_eq!(ips, vec!["192.168.1.10", "192.168.1.99"]);
     }
 
-    /// `.9` vs `.10` is the case that actually distinguishes numeric from
-    /// lexicographic sorting - the test above (`.10` vs `.99`) happens to
-    /// agree under both, so it wouldn't have caught a regression back to
-    /// plain string comparison on its own.
+    /// `.9` vs `.10` distinguishes numeric from lexicographic sorting; the
+    /// test above agrees under both.
     #[test]
     fn known_amps_sorts_numerically_not_lexicographically() {
         let mut state = AmpState::default();
@@ -1055,22 +822,15 @@ mod tests {
         assert_eq!(state.known_amps[0].3, "", "unresolved model name is empty, not absent/blank-but-set");
     }
 
-    // ---- Phase 4.2: persisted-selection startup behavior ----
+    // ---- persisted-selection startup behaviour ----
     //
     // `set_persisted_selection` is what `main()` calls once at startup with
-    // whatever `config::load_selected_ip()` returned. These tests cover the
-    // three verification cases from the phase brief that unit tests can
-    // exercise (the fourth - "restart the real daemon and watch it
-    // reconnect" - needs a live amp and is done manually, not here).
+    // the result of `config::load_selected_ip()`.
 
     #[test]
     fn persisted_real_ip_is_restored_but_not_connected_until_a_real_broadcast_arrives() {
-        // Verification case 1/4: a persisted IP must be trusted for
-        // `AmpIp`/`SelectedAmpIp` immediately, but NOT shown as `Online`
-        // until an actual UDP broadcast from it is ingested - this is the
-        // live-reconciliation Phase 4.2 asked for, falling out of
-        // `recompute()`'s existing "unknown ip" branch rather than new
-        // logic (see `set_persisted_selection`'s doc).
+        // A persisted IP is reported in `AmpIp`/`SelectedAmpIp` at once,
+        // but not `Online` until a broadcast from it is ingested.
         let mut state = AmpState::default();
         state.set_persisted_selection("192.168.1.50".to_string());
 
@@ -1087,9 +847,8 @@ mod tests {
 
     #[test]
     fn switching_persisted_selection_to_a_different_amp_shows_the_new_one_not_the_old() {
-        // Verification case 2/4: simulates "select B, restart, confirm B
-        // (not A) persists" at the state level - a fresh AmpState loading
-        // B's IP must reflect B once B broadcasts, with no trace of A.
+        // A fresh AmpState loading B's IP reflects B once it broadcasts,
+        // with no trace of A.
         let mut state = AmpState::default();
         state.set_persisted_selection("192.168.1.51".to_string());
         state.ingest_status("192.168.1.50".to_string(), parsed_status("Amp A"));
@@ -1102,14 +861,9 @@ mod tests {
 
     #[test]
     fn persisted_explicit_none_does_not_resurrect_auto_select_after_a_broadcast_arrives() {
-        // Verification case 3/4, the critical regression case: a persisted
-        // "" (a previously-explicit "None") must set
-        // has_explicit_selection=true, not just selected_ip="" - otherwise
-        // this is indistinguishable from "never selected" and
-        // auto-select-if-alone silently resurrects a selection, exactly
-        // the Phase 4.1 bug this was designed to prevent from coming back
-        // via a different code path (startup loading instead of a live
-        // SelectAmp("") call).
+        // A persisted "" must set has_explicit_selection, not just
+        // selected_ip="", or auto-select-if-alone resurrects a selection
+        // through startup loading.
         let mut state = AmpState::default();
         state.set_persisted_selection(String::new());
 
@@ -1131,11 +885,8 @@ mod tests {
 
     #[test]
     fn persisted_ip_for_an_amp_that_never_reappears_stays_not_connected() {
-        // Verification case 4/4: a persisted IP for an amp that's gone
-        // from the network must not be treated as connected just because
-        // it was the last selection - covered here by simply never
-        // ingesting a broadcast for it, regardless of other amps being
-        // present.
+        // A persisted IP for an amp gone from the network stays not
+        // connected, whatever other amps broadcast.
         let mut state = AmpState::default();
         state.set_persisted_selection("192.168.1.50".to_string());
         state.ingest_status("192.168.1.99".to_string(), parsed_status("Some Other Amp"));
@@ -1145,23 +896,13 @@ mod tests {
         assert_eq!(state.device_name, "");
     }
 
-    // Note: `select_amp` itself (the async zbus method that calls
-    // `config::save_selected_ip`) has no unit test here - it's an async
-    // method requiring a live zbus interface context this test module
-    // doesn't set up (same constraint as the existing has_explicit_selection
-    // regression test above, which pokes fields directly instead). The
-    // config module's own test suite (config.rs) covers save/load
-    // round-tripping in full; this file's tests cover what `select_amp` and
-    // `set_persisted_selection` do with the resulting `AmpState` once a
-    // selection (real or persisted) is applied. The actual `select_amp` ->
-    // disk write is confirmed by live daemon-restart verification instead
-    // (see TODO.md's Phase 4.2 verification log).
+    // `select_amp` itself is not unit-tested here (async zbus method, no
+    // interface context); config.rs tests the save/load round trip.
 
     #[test]
     fn resolved_model_name_survives_a_later_udp_broadcast_from_the_same_amp() {
-        // Ported behavior, not incidental: DiscoveredAmp.kt's doc comment
-        // warns this is exactly the kind of thing that "gets wiped every
-        // ~1s" if the previous value isn't carried forward across re-ingestion.
+        // Re-ingestion must carry the resolved name forward, not wipe it
+        // on every broadcast.
         let mut state = AmpState::default();
         state.ingest_status("192.168.1.50".to_string(), parsed_status("My Devialet-ETH"));
         state.resolve_model_name("192.168.1.50", "Devialet Expert 140 Pro".to_string());
@@ -1174,18 +915,12 @@ mod tests {
         assert_eq!(state.known_amps[0].3, "Devialet Expert 140 Pro");
     }
 
-    // ---- Phase 4.3.0: three-state PowerState (Off/Booting/On) ----
+    // ---- three-state PowerState (Off/Booting/On) ----
     //
-    // `begin_power_on_boot` itself has no unit test here, same constraint
-    // as `select_amp` above: it's an async zbus method requiring a live
-    // interface context this test module doesn't set up. These tests
-    // instead poke `boot_deadline` directly (same "manipulate the private
-    // field, matching what the real method would have set" pattern the
-    // `has_explicit_selection` tests above already use) to cover the
-    // actual resolution mechanics in `resolve_boot_deadlines`/`recompute`.
-    // The no-op-while-already-booting guard in `begin_power_on_boot`
-    // itself is confirmed live instead (see TODO.md's Phase 4.3.0
-    // verification log).
+    // `begin_power_on_boot` is async (no zbus context here), so these tests
+    // set `boot_deadline` directly, as the method would, to cover
+    // `resolve_boot_deadlines`/`recompute`. Its already-booting guard is
+    // not covered here.
 
     #[test]
     fn power_state_is_off_when_never_booting_and_amp_reports_off() {
@@ -1236,9 +971,8 @@ mod tests {
         let mut state = AmpState::default();
         state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp"));
 
-        // Deadline already in the past - simulates BOOT_TIMEOUT having
-        // elapsed with no real "on" broadcast ever arriving (the rare
-        // boot-failure case this phase's fallback exists for).
+        // Deadline already in the past: BOOT_TIMEOUT elapsed with no "on"
+        // broadcast (a failed boot).
         state.amps.get_mut("192.168.1.50").unwrap().boot_deadline = Some(Instant::now() - Duration::from_millis(1));
         state.recompute();
 
@@ -1252,10 +986,7 @@ mod tests {
 
     #[test]
     fn a_non_primary_amps_boot_still_resolves_even_though_nothing_reads_it_yet() {
-        // resolve_boot_deadlines runs for every tracked amp, not just the
-        // effective/primary one (see its own doc) - covers a second known
-        // amp's boot_deadline still getting cleared correctly even while
-        // it isn't the one driving the primary PowerState property.
+        // resolve_boot_deadlines clears a non-primary amp's deadline too.
         let mut state = AmpState::default();
         state.ingest_status("192.168.1.50".to_string(), parsed_status("Primary Amp"));
         state.selected_ip = "192.168.1.50".to_string();
@@ -1272,8 +1003,8 @@ mod tests {
         );
     }
 
-    // ---- 2026-10-04: boot of a selected amp that has not been heard
-    // since daemon start (persisted selection, amp unreachable) ----
+    // ---- boot of a selected amp not heard since daemon start
+    // (persisted selection, amp unreachable) ----
 
     #[test]
     fn a_boot_of_a_selected_but_never_heard_amp_reports_booting_then_times_out_to_off() {
@@ -1324,25 +1055,14 @@ mod tests {
         assert_eq!(state.power_state, "Off");
     }
 
-    // ---- Phase 5.0.0: daemon-owned pending-command state (VolumeDb/
-    // Muted) ----
+    // ---- daemon-owned pending-command state (VolumeDb/Muted) ----
     //
-    // `notify_volume_command`/`notify_mute_command` themselves have no
-    // unit test here, same constraint as `select_amp`/`begin_power_on_boot`
-    // above: they're async zbus methods requiring a live interface context
-    // this test module doesn't set up - including their unknown-ip no-op
-    // guard, which (like `begin_power_on_boot`'s own already-booting guard)
-    // is confirmed live instead (see this phase's own TODO.md entry:
-    // `busctl call` against the real daemon). These tests instead poke
-    // `pending_volume_db`/`pending_muted` directly (same "manipulate the
-    // private field, matching what the real method would have set" pattern
-    // already used for `boot_deadline` above) to cover the actual
-    // resolution mechanics in `resolve_pending_commands`/`recompute`.
-    // The same constraint covers the `VolumeCommandNotified`/
-    // `MuteCommandNotified` signals those two methods emit (2026-09-15):
-    // emission needs a live `SignalEmitter`, so it is verified with
-    // `busctl monitor` against the real daemon instead - see that
-    // phase's TODO.md entry.
+    // `notify_volume_command`/`notify_mute_command` are async (no zbus
+    // context here), so these tests set `pending_volume_db`/`pending_muted`
+    // directly to cover `resolve_pending_commands`/`recompute`. The
+    // methods' unknown-ip guard and the `VolumeCommandNotified`/
+    // `MuteCommandNotified` signals are not covered here; the signals need
+    // a live `SignalEmitter` (check with `busctl monitor`).
 
     #[test]
     fn pending_volume_is_reported_instead_of_the_amps_last_real_value_while_live() {
@@ -1376,9 +1096,8 @@ mod tests {
         state.recompute();
         assert_eq!(state.volume_db, -24.0, "pending value should show before any confirmation arrives");
 
-        // Real amp confirms: volume_raw=147 decodes to (147-195)/2 = -24.0,
-        // an exact match with no epsilon needed (see resolve_pending_
-        // commands' own doc comment).
+        // Amp confirms: volume_raw=147 decodes to (147-195)/2 = -24.0, an
+        // exact match (see resolve_pending_commands).
         let confirming = StatusFixtureBuilder::new()
             .device_name("Living Room Amp")
             .source(0, "Optical 1", true)
@@ -1450,11 +1169,8 @@ mod tests {
 
     #[test]
     fn a_second_pending_volume_command_replaces_the_first_and_resets_the_deadline() {
-        // Matches a real rapid multi-step scroll: NotifyVolumeCommand
-        // always unconditionally overwrites, never checking whether a
-        // previous pending command was already live - so the *latest*
-        // command must win outright, and its own fresh deadline (not the
-        // first, superseded command's) must be what governs afterward.
+        // A rapid scroll: NotifyVolumeCommand always overwrites, so the
+        // latest command and its own fresh deadline must govern.
         let mut state = AmpState::default();
         state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")); // real 0.0dB
 

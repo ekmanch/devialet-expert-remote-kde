@@ -1,26 +1,15 @@
-//! Small on-disk persistence for the explicitly-selected amp IP (Phase
-//! 4.2). Plain text, no serde/JSON - matches this workspace's existing
-//! "no JSON, nothing here needs it" stance (CLAUDE.md's Environment
-//! section) and the file's own trivial shape: a single line holding either
-//! an IP or an empty string (a persisted explicit "None" - see
-//! `AmpState::set_persisted_selection`'s doc in interface.rs for why that
-//! distinction matters).
+//! On-disk persistence for the explicitly selected amp IP. Plain text, no
+//! serde: the file is one line holding either an IP or an empty string
+//! (an explicit "None", which must stay distinct from "never chosen" -
+//! see `AmpState::set_persisted_selection` in interface.rs).
 //!
 //! Location: `$XDG_CONFIG_HOME/devialet-remote-daemon/selected-amp-ip`,
-//! falling back to `$HOME/.config/devialet-remote-daemon/selected-amp-ip`
-//! when `XDG_CONFIG_HOME` is unset or empty - the standard XDG Base
-//! Directory fallback (freedesktop.org Base Directory spec: "If
-//! $XDG_CONFIG_HOME is either not set or empty, a default equal to
-//! $HOME/.config should be used"). No `dirs`/`directories` crate added for
-//! this - resolving two env vars doesn't justify a new dependency in a
-//! workspace that's otherwise kept deliberately dependency-light (see
-//! Cargo.toml's per-dependency justification comments for zbus/socket2/
-//! mdns-sd).
+//! falling back to `$HOME/.config/...` when `XDG_CONFIG_HOME` is unset or
+//! empty (the XDG Base Directory spec's rule). Two env vars do not justify
+//! a `dirs` crate dependency.
 //!
-//! This module is pure path/file logic, no zbus/D-Bus awareness - callers
-//! (`interface.rs`'s `select_amp`, `main.rs`'s startup) decide when to
-//! call it, matching this daemon's existing "logic doesn't reach into I/O
-//! it doesn't own" shape.
+//! Pure path/file logic with no D-Bus awareness; `AmpState::select_amp`
+//! and `main()`'s startup decide when to call it.
 
 use std::env;
 use std::fs;
@@ -30,10 +19,8 @@ use std::path::{Path, PathBuf};
 const CONFIG_SUBDIR: &str = "devialet-remote-daemon";
 const CONFIG_FILE: &str = "selected-amp-ip";
 
-/// Pure resolution logic, factored out from `config_dir()` so tests can
-/// exercise the XDG-vs-HOME fallback deterministically without mutating
-/// real process env vars (which would be racy across parallel `cargo
-/// test` threads).
+/// Pure resolution logic, split from `config_dir()` so tests need not
+/// mutate process env vars (racy across parallel test threads).
 fn resolve_config_dir(xdg_config_home: Option<String>, home: Option<String>) -> Option<PathBuf> {
     if let Some(xdg) = xdg_config_home {
         if !xdg.is_empty() {
@@ -56,10 +43,9 @@ fn config_path() -> Option<PathBuf> {
 }
 
 /// Reads a persisted selection from an explicit path. `None` means
-/// "nothing persisted here" (file absent, or unreadable for any other
-/// reason - fails open to "never persisted" rather than treating a
-/// transient read error as a fatal startup condition). `Some("")` is a
-/// real, meaningful result, not an error case.
+/// nothing persisted (file absent, or unreadable: fails open rather than
+/// making a read error fatal at startup). `Some("")` is a real result, an
+/// explicit "None".
 fn load_from_path(path: &Path) -> Option<String> {
     match fs::read_to_string(path) {
         Ok(contents) => Some(contents.trim().to_string()),
@@ -72,11 +58,8 @@ fn load_from_path(path: &Path) -> Option<String> {
 }
 
 /// Writes a selection to an explicit path, creating the parent directory
-/// if needed. Best-effort - matches this daemon's existing mDNS "cosmetic
-/// enhancement, not depended on" framing (main.rs's `start_mdns_browse`
-/// doc): a write failure (read-only filesystem, permissions, disk full)
-/// is logged and otherwise ignored. `SelectAmp` must still succeed even if
-/// persisting it to disk doesn't.
+/// if needed. Best-effort: a write failure is logged and ignored, since
+/// `SelectAmp` must succeed even if persisting it does not.
 fn save_to_path(path: &Path, ip: &str) {
     let Some(dir) = path.parent() else { return };
     if let Err(e) = fs::create_dir_all(dir) {
@@ -89,9 +72,8 @@ fn save_to_path(path: &Path, ip: &str) {
 }
 
 /// Loads the persisted selected-amp IP, or `None` if nothing has ever been
-/// persisted (first run, pre-Phase-4.2 install, or `$HOME`/
-/// `$XDG_CONFIG_HOME` unresolvable). Called once at daemon startup, before
-/// the D-Bus object server exists.
+/// persisted (first run, or `$HOME`/`$XDG_CONFIG_HOME` unresolvable).
+/// Called once at daemon startup, before the D-Bus object server exists.
 pub fn load_selected_ip() -> Option<String> {
     let path = config_path()?;
     load_from_path(&path)
@@ -120,9 +102,8 @@ mod tests {
 
     #[test]
     fn empty_xdg_config_home_falls_back_to_home_dot_config() {
-        // Matches the XDG spec's explicit "not set OR empty" fallback
-        // wording - an empty-but-set var must not be treated as a real
-        // override.
+        // The XDG spec falls back on "not set OR empty": an empty-but-set
+        // var is not an override.
         let dir = resolve_config_dir(Some(String::new()), Some("/home/someone".to_string()));
         assert_eq!(dir, Some(PathBuf::from("/home/someone/.config/devialet-remote-daemon")));
     }
@@ -163,9 +144,8 @@ mod tests {
     #[test]
     fn round_trips_an_explicit_empty_selection() {
         // The critical case: a persisted "" must load back as Some(""),
-        // distinguishable from the nonexistent-file None case above - this
-        // is what lets the caller set has_explicit_selection=true for a
-        // persisted "None" instead of leaving it at the default false.
+        // distinct from the nonexistent-file None, so the caller can set
+        // has_explicit_selection for a persisted "None".
         let dir = test_dir("roundtrip-empty");
         let path = dir.join(CONFIG_FILE);
         save_to_path(&path, "");
