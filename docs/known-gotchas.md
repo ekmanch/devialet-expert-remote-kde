@@ -1,10 +1,8 @@
 # Known Gotchas — Bug History
 
-Every commit in this repo's history (26 total) that fixed a real bug, safety
-issue, or UX-breaking race condition, found via `git log --oneline` +
-`git show` on each candidate. Based on `main` @ `743aa71`. No automated tests
-exist in this repo, so all of these were presumably caught by hand-testing
-against a physical amp.
+Bugs that must not be reintroduced, shared across the three ports. #1–#7
+come from the Kotlin app's history (`main` @ `743aa71`, caught by hand
+against the amp); #8–#10 were found in this widget.
 
 ## 1. Volume jump/jerk after releasing VOL +/- buttons — [Control]
 
