@@ -95,7 +95,7 @@ A Dark / Light / Follow system setting (kcfg `theme`, default `system`). Design 
 
 **Gold effects** (`GradientMask`, `GradientText`, `GoldSphere`, `CardShadow`, all `MultiEffect`):
 1. Build effect items in a `Loader { active: colors.isLight }` with layers on from creation; toggling `layer.enabled` later stopped masking after a theme flip. Keep the plain item in the layout with transparent text and paint over it, so geometry is identical in both themes.
-2. Soften the mask edge (`maskThresholdMin` 0.5, `maskSpreadAtMin` 1.0); the default is a hard, jagged cut. Do not force `layer.textureSize`.
+2. Soften the mask edge on solid strokes and text (`maskThresholdMin` 0.5, `maskSpreadAtMin` 1.0); the default is a hard, jagged cut. A blurred shadow's cut-out (`CardShadow`) doesn't need it: measured, the straight edges are identical and the corners differ by at most 10/255. Do not force `layer.textureSize`.
 3. A shadowed MultiEffect keeps its creation-time geometry: toggle the shadow after every size change, and test any resizable effect item through a resize.
 4. Mask and shadow need two stages; one MultiEffect doing both misaligns the mask.
 
