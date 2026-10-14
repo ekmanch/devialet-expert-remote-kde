@@ -1,26 +1,15 @@
-// Phase 4.4.1: reusable copper pill switch, matching the mockup's
-// .kcm-switch exactly (36x21 pill, surface3/divider when off, copperDim
-// when on; 16x16 thumb sliding via translateX(15) and recoloring
-// #e8e6e1 -> copperBright). Not a QQC2 Switch - its default style doesn't
-// match this custom look, same reasoning as every other custom-drawn
-// control in this project (mute/power buttons, volume slider).
+// Pill switch, the mockup's .kcm-switch (36x21 pill, 16x16 knob). Not a
+// QQC2 Switch: its default style does not match this look.
 //
-// Phase 10.1.2: stateless, like DbStepper.qml - a click emits
-// `toggled(newValue)` and the caller stores it (`checked: root.cfg_x;
-// onToggled: (c) => root.cfg_x = c`). It used to write `checked =
-// !checked` itself, which is an imperative assignment and therefore
-// silently *broke* the caller's `checked: root.cfg_x` binding on the
-// first click: from then on a write to cfg_x from anywhere else (the
-// Defaults button, the shell pushing a stored value in) changed the
-// value but not the switch. Found by the Phase 10.1.2 driver run on the
-// chime toggle (Defaults reset cfg_chimeEnabled to true, switch stayed
-// off); the Transparency toggle had the same latent defect since 9.1.0.
+// Stateless, like DbStepper.qml: a click emits `toggled(newValue)` and the
+// caller stores it (`checked: root.cfg_x; onToggled: (c) => root.cfg_x =
+// c`). Writing `checked` here would break the caller's binding, so a later
+// write to cfg_x (Defaults, the shell loading a stored value) would no
+// longer move the switch.
 //
-// Phase 11.0.0: a disabled look (opacity 0.4, ChimeIconButton.qml's own
-// value) for the Launch at login switch while systemd is being queried
-// or reports a state the toggle can't act on. Item.enabled already
-// propagates to the MouseArea, so a disabled switch ignores clicks
-// without any extra guard.
+// Disabled look is opacity 0.4 (Launch at login while systemd is being
+// queried or reports a state the toggle can't act on). Item.enabled
+// propagates to the MouseArea, so a disabled switch ignores clicks.
 import QtQuick
 import QtQuick.Effects
 import "../ui" as Ui
@@ -31,19 +20,17 @@ Item {
     property bool checked: false
     signal toggled(bool checked)
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
-    // palette for the whole page; required, so a missed hand-off fails at
-    // load instead of silently painting a different palette).
+    // The page's palette, forwarded by ConfigGeneral (required, so a
+    // missed hand-off fails at load).
     required property Ui.ColorPalette colors
 
     implicitWidth: 36
     implicitHeight: 21
     opacity: enabled ? 1.0 : 0.4
 
-    // Phase 17.27.0: every colour from the palette's switch* tokens (dark:
-    // the values this file painted before). In light the "on" track is a
-    // gold sweep with a soft sheen and the knob is white with a shadow
-    // (configDialog mockup v30 :76-77, :91-93, :276-286).
+    // Every colour comes from the palette's switch* tokens. In light the
+    // "on" track is a gold sweep with a soft sheen and the knob is white
+    // with a shadow (configDialog mockup v30 :76-77, :91-93, :276-286).
     Rectangle {
         id: track
         anchors.fill: parent

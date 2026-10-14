@@ -1,60 +1,23 @@
-// Phase 10.1.1: `pragma ComponentBehavior: Bound` added so the Repeater
-// delegates below (the two segmented controls) may reference outer ids
-// (root/theme) with qmllint's blessing - the existing delegates already
-// used `required property` for their model data, which is the only
-// requirement Bound imposes, so no behavior changes.
 pragma ComponentBehavior: Bound
 
-// Phase 4.4.0: our "General" ConfigDialog page - started as just the
-// brand header (icon mark + "Devialet Expert Remote" / "Widget
-// Settings"), per design/mockups/devialet_config_dialog_mockup_v3.html's
-// .brand-header.
+// The "General" settings page (docs/DESIGN.md §4): the brand header,
+// then SectionLabel / SettingsRow items in one flat ColumnLayout, like the
+// mockup's flat DOM. Not Kirigami.FormLayout: its label column does not
+// fit this row shape.
 //
-// Root is KCM.SimpleKCM, matching the real convention confirmed against
-// two shipped Plasma 6 applets (luisbocanegra.panel.colorizer,
-// org.kde.desktopcontainment) - checked its own source
-// (org.kde.kcmutils/SimpleKCM.qml) rather than assumed: it's plain
-// Kirigami.ScrollablePage underneath, documented as "intended to be used
-// as root item for KCMs with arbitrary content" - no forced Breeze-form
-// styling that would fight this page's fully custom copper/graphite
-// look, unlike a plain Kirigami.FormLayout-only page would suggest.
-//
-// Reuses ../ui/Theme.qml for palette/fonts, same as every other custom-
-// styled QML in this package - during debugging this file's real bug
-// (see config.qml's ROOT CAUSE comment: ConfigCategory.source resolves
-// relative to contents/ui/, not contents/config/, so this page was never
-// actually loading at all), the Theme.qml import and `import
-// org.kde.plasma.plasmoid` were both tried as suspected fixes and ruled
-// out live - neither was the cause. The plasmoid import is kept anyway
-// since every real working precedent checked includes it.
-//
-// Phase 4.4.1: adds the full Appearance/Volume/Amplifiers/Startup layout
-// from the same mockup, matching its flat DOM structure - one outer
-// ColumnLayout holding the brand header followed by SectionLabel/
-// SettingsRow items in sequence (not Kirigami.FormLayout, whose label-
-// column convention doesn't match this page's custom row shape at all).
-// Every control is purely visual and no-op this phase - no KConfig
-// writes, no D-Bus calls other than the read-only KnownAmps count below.
-// Real wiring is Phases 4.4.2-4.4.7, one control at a time.
-//
-// Phase 11.1.0: the Amplifiers section ("Forget remembered amps" and
-// its read-only KnownAmps count, the page's only D-Bus read) is removed
-// to match mockup v17 - the feature was dropped, not deferred: known
-// amps are in-memory only, never persisted, and the button could only
-// ever have forgotten amps that had already gone silent. This page no
-// longer talks to D-Bus at all.
+// Root is KCM.SimpleKCM, a plain Kirigami.ScrollablePage meant for
+// arbitrary content, so no Breeze form styling fights the custom look.
+// org.kde.plasma.plasmoid is unused here but imported, as in every
+// working precedent. This page makes no D-Bus calls.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
-// Phase 10.1.1: the Volume Feedback section's two real pieces of
-// behavior - reading the desktop's sound theme / enumerating installed
-// themes (P5Support executable engine, same pattern as devialet-ctl in
-// contents/ui/), the Browse file dialog (QtQuick.Dialogs, wrapped in a
-// Loader exactly like KDE's own kcm_soundtheme main.qml), and
-// StandardPaths (QtCore) for that dialog's starting folder.
+// Volume Feedback section: the executable engine (P5Support) runs the
+// Preview, the Browse dialog is QtQuick.Dialogs in a Loader (as in KDE's
+// kcm_soundtheme), and StandardPaths (QtCore) gives its start folder.
 import QtCore
 import QtQuick.Dialogs as QtDialogs
 import org.kde.plasma.plasma5support as P5Support
@@ -64,72 +27,53 @@ KCM.SimpleKCM {
     id: root
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.14.0: the page's palette, forwarded to every settings
-    // component below. This page follows the desktop's colour scheme, not
-    // the widget's Theme setting (and cannot reach main.qml's ThemeSettings
-    // anyway), so it reads the scheme itself through pageScheme. Since
-    // Phase 17.25.0 a light desktop paints LightPalette.
+    // The page's palette, forwarded to every settings component below.
+    // The page follows the desktop's colour scheme (pageScheme), not the
+    // widget's Theme setting, and cannot reach main.qml's ThemeSettings.
     readonly property Ui.ColorPalette darkColors: Ui.DarkPalette {}
     readonly property Ui.ColorPalette lightColors: Ui.LightPalette {}
     readonly property Ui.ColorPalette colors: root.pageScheme.dark ? root.darkColors : root.lightColors
 
-    // Owner decision 2026-10-03: the light page is pure white like the
-    // mockup (`--win-bg:#ffffff`, configDialog mockup v30 :34), not the
-    // desktop scheme's window colour (#eff0f1 under Breeze Light). Dark
-    // keeps the scheme's colour, which is what the page's default
-    // background paints. Plasma's own header strip and button bar around
-    // the page stay in the scheme's colour.
+    // Light: pure white like the mockup (`--win-bg:#ffffff`, configDialog
+    // mockup v30 :34), not the scheme's window colour (#eff0f1 under Breeze
+    // Light). Dark keeps the scheme's colour. Plasma's header strip and
+    // button bar around the page stay in the scheme's colour.
     background: Rectangle {
         color: root.colors.isLight ? root.colors.surface : Kirigami.Theme.backgroundColor
     }
 
-    // Phase 17.15.0: the desktop's colour scheme, as seen from this dialog
-    // (also what the Follow-system status line, 17.18.0, will report).
+    // The desktop's colour scheme as seen from this dialog; also what the
+    // Follow-system status line reports.
     readonly property Ui.SystemScheme pageScheme: Ui.SystemScheme {
         context: "config page"
     }
 
-    // Phase 4.4.2: cfg_<entryName> is the standard Plasma ConfigModule
-    // convention - the shell's own AppletConfiguration.qml (open()/
-    // saveConfig()) pushes the live KConfig value in here on dialog open
-    // and reads it back only when Apply/OK is clicked, also using
-    // cfg_volumeStepDbChanged to drive the Apply button's dirty state.
-    // Confirmed by reading that shell source directly, not assumed - see
-    // a real precedent doing the same (luisbocanegra.panel.colorizer's
-    // configWidgetIslands.qml, property alias cfg_*).
+    // cfg_<entryName> is the Plasma convention: the shell's
+    // AppletConfiguration.qml pushes the stored KConfig value in on open,
+    // reads it back on Apply/OK, and its cfg_*Changed dirty-check enables
+    // Apply.
     property real cfg_volumeStepDb: 1.0
-    // KCMUtils' generic ConfigModule loader (not this shell's own
-    // AppletConfiguration.qml - grepped it directly, no match there)
-    // expects a cfg_<name>Default companion for every cfg_<name> binding
-    // it discovers, for its own defaults-comparison bookkeeping - found
-    // live as a real (harmless but real) "Setting initial properties
-    // failed: ConfigGeneral does not have a property called
-    // cfg_volumeStepDbDefault" warning in the journal before these
-    // existed, for every one of this file's cfg_* properties, not just
-    // the ones added this pass. Sourced from shippedDefaults below rather
-    // than re-typing the literals a third time.
+    // KCMUtils' ConfigModule loader expects a cfg_<name>Default companion
+    // for every cfg_<name> (otherwise it logs "does not have a property
+    // called cfg_<name>Default"). All come from shippedDefaults below.
     readonly property real cfg_volumeStepDbDefault: root.shippedDefaults.volumeStepDb
     readonly property var stepValues: [0.5, 1, 2]
 
-    // Phase 17.17.0: main.xml `theme` - the widget's colour theme for the
-    // flyout, OSD and tooltip (ThemeSettings.qml reads it). Segment order
-    // matches the row: Dark, Light, Follow system. Until 17.19.0 every
-    // value still paints the dark palette.
+    // main.xml `theme`: the widget's colour theme for the flyout, OSD and
+    // tooltip (read by ThemeSettings.qml). Order matches the segments:
+    // Dark, Light, Follow system.
     readonly property var themeModes: ["dark", "light", "system"]
     property string cfg_theme: "system"
     readonly property string cfg_themeDefault: root.shippedDefaults.theme
 
-    // Appearance section - wired for real in Phase 9.1.0 (see main.xml's
-    // own comment on these two entries and TransparencySettings.qml).
+    // Appearance: see main.xml and TransparencySettings.qml.
     property bool cfg_transparencyEnabled: true
     property int cfg_transparencyPercent: 90
     readonly property bool cfg_transparencyEnabledDefault: root.shippedDefaults.transparencyEnabled
     readonly property int cfg_transparencyPercentDefault: root.shippedDefaults.transparencyPercent
 
-    // Phase 8.0.0: volume-limit settings (main.xml entries volumeFloorDb/
-    // hardLimitDb/startupVolumeDb) - same cfg_<entryName> convention as
-    // cfg_volumeStepDb above. Real Expert Pro line range for every
-    // DbStepper below (CLAUDE.md/mockup: -96..0 dB).
+    // Volume limits (main.xml volumeFloorDb/hardLimitDb/startupVolumeDb).
+    // -96..0 dB is the Expert Pro range, used by every DbStepper below.
     property real cfg_volumeFloorDb: -50.0
     property real cfg_hardLimitDb: -10.0
     property real cfg_startupVolumeDb: -40.0
@@ -139,46 +83,21 @@ KCM.SimpleKCM {
     readonly property real dbRangeMin: -96.0
     readonly property real dbRangeMax: 0.0
 
-    // Phase 8.3.0: floor and hard limit must stay strictly ordered
-    // (floor < hard limit, never equal - a 0dB-wide range is meaningless).
-    // One stepper increment is the minimum usable gap. Named rather than
-    // relying on DbStepper's own default `stepDb: 1` so the two steppers
-    // below and this gap agree by construction, not by coincidence.
+    // Floor and hard limit stay strictly ordered (floor < hard limit; an
+    // empty range is meaningless), at least one stepper increment apart.
+    // Named so both steppers and this gap agree by construction.
     readonly property real limitStepDb: 1.0
 
-    // Self-heal: called whenever either limit changes, for any reason - a
-    // user step (already prevented from producing an invalid pair by the
-    // steppers' own to/from binding below, so this is a no-op in that
-    // case), Defaults/Reset (see its own onClicked comment for the
-    // widen-first write order that keeps every intermediate pair valid
-    // too), or any other in-process write to either cfg_* property.
+    // Self-heal, run on every change to either limit. User steps cannot
+    // produce an invalid pair (the steppers' from/to bindings below), and
+    // Defaults writes in a widen-first order, so this only catches other
+    // in-process writes. Resets the pair to -40/-39.
     //
-    // Does NOT reach external KConfig file corruption while the widget is
-    // already running, despite this being the original intent (see
-    // main.qml's own comment on its VolumeSettings.Component.onCompleted
-    // check for the full story) - investigated live (Phase 8.3.0,
-    // 2026-09-06) and found structurally unreachable from applet QML:
-    // `Plasmoid.configuration` is one `KConfigPropertyMap` object, created
-    // once per plasmashell process and shared by every QML file in this
-    // KPackage (confirmed identical object address across two separate
-    // ConfigGeneral.qml page instantiations, and the live flyout showing
-    // the same stale values as this page at the same moment). It reads
-    // the file correctly exactly once, at that KConfigPropertyMap's own
-    // construction (i.e. at process start - main.qml's on-load check is
-    // reliable specifically because it runs at that exact point), and
-    // never re-reads it afterward for an external write, for the life of
-    // that process - not on this page's own Component.onCompleted firing
-    // again for a fresh page instance, not across real close/reopen
-    // cycles, not for kwriteconfig6 vs. a raw editor save (both equally
-    // stale). Only a full plasmashell restart re-reads the file. No QML-
-    // level API to force a reload was found; hand-rolling one (reading
-    // the raw INI file directly, bypassing KConfig) would duplicate and
-    // diverge from Plasma's own config format/semantics for a rare,
-    // non-adversarial scenario (CLAUDE.md's "not something the owner is
-    // defending against maliciously") - not worth it. Floor gets the more
-    // negative (quieter) of the pair, hard limit the less negative one,
-    // matching every other floor/hardLimit pair in this file (shipped
-    // defaults: floor -50.0 < hardLimit -10.0).
+    // It cannot catch an external edit to the config file while
+    // plasmashell runs: Plasmoid.configuration is one KConfigPropertyMap
+    // per process that reads the file once, at construction, and never
+    // again until plasmashell restarts. main.qml's on-load check covers a
+    // bad pair already on disk.
     function healLimitOrdering() {
         if (root.cfg_volumeFloorDb >= root.cfg_hardLimitDb) {
             console.log("[ConfigGeneral] floor/hardLimit invalid (" + root.cfg_volumeFloorDb +
@@ -191,14 +110,9 @@ KCM.SimpleKCM {
     onCfg_volumeFloorDbChanged: root.healLimitOrdering()
     onCfg_hardLimitDbChanged: root.healLimitOrdering()
 
-    // Mirrors main.xml's own <default> entries - feeds both the
-    // cfg_<name>Default properties above (what KCMUtils' generic loader
-    // expects) and the Reset section's "Defaults" button below (what a
-    // user click actually resets to). Still a real duplication in spirit
-    // (this project has no generated kcfg-defaults QML accessor that
-    // reads main.xml directly) but now only entered once, in one place,
-    // rather than three times. Update this alongside main.xml if a
-    // default ever changes.
+    // Mirrors main.xml's <default> entries; feeds the cfg_<name>Default
+    // properties and the Defaults button. Nothing generates this from
+    // main.xml, so update both together.
     readonly property var shippedDefaults: ({
         theme: "system",
         transparencyEnabled: true,
@@ -211,32 +125,20 @@ KCM.SimpleKCM {
         chimeSourceMode: "follow",
         chimePinnedTheme: "ocean",
         chimeSoundFile: "",
-        // Not a main.xml entry (systemd's enablement is the storage, see
-        // the daemonAutostart block above) but still this page's shipped
-        // default: install.sh enables the unit, so a fresh install shows
-        // the toggle on. The Defaults button resets it through the same
-        // pending-then-Apply/OK path a click on the switch uses.
+        // Not a main.xml entry (systemd's enablement is the storage) but
+        // still the page's default: install.sh enables the unit. Defaults
+        // resets it through the same pending-then-Apply/OK path as a click.
         launchAtLogin: true
     })
 
-    // ---- Phase 10.1.2: the master chime toggle, wired for real ----
-    // main.xml `chimeEnabled` - same cfg_<entryName> + cfg_<name>Default
-    // convention as cfg_transparencyEnabled above (the shell pushes the
-    // stored value in on open, reads it back on Apply/OK, and its generic
-    // dirty-check drives the Apply button). Read on the widget side by
-    // both maybeChime()s through VolumeSettings.qml (main.qml binds it
-    // from Plasmoid.configuration.chimeEnabled, like the four volume
-    // entries).
+    // ---- Chime ----
+    // main.xml chimeEnabled / chimeSourceMode / chimePinnedTheme /
+    // chimeSoundFile. These cfg_ values are the dialog's live selection
+    // (persisted only on Apply/OK), which is what Preview must play. The
+    // widget reads them through VolumeSettings.qml (bound in main.qml).
     property bool cfg_chimeEnabled: true
     readonly property bool cfg_chimeEnabledDefault: root.shippedDefaults.chimeEnabled
 
-    // ---- Phase 10.1.3: the chime source, wired for real ----
-    // main.xml chimeSourceMode / chimePinnedTheme / chimeSoundFile - same
-    // cfg_<entryName> + cfg_<name>Default convention as cfg_chimeEnabled
-    // above. These cfg_ values are the dialog's LIVE selection (the shell
-    // persists them only on Apply/OK), which is exactly what Preview must
-    // reflect. Read on the widget side by both maybeChime()s through
-    // VolumeSettings.qml (bound in main.qml next to chimeEnabled).
     readonly property var chimeSourceModes: ["follow", "theme", "file"]
     property string cfg_chimeSourceMode: "follow"
     // Sound-theme directory id (what kdeglobals stores and what
@@ -250,54 +152,36 @@ KCM.SimpleKCM {
     property int chimePreviewTick: 0
 
     // Theme enumeration, the kdeglobals read, follow-mode resolution and
-    // shell quoting all live in ../ui/SoundThemes.qml since Phase 10.1.3
-    // (moved there verbatim from this file, where 10.1.1 wrote them) so
-    // the widget side resolves a pinned theme with the same code this
-    // dialog lists it with. Own instance, like Theme.qml - see its header.
+    // shell quoting live in ../ui/SoundThemes.qml, so the widget resolves
+    // a pinned theme with the same code this dialog lists it with. Own
+    // instance, like Theme.qml.
     readonly property Ui.SoundThemes soundThemes: Ui.SoundThemes {}
 
-    // ---- Phase 11.0.0: Launch at login, wired to real systemd state ----
-    // No cfg_ property and no main.xml entry, on purpose: systemd's own
-    // enablement of devialet-remote-daemon.service IS the storage
-    // (CLAUDE.md "Persistence"; the "must persist" exception under
-    // "Settings ConfigDialog"). ../ui/DaemonAutostart.qml runs
-    // `systemctl --user is-enabled` on every page open (this page is
-    // re-created per category open, so no polling) and enable/disable
-    // on Apply/OK.
-    //
-    // Two hooks the shell's own AppletConfiguration.qml
-    // (/usr/share/plasma/shells/org.kde.plasma.desktop/contents/
-    // configuration/) offers a page, read from its source rather than
-    // assumed - neither is documented, and KCM.SimpleKCM defines
-    // neither name (checked SimpleKCM.qml, no collision):
-    //   - `unsavedChanges` (bool): OR-ed into the Apply button's enabled
-    //     state (settingValueChanged(), line 105) and into the
-    //     "unsaved changes - Apply/Discard/Cancel" prompt on Cancel or
-    //     window close (closing(), lines 42-49); its Changed signal is
-    //     connected when the page is pushed (lines 197-200).
-    //   - `saveConfig()`: called FIRST from the shell's own saveConfig()
-    //     (lines 51-57) on both Apply and OK, before it copies cfg_*
-    //     back - so it must not touch any cfg_ value.
-    // OK is applyAction then configDialog.close() immediately (lines
-    // 454-460), so the async systemctl result has nowhere to show on
-    // that path: it is logged, and the next open re-queries. Apply keeps
-    // the dialog open, so a failed write shows its note below and the
-    // toggle reverts to the re-queried state.
+    // ---- Launch at login ----
+    // No cfg_ property and no main.xml entry: systemd's enablement of
+    // devialet-remote-daemon.service is the storage. ../ui/DaemonAutostart.qml
+    // runs `systemctl --user is-enabled` on every page open (the page is
+    // re-created per open, so no polling) and enable/disable on Apply/OK,
+    // through the shell's two undocumented page hooks (docs/DESIGN.md §4):
+    //   - `unsavedChanges`: enables Apply and triggers the discard prompt.
+    //   - `saveConfig()`: called on Apply and OK before the cfg_* copy-back,
+    //     so it must not touch any cfg_ value.
+    // OK closes the dialog at once, so an async failure there is only
+    // logged and re-queried on the next open. Apply keeps the dialog open:
+    // a failed write shows its note and the toggle reverts to the
+    // re-queried state.
     readonly property Ui.DaemonAutostart daemonAutostart: Ui.DaemonAutostart {}
-    // The toggle's pending value - re-derived from every successful
-    // query (dialog open, and the re-query after every write, failed or
-    // not), never from the click alone.
+    // The toggle's pending value: re-derived from every completed query
+    // (dialog open, and the re-query after every write), then changed by
+    // clicks.
     property bool launchDesired: false
     property bool unsavedChanges: root.daemonAutostart.toggleable
         && !root.daemonAutostart.writing
         && root.launchDesired !== (root.daemonAutostart.state === "enabled")
 
-    // Every COMPLETED query re-derives the switch, including the
-    // non-toggleable outcomes: found by the Phase 11.0.0 driver's
-    // write-failure run (unit file removed between the click and Apply -
-    // `enable` fails, the re-query lands in not-found), where deriving
-    // only for enabled/disabled left the switch showing the clicked
-    // value next to a note claiming to show the real state.
+    // Every completed query re-derives the switch, including the
+    // non-toggleable outcomes; otherwise a failed write would leave the
+    // clicked value showing next to a note claiming the real state.
     readonly property Connections daemonAutostartSync: Connections {
         target: root.daemonAutostart
         function onStateChanged() {
@@ -362,20 +246,14 @@ KCM.SimpleKCM {
         themeDropdown.close();
     }
 
-    // Preview: `paplay --volume=65536 <file>` - 65536 is PA_VOLUME_NORM,
-    // unity, i.e. the sound at its own natural level, which is also
-    // exactly what devialet-chime sends at delta 0 dB / headroom 0.
-    // Deliberately NOT routed through devialet-chime: its entire purpose
-    // is the amp-latency gain compensation, which has no meaning without
-    // a scroll gesture to compensate for. The DEVIALET_PREVIEW_TICK=<n>
-    // prefix is a no-op sh environment assignment whose only job is to
-    // keep overlapping presses' command strings distinct - the executable
-    // engine is shared process-wide and keys jobs by command string, so two
-    // presses within one sound's duration would otherwise collapse into
-    // one process (same reason maybeChime() passes --tick, see
-    // CompactRepresentation.qml). It wraps at 16 so the set of strings
-    // stays bounded - see VolumeSettings.chimeArguments() for why every
-    // new command string costs plasmashell a little more forever.
+    // Preview: `paplay --volume=65536` (PA_VOLUME_NORM, unity: the sound's
+    // own level, which is what devialet-chime plays at delta 0 dB /
+    // headroom 0). Not routed through devialet-chime: its gain
+    // compensation only means something during a scroll gesture.
+    // DEVIALET_PREVIEW_TICK=<n> is a no-op environment assignment that
+    // keeps overlapping presses' command strings distinct (the shared
+    // executable engine keys jobs by command string). It wraps at 16, so
+    // this produces at most 16 strings per file (docs/DESIGN.md §5).
     function previewChime() {
         const path = root.chimePreviewPath();
         if (path === "") return;
@@ -386,9 +264,8 @@ KCM.SimpleKCM {
         previewExec.connectSource(cmd);
     }
 
-    // Re-read the desktop theme each time the "System theme" variant is
-    // shown - a cheap "live" refresh without polling or a file watcher;
-    // the read also runs once at page load below.
+    // Re-read the desktop theme each time "System theme" is selected: a
+    // cheap refresh without polling. Also read once at page load below.
     onCfg_chimeSourceModeChanged: {
         if (root.cfg_chimeSourceMode === "follow") root.soundThemes.refreshDesktopTheme();
     }
@@ -409,21 +286,17 @@ KCM.SimpleKCM {
         }
     }
 
-    // Browse: a real QtQuick.Dialogs FileDialog (Qt 6.11 - under
-    // plasmashell's KDE platform theme this is the native KDE file
-    // dialog), built lazily and torn down after use via a Loader -
-    // the exact shape of KDE's own kcm_soundtheme main.qml (lines
-    // 242-258) and org.kde.image's AddFileDialog.qml.
+    // Browse: QtQuick.Dialogs FileDialog (the native KDE dialog under
+    // plasmashell's platform theme), created lazily and torn down after
+    // use via a Loader, as in KDE's kcm_soundtheme main.qml.
     Loader {
         id: chimeFileDialogLoader
         active: false
         sourceComponent: QtDialogs.FileDialog {
             title: "Choose Chime Sound"
             fileMode: QtDialogs.FileDialog.OpenFile
-            // Mockup handleBrowseChime() comment: "audio filter:
-            // .wav/.ogg/.mp3"; widened to the formats paplay actually
-            // decodes via libsndfile (.oga is what every installed theme
-            // ships).
+            // The mockup's .wav/.ogg/.mp3, widened to what paplay decodes
+            // via libsndfile (.oga is what installed themes ship).
             nameFilters: ["Audio files (*.oga *.ogg *.opus *.wav *.flac *.mp3)", "All files (*)"]
             currentFolder: root.cfg_chimeSoundFile !== ""
                 ? "file://" + root.cfg_chimeSoundFile.substring(0, root.cfg_chimeSoundFile.lastIndexOf("/"))
@@ -445,14 +318,13 @@ KCM.SimpleKCM {
 
         // Spacing per the mockup's `.brand-header` (gap 9px, margin-bottom
         // 22px, configDialog mockup v30 :235) and `.brand-sub` (4px above,
-        // letter-spacing 0.2em, :257) - owner decision 2026-10-03 to match
-        // the mockup's spacing in both themes.
+        // letter-spacing 0.2em, :257).
         RowLayout {
             Layout.fillWidth: true
             Layout.bottomMargin: 22
             spacing: 9
 
-            // Phase 17.24.0: the app icon's ring + disk (BrandMark.qml).
+            // The app icon's ring + disk (BrandMark.qml).
             BrandMark { colors: root.colors }
 
             ColumnLayout {
@@ -479,17 +351,10 @@ KCM.SimpleKCM {
         }
 
         // ---- Appearance ----
-        // Wired for real in Phase 9.1.0 - the slider below drives the real
-        // flyout's panel-tint alpha live (TransparencySettings.qml), not
-        // just this dialog's own preview. OSD toast/hover tooltip alpha is
-        // still separate (Phase 9.2.0's job); see main.xml's own comment.
         SectionLabel { colors: root.colors; text: "Appearance"; first: true }
 
-        // Phase 17.17.0: Theme (configDialog mockup v2 :574-584; Follow
-        // system is the shipped default). Recolours the flyout, hover
-        // tooltip and OSD - not this page, which follows its window's
-        // scheme. The "Following your desktop's color scheme" status line
-        // below it is 17.18.0.
+        // Theme (configDialog mockup v2 :574-584). Recolours the flyout,
+        // hover tooltip and OSD, not this page.
         SettingsRow {
             colors: root.colors
             name: "Theme"
@@ -504,14 +369,11 @@ KCM.SimpleKCM {
             }
         }
 
-        // Phase 17.18.0: Follow-system status line (configDialog mockup v2
-        // :585-590, `.kcm-sub-row` padding 10px 2px 14px + border-bottom,
-        // `.theme-follow-status`) - the same dot + mono line as the chime
-        // section's "Following your desktop's sound theme". Shown only while
-        // Follow system is selected (reacts to the selection before Apply,
-        // like the chime line); the value is this dialog's own reading of the
-        // desktop's scheme (pageScheme, the XDG portal via SystemScheme.qml),
-        // the same portal value the widget follows.
+        // Follow-system status line (configDialog mockup v2 :585-590,
+        // `.kcm-sub-row` padding 10px 2px 14px + border-bottom). Shown while
+        // Follow system is selected, before Apply; the value is this
+        // dialog's reading of the XDG portal (pageScheme), the same value
+        // the widget follows.
         ColumnLayout {
             id: themeFollowStatus
             objectName: "themeFollowStatus"
@@ -529,8 +391,7 @@ KCM.SimpleKCM {
                     colors: root.colors
                 }
 
-                // Phase 17.26.0: the value is gold-gradient in light
-                // (FollowStatusText.qml).
+                // Gold-gradient value in light (FollowStatusText.qml).
                 FollowStatusText {
                     objectName: "themeFollowLabel"
                     Layout.alignment: Qt.AlignVCenter
@@ -557,9 +418,7 @@ KCM.SimpleKCM {
                 id: transparencySwitch
                 colors: root.colors
                 checked: root.cfg_transparencyEnabled
-                // Phase 10.1.2: onToggled, not onCheckedChanged - see
-                // SettingsSwitch.qml's header for the broken-binding bug
-                // the old self-toggling shape had.
+                // Stateless switch: store the value here (SettingsSwitch.qml).
                 onToggled: (checked) => root.cfg_transparencyEnabled = checked
             }
         }
@@ -574,27 +433,14 @@ KCM.SimpleKCM {
             opacity: transparencySwitch.checked ? 1.0 : 0.35
             enabled: transparencySwitch.checked
 
-            // Phase 9.1.0: deliberately kept at the mocked full 0..100
-            // range/step-1, NOT narrowed to 9.0.0's recommended 50..100/
-            // step-2 (below ~50% the panel gradient effectively
-            // disappears while the opaque chrome stays fully solid on top
-            // - Phase 9.1.1's job to address separately). Owner wants to
-            // try the full range live first with the real wiring below
-            // before deciding whether to narrow it - see TODO.md's Phase
-            // 9.0.0 "Gate 1" sweep findings for the numbers behind that
-            // recommendation.
+            // Full 0..100 range, step 1, as mocked. Below ~50% the panel
+            // tint all but disappears while the opaque chrome stays solid.
             Slider {
                 id: transparencySlider
                 Layout.fillWidth: true
-                // Widens the click/drag hit area beyond the visual 4px
-                // track/15px handle drawn below - a QQC2 Slider's own
-                // interaction region is governed by its component bounds
-                // (0..implicitHeight), not by what's actually painted
-                // inside them, so this alone is what makes off-center
-                // clicks/drags land. Same value, same reasoning, as
-                // VolumeBlock.qml's volumeSlider (contents/ui/) - see
-                // its own comment ("Widens the click/drag hit area to
-                // match the sibling -/+ buttons' 26px row height").
+                // Widens the hit area beyond the painted 4px track / 15px
+                // handle: a Slider's interaction region is its bounds, not
+                // what it paints. Same 26px as VolumeBlock.qml's slider.
                 implicitHeight: 26
                 from: 0
                 to: 100
@@ -602,10 +448,8 @@ KCM.SimpleKCM {
                 value: root.cfg_transparencyPercent
                 onMoved: root.cfg_transparencyPercent = value
 
-                // Same copper track/handle styling as VolumeBlock.qml's
-                // volumeSlider (contents/ui/) - kept as an inline style
-                // here rather than a new shared component, since this is
-                // the only slider control in the settings page so far.
+                // Same track/handle styling as VolumeBlock.qml's slider,
+                // inline since this is the page's only slider.
                 background: Rectangle {
                     x: transparencySlider.leftPadding
                     y: transparencySlider.topPadding + transparencySlider.availableHeight / 2 - height / 2
@@ -619,15 +463,14 @@ KCM.SimpleKCM {
                         width: transparencySlider.visualPosition * parent.width
                         height: parent.height
                         radius: 999
-                        // Phase 17.25.0: accentFill (= copper in dark, flat
-                        // gold in light), as the flyout's slider.
+                        // accentFill (copper in dark, flat gold in light),
+                        // as the flyout's slider.
                         color: root.colors.accentFill
                     }
                 }
 
-                // Phase 17.25.0: an Item holding the dark disc or the light
-                // gold sphere (15 px, 3 px halo; configDialog mockup v30
-                // :87-88), the flyout slider's pattern (VolumeBlock.qml).
+                // The dark disc or the light gold sphere (15 px, 3 px halo;
+                // configDialog mockup v30 :87-88), as in VolumeBlock.qml.
                 handle: Item {
                     x: transparencySlider.leftPadding + transparencySlider.visualPosition * (transparencySlider.availableWidth - width)
                     y: transparencySlider.topPadding + transparencySlider.availableHeight / 2 - height / 2
@@ -653,24 +496,11 @@ KCM.SimpleKCM {
                     }
                 }
 
-                // Scroll-to-adjust, same mechanism as VolumeBlock.qml's
-                // volumeSlider (contents/ui/) - see its own comment for
-                // the acceptedButtons: Qt.NoButton reasoning (lets press/
-                // drag pass through to the Slider underneath) and the
-                // 120-unit notch-accumulation convention (matches
-                // org.kde.desktop's own Slider.qml). Duplicated rather
-                // than shared with volumeSlider's copy - this project's
-                // own established convention for per-control wheel-
-                // handling logic even where near-identical (see
-                // CompactRepresentation.qml's header comment on why its
-                // own wheel handler doesn't share code with VolumeBlock's
-                // either). One notch = one stepSize (1, matching this
-                // slider's own stepSize below `to`/`from`), the same
-                // "notch = the control's own stepSize" relationship
-                // volumeSlider uses (stepDb there). Direction: scroll up
-                // (positive angleDelta.y, uninverted) increases the
-                // value, confirmed against volumeSlider's own
-                // stepRequested(1) = increase, not assumed.
+                // Scroll-to-adjust, as VolumeBlock.qml's slider:
+                // Qt.NoButton lets press/drag reach the Slider, deltas
+                // accumulate in 120-unit notches (org.kde.desktop's
+                // Slider.qml convention), one notch = one stepSize, and
+                // scroll up increases.
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.NoButton
@@ -698,7 +528,7 @@ KCM.SimpleKCM {
                 text: Math.round(transparencySlider.value) + "%"
                 font.family: root.theme.fontMono
                 font.pixelSize: 11
-                // Phase 17.25.0: neutral in light (mockup v30 :108).
+                // Neutral in light (mockup v30 :108).
                 color: root.colors.controlValueText
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
@@ -713,10 +543,8 @@ KCM.SimpleKCM {
             name: "Volume Step Size"
             desc: "Change how large one increment change in volume is"
 
-            // Phase 17.16.0: the shared SegmentedControl (was an inline copy).
-            // Phase 4.4.2: activeIndex is derived from cfg_volumeStepDb
-            // rather than a literal, so it stays in sync whether that value
-            // came from the dialog's own initial load or a click.
+            // activeIndex is derived from cfg_volumeStepDb, so it follows
+            // both the stored value and a click.
             SegmentedControl {
                 id: stepSegmented
                 colors: root.colors
@@ -741,13 +569,9 @@ KCM.SimpleKCM {
         }
 
         // ---- Volume Limits ----
-        // Mockup note (see design/mockups/configDialog/
-        // devialet_config_dialog_mockup_v13_single_tab.html's own legend):
-        // +/- steppers rather than a slider, since two interdependent
-        // thresholds sharing one slider track is cramped and easy to
-        // mis-drag - a stepper gives exact, unambiguous values. Volume
-        // floor is ordered before Volume ceiling to match the mockup;
-        // don't rearrange.
+        // Steppers rather than a slider: two interdependent thresholds on
+        // one track are easy to mis-drag (mockup v13 legend). Floor comes
+        // before ceiling, as in the mockup.
         SectionLabel { colors: root.colors; text: "Volume Limits" }
 
         SettingsRow {
@@ -759,11 +583,8 @@ KCM.SimpleKCM {
                 colors: root.colors
                 value: root.cfg_volumeFloorDb
                 from: root.dbRangeMin
-                // Phase 8.3.0: can never reach (let alone pass) the current
-                // hard limit - capped one step below it, not at dbRangeMax.
-                // DbStepper's own `enabled: value < to` disables "+" the
-                // moment this cap is reached, and its clamp() (Math.min)
-                // makes the boundary step land exactly on it, never past.
+                // Capped one step below the hard limit, not at dbRangeMax:
+                // "+" disables at the cap and clamp() lands exactly on it.
                 to: root.cfg_hardLimitDb - root.limitStepDb
                 stepDb: root.limitStepDb
                 onStepped: (value) => root.cfg_volumeFloorDb = value
@@ -779,8 +600,7 @@ KCM.SimpleKCM {
             DbStepper {
                 colors: root.colors
                 value: root.cfg_hardLimitDb
-                // Phase 8.3.0: mirror of the floor stepper above - can
-                // never reach the current floor, capped one step above it.
+                // Mirror of the floor: capped one step above it.
                 from: root.cfg_volumeFloorDb + root.limitStepDb
                 to: root.dbRangeMax
                 stepDb: root.limitStepDb
@@ -789,13 +609,11 @@ KCM.SimpleKCM {
         }
 
         // ---- Volume Feedback ----
-        // Phase 10.1.1: the v16 mockup's Volume Feedback section (lines
-        // 472-541), UI only - see the local-state comment on root above.
-        // Master toggle row, then a sub-section (mockup #chimeSub) that
-        // the toggle dims/disables exactly the way the Transparency
-        // sub-row above is (opacity 0.35 + enabled:false, the mockup's
-        // .kcm-sub-row.disabled), holding the three-way source
-        // segmented control and one visible variant block.
+        // The v16 mockup's Volume Feedback section (lines 472-541): the
+        // master toggle, then a sub-section (#chimeSub) it dims and
+        // disables like the Transparency sub-row (opacity 0.35 +
+        // enabled:false, `.kcm-sub-row.disabled`), holding the source
+        // segmented control and the one visible variant block.
         SectionLabel { colors: root.colors; text: "Volume Feedback" }
 
         SettingsRow {
@@ -835,10 +653,7 @@ KCM.SimpleKCM {
                 showDivider: false
                 topPadding: 0
 
-                // Same segmented control as the Volume step size row
-                // above (mockup .kcm-segmented / .kcm-seg-btn), three
-                // string-valued modes instead of three dB values - the shared
-                // SegmentedControl since Phase 17.16.0.
+                // Three string-valued modes.
                 SegmentedControl {
                     id: chimeSegmented
                     colors: root.colors
@@ -868,10 +683,8 @@ KCM.SimpleKCM {
                     spacing: 20
                     visible: root.cfg_chimeSourceMode === "follow"
 
-                    // .theme-follow-status: 6px copperBright dot (its
-                    // box-shadow glow skipped, as AmpHeader.qml does for
-                    // its own dot) + mono 11px textDim text with the
-                    // theme name in bold copperBright.
+                    // .theme-follow-status: dot (its box-shadow glow not
+                    // drawn, as in AmpHeader.qml) + mono status text.
                     RowLayout {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 9
@@ -964,15 +777,11 @@ KCM.SimpleKCM {
                         spacing: 8
 
                         // .file-picker-field: the filename chip (mono
-                        // 11px, max-width 170, ellipsis; full path as
-                        // its tooltip, the mockup's title= attribute).
-                        // Owner decision (Phase 10.1.1 planning): before
-                        // a file is picked it shows a dimmed "No file
-                        // chosen" placeholder rather than the mockup's
-                        // literal placeholder filename "chime-default.ogg"
-                        // (no such file exists; "" is 10.1.3's
-                        // nothing-picked sentinel), and Preview stays
-                        // disabled until there is something to play.
+                        // 11px, max-width 170, ellipsis; full path as its
+                        // tooltip, the mockup's title=). With no file
+                        // picked ("") it shows a dimmed "No file chosen"
+                        // instead of the mockup's placeholder filename,
+                        // and Preview stays disabled.
                         Rectangle {
                             id: chimeFileChip
                             Layout.maximumWidth: 170
@@ -982,7 +791,7 @@ KCM.SimpleKCM {
                             color: root.colors.surface
                             border.width: 1
                             border.color: root.colors.controlBorder
-                            // Phase 17.25.0: light-theme card shadow.
+                            // Light-theme card shadow.
                             Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                             readonly property bool hasFile: root.cfg_chimeSoundFile !== ""
@@ -1038,14 +847,11 @@ KCM.SimpleKCM {
             colors: root.colors
             name: "Launch at Login"
             desc: "Automatically start the daemon used for UDP communication to amplifier"
-            // Phase 11.0.0: wired for real - see the daemonAutostart block
-            // at the top of this file. The switch shows launchDesired
-            // (systemd's answer, or the user's not-yet-applied click) and
-            // is only clickable while systemd reports a plain enabled/
-            // disabled and no write is in flight; every other outcome
-            // (unit missing, static/masked/..., query failed, last write
-            // failed) disables it and says why in the row's note, so a
-            // failure never collapses into a silently-unchecked toggle.
+            // The switch shows launchDesired (systemd's answer, or an
+            // unapplied click) and is clickable only while systemd reports
+            // plain enabled/disabled and no write is in flight. Every other
+            // outcome disables it and says why in the note, so a failure
+            // never looks like an unchecked toggle.
             note: root.launchAtLoginNote()
 
             SettingsSwitch {
@@ -1057,14 +863,8 @@ KCM.SimpleKCM {
         }
 
         // ---- Reset ----
-        // Phase 8.0.0 follow-up: the mockup's original "Defaults" button
-        // lived in the ConfigDialog's own footer (v13), but that footer
-        // (Cancel/Apply/OK) is fixed shell chrome from
-        // AppletConfiguration.qml - a plasmoid's config.qml has no way to
-        // add a button to it (confirmed by reading that file directly, no
-        // Loader/Repeater/conditional slot exists there for a 4th button).
-        // v14 moves it into the page content instead, as this section -
-        // see that mockup's own updated legend for the same reasoning.
+        // Defaults lives in the page: the dialog's Cancel/Apply/OK footer
+        // is shell chrome with no slot for a plasmoid's button.
         SectionLabel { colors: root.colors; text: "Reset" }
 
         SettingsRow {
@@ -1081,7 +881,7 @@ KCM.SimpleKCM {
                 color: root.colors.surface
                 border.width: 1
                 border.color: defaultsArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
-                // Phase 17.25.0: light-theme card shadow.
+                // Light-theme card shadow.
                 Ui.CardShadow { colors: root.colors; radius: parent.radius }
 
                 Label {
@@ -1097,69 +897,34 @@ KCM.SimpleKCM {
                     id: defaultsArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    // Writes straight to the cfg_* properties, same as
-                    // every other control on this page - the shell's own
-                    // generic isConfigurationChanged() dirty-check (which
-                    // already drives Apply for every other row here)
-                    // picks this up for free, no extra wiring needed.
-                    // Values must stay in sync with main.xml's own
-                    // <default> entries - see root.shippedDefaults above.
+                    // Writes the cfg_* properties like every other
+                    // control, so the shell's dirty-check enables Apply.
                     onClicked: {
                         root.cfg_theme = root.shippedDefaults.theme;
                         root.cfg_transparencyEnabled = root.shippedDefaults.transparencyEnabled;
                         root.cfg_transparencyPercent = root.shippedDefaults.transparencyPercent;
                         root.cfg_volumeStepDb = root.shippedDefaults.volumeStepDb;
                         root.cfg_startupVolumeDb = root.shippedDefaults.startupVolumeDb;
-                        // Phase 8.3.0: widen the hard limit to dbRangeMax
-                        // *first* - a lone extra write, not just reordering
-                        // the two lines below - before touching either
-                        // limit toward its real shipped default. Each of
-                        // the three writes below is individually valid
-                        // against whatever the other one currently holds
-                        // (dbRangeMax is >= every reachable floor; the new
-                        // floorDefault is < dbRangeMax; the new
-                        // hardLimitDefault is > the new floorDefault), so
-                        // healLimitOrdering() above - which reacts to every
-                        // single write via onCfg_*Changed, not just the
-                        // final pair - never sees a transient invalid pair
-                        // partway through and self-heals over one of these
-                        // three intended values. Without this widen step, a
-                        // prior pair near the opposite extreme (e.g. floor
-                        // -90/hardLimit -89) sets floorDb -50 first, which
-                        // is >= the still-stale hardLimit -89, triggers a
-                        // self-heal to -40/-39 mid-click, and the final
-                        // hardLimitDb write below then leaves floorDb at
-                        // -40 instead of the intended -50 - caught by
-                        // tracing exactly this sequence, not observed live.
+                        // Widen the hard limit to dbRangeMax first, so
+                        // every intermediate pair stays valid and
+                        // healLimitOrdering() never fires mid-reset. Without
+                        // it, e.g. floor -90 / hard limit -89 would see
+                        // floor -50 >= -89, heal to -40/-39, and end at
+                        // floor -40 instead of -50.
                         root.cfg_hardLimitDb = root.dbRangeMax;
                         root.cfg_volumeFloorDb = root.shippedDefaults.volumeFloorDb;
                         root.cfg_hardLimitDb = root.shippedDefaults.hardLimitDb;
-                        // Phase 10.1.2: the master chime toggle is a real
-                        // cfg_ property now, reset from shippedDefaults
-                        // like every other row (main.xml default true).
                         root.cfg_chimeEnabled = root.shippedDefaults.chimeEnabled;
-                        // Phase 10.1.3: the chime source is three real cfg_
-                        // properties now, reset from shippedDefaults like
-                        // every other row (main.xml defaults follow /
-                        // ocean / ""). Resetting the pinned theme is a
-                        // deliberate step beyond the mockup, whose
-                        // handleDefaults() (v17 lines 698-717) forgets its
-                        // dropdown label.
+                        // Also resets the pinned theme, which the mockup's
+                        // handleDefaults() (v17 lines 698-717) does not.
                         root.cfg_chimeSourceMode = root.shippedDefaults.chimeSourceMode;
                         root.cfg_chimePinnedTheme = root.shippedDefaults.chimePinnedTheme;
                         root.cfg_chimeSoundFile = root.shippedDefaults.chimeSoundFile;
-                        // Launch at Login (2026-09-20, owner report: the
-                        // button left an off toggle off): reset exactly as
-                        // a click on its switch would - a pending
-                        // launchDesired that saveConfig() applies with
-                        // `systemctl --user enable` on Apply/OK, and that
-                        // Cancel/Discard drops. Only while the switch is
-                        // clickable at all (systemd reports enabled/
-                        // disabled, no write in flight) - the non-
-                        // toggleable states keep showing their note, never
-                        // a value nothing can apply. Phase 11.0.0 had left
-                        // it out on the grounds that it is not a kcfg
-                        // default; it is still the page's shipped default.
+                        // Launch at Login resets like a click on its
+                        // switch: a pending launchDesired that saveConfig()
+                        // applies on Apply/OK and Cancel drops. Only while
+                        // the switch is clickable; non-toggleable states
+                        // keep showing their note.
                         if (root.daemonAutostart.toggleable && !root.daemonAutostart.writing) {
                             root.launchDesired = root.shippedDefaults.launchAtLogin;
                         }

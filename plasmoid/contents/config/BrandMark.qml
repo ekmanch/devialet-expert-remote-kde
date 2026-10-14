@@ -1,6 +1,5 @@
-// Phase 17.24.0 - the brand mark in the settings page header: the app icon's
-// ring + disk filling the tile (configDialog mockup v30 :236-255), in place
-// of the small "◉" character. Dark: flat ring #654c3a over #262221, disk
+// The brand mark in the settings page header: the app icon's ring + disk
+// filling the tile (configDialog mockup v30 :236-255). Dark: flat ring #654c3a over #262221, disk
 // #e3a06a. Light: white tile with the card shadow, ring and disk in 145
 // degree gold sweeps. Both themes paint the same Shapes; the palette's
 // brand* tokens carry one flat colour per shape in dark.

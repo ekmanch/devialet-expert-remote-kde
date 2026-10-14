@@ -1,22 +1,15 @@
-// Phase 17.16.0 - the settings page's segmented control (mockup
-// `.kcm-segmented` / `.kcm-seg-btn`), extracted unchanged from the two
-// copies that lived inline in ConfigGeneral.qml (Volume step size, Chime
-// sound) so the Theme row (17.17.0) can reuse it instead of a third copy.
+// The settings page's segmented control (mockup `.kcm-segmented` /
+// `.kcm-seg-btn`), used by the Theme, Volume step and Chime sound rows.
 //
-// Inputs: `labels` (one segment per string), `activeIndex` (bound by the
-// page - which segment is on), `colors` (the page palette, required like
-// every other settings component). Output: `picked(index)` when a segment
-// is clicked; the page writes its cfg_* value in the handler, so this
-// component never owns settings state.
+// Stateless: `activeIndex` is bound by the page and `picked(index)` fires
+// on click; the page writes its cfg_* value, so this component never owns
+// settings state.
 //
-// Look (unchanged from the inline copies): a `radiusSm` box in `surface`
-// with a 1 px `divider` border and 3 px inner padding; segments 2 px apart,
-// radius 6, label + 22 px wide and + 10 px tall; the active segment is
-// filled `surface3`; labels are 11 px mono, copperBright when active or
-// hovered, textDim otherwise. Mockup v25
-// `.kcm-seg-btn:not(.active):hover {color:var(--copper-bright)}`: hover
-// lights the text only - no background change, no cursor change
-// ("segmented hover is text-color only").
+// Look: a `radiusSm` box with a 1 px `divider` border and 3 px inner
+// padding; segments 2 px apart, radius 6, label + 22 px wide and + 10 px
+// tall; labels 11 px mono. Hover lights the label text only, no
+// background or cursor change (mockup v25
+// `.kcm-seg-btn:not(.active):hover {color:var(--copper-bright)}`).
 
 pragma ComponentBehavior: Bound
 
@@ -40,7 +33,7 @@ Rectangle {
     color: seg.colors.surface
     border.width: 1
     border.color: seg.colors.divider
-    // Phase 17.25.0: light-theme card shadow (configDialog mockup v30 :115).
+    // Light-theme card shadow (configDialog mockup v30 :115).
     Ui.CardShadow { colors: seg.colors; radius: seg.radius }
     implicitWidth: segRow.implicitWidth + 6
     implicitHeight: segRow.implicitHeight + 6
@@ -60,7 +53,7 @@ Rectangle {
                 readonly property bool active: seg.activeIndex === segment.index
 
                 radius: 6
-                // Phase 17.27.0: in light the selected segment is white
+                // In light the selected segment is white
                 // with a 1 px outline and label in the text colour, DemiBold
                 // (configDialog mockup v30 :95, :106). JetBrains Mono has
                 // one advance for every weight, so widths do not change.

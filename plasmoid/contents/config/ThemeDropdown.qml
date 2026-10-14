@@ -1,32 +1,24 @@
-// Phase 10.1.1: the mockup's `.theme-dropdown` (v16 mockup:
-// design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html,
-// DOM lines 509-520, CSS lines 259-283) - the "Choose theme" variant's
-// picker of installed sound themes.
+// The mockup's `.theme-dropdown` (v16 configDialog mockup, DOM lines
+// 509-520, CSS lines 259-283): the Chime sound "theme" variant's picker of
+// installed sound themes.
 //
-// Built on QtQuick.Controls.Popup, the settled overlay-list pattern
-// (CLAUDE.md "Flyout overlay lists are QtQuick.Controls.Popup, not
-// ComboBox"; SourceListOverlay.qml / AmpListOverlay.qml): the list is a
-// Popup parented to this field, content a synchronous ColumnLayout +
-// Repeater so its size is known before open(), opened/closed
-// imperatively (`visible` is never bound), dismissed by Escape or a press
-// outside the field via closePolicy. Not a QQC2 ComboBox - its
-// qqc2-desktop-style popup is a QStyle-drawn Menu that cannot be restyled
-// to this look (the same reason the flyout's source picker left ComboBox
-// in Phase 7.14.0).
+// A plain Popup, as for the flyout's overlay lists (docs/DESIGN.md §3):
+// content in a synchronous ColumnLayout + Repeater so its size is known
+// before open(), opened and closed imperatively (`visible` is never
+// bound), dismissed by Escape or a press outside the field. Not a QQC2
+// ComboBox: its qqc2-desktop-style popup is a QStyle-drawn Menu that
+// cannot be restyled to this look.
 //
-// Inputs: `themes` ([{id, name, path}] - the caller's enumeration, id =
-// the sound-theme directory name, name = its display name) and
-// `currentId`. Output: `themeChosen(id)` - the caller stores it, this
-// component holds no selection state of its own (same stateless shape as
-// DbStepper.qml). The visible label is the display name of `currentId`,
-// falling back to the raw id when it isn't in `themes` - the same
-// fallback KDE's own Sound Theme KCM applies in KCMSoundTheme::nameFor()
+// Stateless: `themes` is [{id, name, path}] (id = sound-theme directory
+// name, name = display name), `currentId` is bound by the caller, and
+// `themeChosen(id)` reports a pick for the caller to store. The label
+// shows `currentId`'s display name, falling back to the raw id when it is
+// not in `themes`, as KDE's Sound Theme KCM does
 // (plasma-workspace kcms/soundtheme/kcm_soundtheme.cpp:113-120).
 //
-// Approximation, flagged: the mockup's `.theme-dropdown-list` box-shadow
-// is not drawn (same call AmpListOverlay.qml made for its dot glow).
-// Corner radii: field 7px -> theme.radiusSm (DbStepper.qml precedent),
-// list 8px = radiusSm exactly, rows 6px as in the mockup.
+// The mockup's `.theme-dropdown-list` box-shadow is not drawn. Radii:
+// field 7px in the mockup -> theme.radiusSm (8), list 8px = radiusSm,
+// rows 6px.
 
 pragma ComponentBehavior: Bound
 
@@ -45,9 +37,8 @@ Rectangle {
     signal themeChosen(string id)
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
-    // palette for the whole page; required, so a missed hand-off fails at
-    // load instead of silently painting a different palette).
+    // The page's palette, forwarded by ConfigGeneral (required, so a
+    // missed hand-off fails at load).
     required property Ui.ColorPalette colors
     readonly property bool open: list.opened
 
@@ -69,7 +60,7 @@ Rectangle {
     color: root.colors.surface
     border.width: 1
     border.color: fieldArea.containsMouse ? root.colors.copperDim : root.colors.controlBorder
-    // Phase 17.25.0: light-theme card shadow.
+    // Light-theme card shadow.
     Ui.CardShadow { colors: root.colors; radius: root.radius }
 
     RowLayout {
@@ -130,17 +121,15 @@ Rectangle {
         x: root.width - width
         width: Math.max(root.width, listColumn.implicitWidth + leftPadding + rightPadding)
         padding: 4
-        // focus:true is what makes CloseOnEscape actually work - a Popup
-        // only receives the key if it took focus on open (same as
-        // AmpListOverlay/SourceListOverlay; found by the Phase 10.1.1
-        // driver run, where Escape left the list open without it).
+        // Required for CloseOnEscape: a Popup only receives the key if it
+        // took focus on open (as in AmpListOverlay/SourceListOverlay).
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
         background: Rectangle {
             radius: root.theme.radiusSm
-            // Phase 17.25.0: own tokens - light `surface2` is a translucent
-            // hover fill, not a card colour.
+            // Own token: light `surface2` is a translucent hover fill, not
+            // a card colour.
             color: root.colors.listBackground
             border.width: 1
             border.color: root.colors.divider

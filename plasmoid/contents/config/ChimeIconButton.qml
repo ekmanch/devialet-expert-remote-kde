@@ -1,27 +1,18 @@
-// Phase 10.1.1: the mockup's `.file-picker-btn` (v16 mockup:
-// design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html,
-// CSS lines 230-237) - a 28x28 icon button used four times in the Volume
-// Feedback section: three Preview (play) buttons, one per chime-source
-// variant, plus the Browse (folder) button in the custom-file variant.
+// The mockup's `.file-picker-btn` (v16 configDialog mockup, CSS lines
+// 230-237): a 28x28 icon button for the Volume Feedback section's Preview
+// (play) and Browse (folder) buttons.
 //
-// Same hand-drawn Rectangle + MouseArea shape as ConfigGeneral.qml's own
-// Forget/Defaults buttons (surface fill, divider border that turns
-// copperDim on hover), not a QQC2 Button - the qqc2-desktop-style look
-// doesn't match this page, same reasoning as every other custom control
-// here. Corner radius: the mockup says 7px; rendered as theme.radiusSm
-// (8) following DbStepper.qml's precedent of using radiusSm where its
-// mockup also said 7px, rather than adding a one-off constant.
+// Hand-drawn like the page's other buttons (surface fill, border turning
+// copperDim on hover); the qqc2-desktop-style Button does not match this
+// page. Radius is theme.radiusSm (8) where the mockup says 7px, as in
+// DbStepper.qml.
 //
-// Glyphs are the mockup's own SVG path data, verbatim, drawn with
-// QtQuick.Shapes' PathSvg (precedent: ActionRow.qml's power spinner) -
-// no icon asset files, no Kirigami.Icon recolor uncertainty. The paths
-// are authored in the mockup's 24-unit viewBox and the Shape is scaled to
-// the mockup's 14px rendering size (`.file-picker-btn svg{width:14px}`).
+// Glyphs are the mockup's SVG path data verbatim, in its 24-unit viewBox,
+// scaled to its 14px rendering size (`.file-picker-btn svg{width:14px}`).
 //
-// `playing` reproduces the mockup's handlePlayChime() pulse (`.playing`
-// for 350 ms: copper 0.18 fill + a 3px copperBright 0.18 ring) - purely a
-// click acknowledgement; the actual sound is the caller's job (it fires
-// `clicked`).
+// `playing` is the mockup's 350 ms `.playing` pulse (copper 0.18 fill + a
+// 3px copperBright 0.18 ring), a click acknowledgement only; the caller
+// plays the sound on `clicked`.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Shapes
@@ -39,18 +30,17 @@ Item {
     signal clicked()
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
-    // palette for the whole page; required, so a missed hand-off fails at
-    // load instead of silently painting a different palette).
+    // The page's palette, forwarded by ConfigGeneral (required, so a
+    // missed hand-off fails at load).
     required property Ui.ColorPalette colors
     readonly property bool isPlay: root.kind === "play"
     readonly property bool hot: root.isPlay || area.containsMouse
 
     implicitWidth: 28
     implicitHeight: 28
-    // Same disabled dim as DbStepper.qml's boundary buttons - the only
-    // signal that Preview has nothing to play yet (no file picked, or no
-    // theme with an audio-volume-change.oga found).
+    // Disabled dim (as in DbStepper.qml): the only signal that Preview has
+    // nothing to play yet (no file picked, or no theme with an
+    // audio-volume-change.oga found).
     opacity: enabled ? 1.0 : 0.4
 
     // `.playing` box-shadow ring: 3px outside the button's own edge.
@@ -70,7 +60,7 @@ Item {
             : root.colors.surface
         border.width: 1
         border.color: root.hot ? root.colors.copperDim : root.colors.controlBorder
-        // Phase 17.25.0: light-theme card shadow.
+        // Light-theme card shadow.
         Ui.CardShadow { colors: root.colors; radius: parent.radius; visible: root.colors.isLight && !root.playing }
 
         Shape {

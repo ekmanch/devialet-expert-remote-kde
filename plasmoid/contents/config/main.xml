@@ -1,51 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Phase 4.4.0: minimal kcfg skeleton, no entries yet - this phase's
-  ConfigGeneral.qml has no settings, just a static brand header. Added now
-  rather than deferred to Phase 4.4.1 because every config.qml-shipping
-  applet found on this system (checked, not assumed - see config.qml's
-  own doc comment) also ships a main.xml alongside it; Phase 4.4.1 will
-  add real <entry> elements here (reduce-motion, scroll-step) per
-  CLAUDE.md's Repository Layout.
+  Settings for the General page (contents/config/ConfigGeneral.qml).
+  Every control persists here (docs/DESIGN.md §4).
 
-  Phase 11.0.0: "Launch at login" is deliberately NOT an entry here, and
-  never should be. Its storage is systemd's own unit enablement state
-  (queried and changed with systemctl in user scope by
-  contents/ui/DaemonAutostart.qml); a stored bool would only be a copy
-  that can go stale. See CLAUDE.md, "Persistence" and the "must persist"
-  exception under "Settings ConfigDialog".
+  "Launch at login" deliberately has no entry: its storage is systemd's
+  own unit enablement, queried and changed by contents/ui/DaemonAutostart.qml.
+  A stored bool would only be a copy that can go stale.
 -->
 <kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
   <kcfgfile name="" />
   <group name="General">
-    <!-- Appearance section, per
-         design/mockups/configDialog/devialet_config_dialog_mockup_v14_single_tab.html.
-         Wired for real in Phase 9.1.0: transparencyEnabled/
-         transparencyPercent drive the flyout's live panel-tint alpha via
-         TransparencySettings.qml (percent is OPACITY, not transparency -
-         alpha = percent/100). osdGradientTop/Bottom (the OSD toast/hover
-         tooltip) are still on their own hardcoded alpha - Phase 9.2.0
-         unifies those onto the same mechanism, not this entry's job.
-         90 is the default since 2026-09-20 (owner decision; 88 before
-         that, the midpoint of the 85-90 range from TODO.md's Phase 9.0.0
-         sweep).
-
-         transparencyPercent deliberately does NOT reuse the name
-         "transparencyLevel" - a stale orphaned key of exactly that name
-         (value 100) is still sitting in real installs' KConfig group from
-         the original transparency feature (added Phase 4.4.2/4.4.3,
-         removed in e084543 per CLAUDE.md's Known Issues section, real
-         transparency later re-achieved differently in Phase 7.10.0 with
-         no settings UI). Reusing that name would have silently picked up
-         the leftover 100 instead of this entry's own default the moment
-         it was declared - kcfg entries read whatever's already on disk
-         regardless of when the entry was added. -->
-    <!-- Phase 17.12.0: colour theme for the flyout, OSD toast and hover
-         tooltip - "dark", "light" or "system" (follow the desktop's colour
-         scheme). Read by ThemeSettings.qml; the ConfigDialog page itself
-         follows its window's scheme, not this setting. -->
+    <!-- Appearance. transparencyEnabled/transparencyPercent drive the
+         flyout's panel tint via TransparencySettings.qml; the percent is
+         OPACITY (alpha = percent/100). Not called "transparencyLevel":
+         old installs still carry an orphaned key of that name (value
+         100), and kcfg would pick it up instead of this default. -->
+    <!-- Colour theme for the flyout, OSD toast and hover tooltip: "dark",
+         "light" or "system" (follow the desktop's scheme). Read by
+         ThemeSettings.qml; the settings page itself follows its window's
+         scheme, not this (docs/DESIGN.md §6). -->
     <entry name="theme" type="String">
       <default>system</default>
     </entry>
@@ -57,29 +32,20 @@
       <default>90</default>
     </entry>
 
-    <!-- Phase 4.4.2: volume step size used by the main view's +/- buttons
-         and slider stepSize, and by the settings page's "Step per scroll
-         notch" segmented control. Default 1.0 matches that control's
-         Phase 4.4.1 mockup default ("1 dB" active). -->
+    <!-- Volume step for the flyout's +/- buttons, slider stepSize and
+         scroll steps (VolumeSettings.qml). -->
     <entry name="volumeStepDb" type="Double">
       <default>1.0</default>
     </entry>
 
-    <!-- Phase 8.0.0: volume-limit settings, per
-         design/mockups/configDialog/devialet_config_dialog_mockup_v13_single_tab.html
-         (Volume Limits section + the Volume section's "Startup /
-         source-switch volume" row). hard -10 and startup -40 are the
-         mockup's own LIMIT_DEFAULTS (confirmed directly in that file's
-         JS); the floor was the mockup's -45 until 2026-09-20, when the
-         owner set the shipped default to -50. Range for all three is the real Expert Pro line
-         spec, -96..0 dB (enforced by ConfigGeneral.qml's DbStepper, not
-         re-declared here - kcfg <min>/<max> would only guard a value typed
-         directly into a config file, not the stepper UI itself).
+    <!-- Volume limits. hard -10 and startup -40 are the settings mockup's
+         defaults. All three range over -96..0 dB, enforced by the page's
+         DbStepper, not here (kcfg <min>/<max> would only guard a
+         hand-edited config file).
 
-         volumeFloorDb is a UI/usability setting only (trims the unused low
-         end of the volume slider - Phase 8.2.0) - it does NOT feed the
-         Rust hard-limit clamp (Phase 8.1.0), only hardLimitDb does. Don't
-         conflate the two. -->
+         volumeFloorDb is UI-only (trims the slider's unused low end) and
+         never reaches the wire; only hardLimitDb feeds the protocol
+         crate's clamp (docs/DESIGN.md §3). -->
     <entry name="volumeFloorDb" type="Double">
       <default>-50.0</default>
     </entry>
@@ -90,37 +56,22 @@
       <default>-40.0</default>
     </entry>
 
-    <!-- Phase 10.1.2: master on/off for the volume-feedback chime (Phase
-         10.1.0's devialet-chime on every scroll tick while Optical 1 is
-         the amp's source), per the Volume Feedback section of
-         design/mockups/configDialog/devialet_config_dialog_mockup_v16_chime_source.html.
-         Default true: the chime IS the shipped, owner-soaked 10.1.0
-         behavior, so existing installs must not silently lose it when
-         this entry first appears. Consumed by both maybeChime()s
-         (CompactRepresentation.qml / FlyoutContent.qml) via
-         VolumeSettings.qml, bound in main.qml exactly like the four
-         entries above - when false, devialet-chime is never spawned at
-         all, not just gained down. The chime's *source* (mode / pinned
-         theme / custom file) is still local-only ConfigDialog state -
-         Phase 10.1.3 adds those entries. -->
+    <!-- Master switch for the volume-feedback chime. Default true so
+         existing installs keep it. Read via VolumeSettings.qml by both
+         maybeChime()s (CompactRepresentation.qml, FlyoutContent.qml); when
+         false devialet-chime is never spawned. -->
     <entry name="chimeEnabled" type="Bool">
       <default>true</default>
     </entry>
 
-    <!-- Phase 10.1.3: which sound the chime plays (the "Chime sound"
-         three-way control of the same v16 mockup section). chimeSourceMode
-         is one of "follow" (default - the merged 10.1.0 behavior:
-         devialet-chime gets no file argument and resolves kdeglobals' [Sounds]
-         Theme itself), "theme" (always chimePinnedTheme's
-         audio-volume-change.oga, regardless of the desktop setting) or
-         "file" (chimeSoundFile, any file on disk). chimePinnedTheme is the
-         sound-theme DIRECTORY id (ocean, freedesktop, ...) - what kdeglobals
-         stores and devialet-chime reads - never the display name.
-         chimeSoundFile is a plain absolute path; "" means nothing picked
-         yet (this file has no other "unset" convention, and KConfigXT's
-         String default is just an empty <default>). Resolution from id to
-         path is SoundThemes.qml (contents/ui/), used by both the
-         ConfigDialog and main.qml -> VolumeSettings.qml -> maybeChime(). -->
+    <!-- Which sound the chime plays. chimeSourceMode: "follow" (no file
+         argument; devialet-chime resolves kdeglobals' [Sounds] Theme
+         itself), "theme" (chimePinnedTheme's audio-volume-change.oga) or
+         "file" (chimeSoundFile). chimePinnedTheme is the sound-theme
+         DIRECTORY id (ocean, freedesktop, ...) that kdeglobals stores,
+         never the display name. chimeSoundFile is an absolute path; ""
+         means nothing picked yet. Id-to-path resolution is
+         contents/ui/SoundThemes.qml. -->
     <entry name="chimeSourceMode" type="String">
       <default>follow</default>
     </entry>

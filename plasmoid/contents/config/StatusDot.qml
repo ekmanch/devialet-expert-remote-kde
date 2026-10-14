@@ -1,4 +1,4 @@
-// Phase 17.25.0 - the 6 px dot in front of the settings page's status
+// The 6 px dot in front of the settings page's status
 // lines ("Following your desktop's ..."): flat copperBright in dark, the
 // gold sphere in light (configDialog mockup v30 `--dot-bg`, :89), the same
 // treatment as the flyout's status dots.

@@ -1,12 +1,11 @@
-// Phase 17.26.0 - the text of a settings-page status line: mono 11 px
-// textDim `prefix` followed by a bold `value` ("Following your desktop's
-// color scheme — currently Dark").
+// The text of a settings-page status line: mono 11 px textDim `prefix`
+// followed by a bold `value` ("Following your desktop's color scheme —
+// currently Dark").
 //
-// Dark: one StyledText Label with the value in bold copperBright, exactly
-// what ConfigGeneral.qml declared inline before. Light: the value "gets the
-// same gold sweep as the section headings" (configDialog mockup v30
-// :109-114) - the same Label draws the value transparent (so the layout is
-// identical) and a GradientText paints it at the prefix's advance width.
+// Dark: one StyledText Label with the value in bold copperBright. Light:
+// the value gets the section headings' gold sweep (configDialog mockup v30
+// :109-114); the Label draws it transparent, so the layout is identical,
+// and a GradientText paints it at the prefix's advance width.
 
 pragma ComponentBehavior: Bound
 

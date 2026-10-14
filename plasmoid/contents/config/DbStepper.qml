@@ -1,17 +1,10 @@
-// Phase 8.0.0: numeric dB +/- stepper for the Volume Limits / startup-volume
-// settings rows, matching the mockup's .db-stepper (v13 mockup:
-// design/mockups/configDialog/devialet_config_dialog_mockup_v13_single_tab.html).
+// Numeric dB +/- stepper for the Volume Limits and startup-volume rows
+// (the configDialog mockup's .db-stepper).
 //
-// Hold-to-repeat reuses QtQuick.Controls.Button's own `autoRepeat` (delay/
-// interval below) rather than reimplementing hold-to-repeat with JS
-// setTimeout/setInterval the way the static mockup's demo script does -
-// the mockup is a non-interactive HTML page with no Qt to call into, so it
-// had to hand-roll its own timers; this component doesn't need to. Delay/
-// interval values (300ms/100ms) and the button's own visual shape
-// (26x26, surface/divider, copperDim hover border) are copied from
-// VolumeBlock.qml's volumeDownButton/volumeUpButton - the flyout's real
-// volume +/- buttons - per CLAUDE.md's ask to match that cadence exactly
-// rather than the mockup's own placeholder 400ms/100ms JS constants.
+// Hold-to-repeat uses Button's own autoRepeat. Delay/interval (300/100 ms)
+// and the button shape (26x26, surface fill, copperDim hover border) match
+// VolumeBlock.qml's flyout volume buttons, not the mockup's placeholder
+// 400/100 ms.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -25,15 +18,14 @@ RowLayout {
     property real to: 0
     property real stepDb: 1
 
-    // Emitted on every step (button click/autoRepeat tick) with the new,
-    // already-clamped value - caller is responsible for storing it (e.g.
-    // into a cfg_* property), matching this file's stateless-control shape.
+    // Emitted on every step (click or autoRepeat tick) with the new,
+    // already-clamped value. Stateless: the caller stores it (e.g. into a
+    // cfg_* property) and writes `value` back.
     signal stepped(real value)
 
     readonly property Ui.Theme theme: Ui.Theme {}
-    // Phase 17.14.0: the page's palette, forwarded by ConfigGeneral (one
-    // palette for the whole page; required, so a missed hand-off fails at
-    // load instead of silently painting a different palette).
+    // The page's palette, forwarded by ConfigGeneral (required, so a
+    // missed hand-off fails at load).
     required property Ui.ColorPalette colors
 
     spacing: 8
@@ -50,14 +42,10 @@ RowLayout {
         autoRepeatInterval: 100
         onClicked: root.stepped(root.clamp(root.value - root.stepDb))
 
-        // Phase 8.3.0: disabled cue (not a silent no-op) for the boundary
-        // case - a click/hold at `from` (or, for the floor/hard-limit pair,
-        // at the other stepper's current value) does nothing, and this is
-        // the only visual signal that tells the user why. Same 0.4 dim
-        // factor VolumeBlock.qml's own group-level ampIp==="" dimming uses,
-        // just applied per-button here since only one of the two +/-
-        // buttons is ever blocked at a time (a whole-row dim would be
-        // wrong - the other button stays fully usable).
+        // Dimmed at the boundary (`from`/`to`; for the floor/hard-limit
+        // pair, one step from the other stepper's value) so a click that
+        // does nothing looks disabled. Per button, not per row: the other
+        // button stays usable.
         implicitWidth: 26
         implicitHeight: 26
         opacity: enabled ? 1.0 : 0.4
@@ -66,7 +54,7 @@ RowLayout {
             color: root.colors.surface
             border.width: 1
             border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
-            // Phase 17.25.0: light-theme card shadow.
+            // Light-theme card shadow.
             Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
@@ -85,7 +73,7 @@ RowLayout {
         color: root.colors.surface
         border.width: 1
         border.color: root.colors.controlBorder
-        // Phase 17.25.0: light-theme card shadow (`--val-shadow`).
+        // Light-theme card shadow (`--val-shadow`).
         Ui.CardShadow { colors: root.colors; radius: parent.radius }
         implicitWidth: valueLabel.implicitWidth + 20
         implicitHeight: 26
@@ -96,7 +84,7 @@ RowLayout {
             text: Math.round(root.value) + " dB"
             font.family: root.theme.fontMono
             font.pixelSize: 12
-            // Phase 17.27.0: neutral in light (configDialog mockup v30 :107).
+            // Neutral in light (configDialog mockup v30 :107).
             color: root.colors.controlValueText
             wrapMode: Text.NoWrap
         }
@@ -118,7 +106,7 @@ RowLayout {
             color: root.colors.surface
             border.width: 1
             border.color: parent.hovered ? root.colors.copperDim : root.colors.controlBorder
-            // Phase 17.25.0: light-theme card shadow.
+            // Light-theme card shadow.
             Ui.CardShadow { colors: root.colors; radius: parent.radius }
         }
         contentItem: Label {
