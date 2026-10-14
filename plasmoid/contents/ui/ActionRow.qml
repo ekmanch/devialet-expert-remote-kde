@@ -72,8 +72,9 @@ GridLayout {
     columns: 2
     columnSpacing: 8
     rowSpacing: 8
-    // Same whole-group dim as the header/volume block above (Android's
-    // setGroupEnabled(actionRow, connected)).
+    // Whole-row dim with no amp only (Android's setGroupEnabled(actionRow,
+    // connected)). Unlike VolumeBlock it can't dim on "not On": the power
+    // button must stay live while the amp is Off, so mute dims itself.
     opacity: actionRow.ampIp === "" ? 0.4 : 1.0
 
     Button {
@@ -84,8 +85,10 @@ GridLayout {
         Layout.preferredWidth: actionRow.muteButtonWidth
         Layout.preferredHeight: 38
         enabled: actionRow.muteInteractive
-        // Same 0.4 factor as the group dims.
-        opacity: actionRow.muteInteractive ? 1.0 : 0.4
+        // Own 0.4 dim only while the row isn't already dimmed (no amp):
+        // opacities multiply, and 0.4 x 0.4 would leave mute fainter than
+        // the power button and the volume block.
+        opacity: (actionRow.ampIp === "" || actionRow.muteInteractive) ? 1.0 : 0.4
         onClicked: actionRow.muteToggleRequested()
 
         // The non-muted branch tracks panel alpha with a floor (see
