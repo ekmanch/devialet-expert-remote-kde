@@ -35,7 +35,7 @@
 // - they're three alternate real-content strings) and not a master-
 // finding risk either (this is the last row in mainColumn - nothing below
 // it for the width change to cascade into, and its own height never
-// changes) - allowlisted in expected-7.6.0.json as a confirmed-harmless,
+// changes) - allowlisted in tools/flyout-harness/expected-17.json as a confirmed-harmless,
 // inherited-unchanged cosmetic recentering wobble, not silently ignored.
 
 pragma ComponentBehavior: Bound
