@@ -1,94 +1,33 @@
-// Phase 7.10.0 (spike/flyout-appletpopup-rebuild branch) - the real flyout
-// shell, rebuilt on PlasmaCore.Dialog. Phases 7.1.0-7.8.0 built this same
-// file on PlasmaCore.AppletPopup (PlasmaWindow family), which was the
-// wrong class for the rebuild's actual goal - real desktop transparency,
-// matching VolumeHoverTooltip.qml/VolumeToast.qml: PlasmaWindow's
-// BackgroundHints has no NoBackground value at all, so the shell frame
-// (opaque under Darkly) could never be removed. PlasmaCore.Dialog has a
-// real, code-enforced NoBackground (dialog.cpp updateTheme(): empty frame
-// image path, blur-behind off, no shadow). See TODO.md's Phase 7.0.0
-// correction and the Phase 7.9.0 spike entry, whose findings this file
-// implements one by one below.
+// The flyout window: a PlasmaCore.Dialog with NoBackground, the only
+// popup class that drops the theme frame and so allows real transparency
+// (docs/DESIGN.md §3). No KWin blur: plain alpha over the desktop, like
+// the tooltip and toast.
 //
-// What carries over from the AppletPopup version unchanged: mainItem's
-// MouseEventListener{focus:true} wrapper and its focus relay into
-// FlyoutContent, the QTBUG-146992 `enabled: visible` workaround, the
-// requestActivate() call on open, the Phase 7.7.0 Layout min/max pin, the
-// Keys.onEscapePressed + Phase 7.8.0 window-scoped Escape Shortcut pair,
-// the Phase 7.2.0 LayoutProbe, and every property CompactRepresentation.
-// qml touches (`visible`, `flyoutVisualParent`, `plasmoidItem`,
-// `pendingAmpState`) - CompactRepresentation.qml itself is unchanged.
+// - `appletInterface` is deliberately not set. With it set,
+//   Dialog::hideEvent() writes popupWidth/popupHeight into the applet's
+//   KConfig on every hide, and the only reader returns early anyway
+//   because the Layout min/max hints below are equal.
 //
-// What changed, and why (each one a Phase 7.9.0 finding or a class API
-// difference, none of them guesses):
+// - `visualParent` is `panelSpan`, not the icon item. Dialog anchors the
+//   popup to the visualParent's own bounds, so anchoring to the icon
+//   would overlap the panel by the gap between icon and panel edge.
+//   panelSpan covers the panel's full thickness instead (see its comment).
 //
-// - `type: AppletPopup`, `backgroundHints: NoBackground`, `location:
-//   Plasmoid.location` replace AppletPopup's popupDirection/
-//   removeBorderStrategy/floating. Dialog has no popupDirection (it
-//   positions from `location` + `visualParent`, dialog.cpp
-//   popupPosition()), no removeBorderStrategy (nothing to remove: with
-//   NoBackground there is no frame), and its `floating` is an int inset
-//   we don't need (it was never set here either).
+// - Overlay.overlay reset (Qt 6.11 bug): QQuickOverlay places itself at
+//   -(contentItem.size - window.size)/2 and only recomputes on contentItem
+//   geometry changes, but Dialog resizes its contentItem before its window
+//   (syncToMainItemSize()). Every Overlay-hosted Popup (AmpListOverlay,
+//   SourceListOverlay) then renders shifted and press-outside-to-close is
+//   dead outside the shifted rect. fixOverlay() resets it to (0,0)
+//   whenever the window's size or visibility changes.
 //
-// - `appletInterface` is deliberately NOT set (the AppletPopup version set
-//   it to plasmoidItem for popupWidth/popupHeight persistence). Read from
-//   dialog.cpp 6.7.4: with appletInterface set, Dialog::hideEvent() writes
-//   popupWidth/popupHeight into the applet's KConfig group on EVERY hide,
-//   and the only reader, updateSizeFromAppletInterface(), returns early
-//   when the Layout min/max hints are equal - which they always are here
-//   (the 7.7.0 pin). So on this window the property would buy a KConfig
-//   write per close and nothing else, while keeping alive exactly the
-//   size-key collision CLAUDE.md documents. Leaving it unset means this
-//   window never touches those keys. (Dialog's other appletInterface use,
-//   updateResizableEdges(), also collapses to "no resizable edges" when
-//   min == max.)
-//
-// - `visualParent` is `panelSpan` below, not the icon item directly.
-//   Finding 7.9.0 (4): Dialog anchors the popup to the visualParent
-//   item's own bounds (popupPosition(): bottomPoint = the item's
-//   mapRectToScene().bottom()), while AppletPopup anchored to the panel
-//   window's edge - a 4px difference on this panel (icon bottom y=32,
-//   panel bottom y=36), i.e. the flyout would overlap the panel's bottom
-//   4px. Rather than a transparent strip inside mainItem (which would
-//   also change the pinned window size), panelSpan is a zero-cost
-//   invisible Item reparented into the panel's own scene that covers the
-//   icon's extent along the panel and the panel window's FULL thickness
-//   across it, so Dialog's own bottomPoint/topPoint/leftPoint/rightPoint
-//   lands exactly on the panel edge - the same place AppletPopup put it.
-//   Its geometry is a live binding (ancestor x/y walk, see the comment on
-//   it), not a one-shot measurement.
-//
-// - Overlay.overlay reset (finding 7.9.0 (1), a real Qt 6.11 bug):
-//   QQuickOverlayPrivate::updateGeometry() (qquickoverlay.cpp) places the
-//   window's overlay at -(contentItem.size - window.size)/2 and only
-//   recomputes on contentItem geometry changes; Dialog resizes its
-//   contentItem BEFORE its window (dialog.cpp syncToMainItemSize():
-//   contentItem()->setSize(s) then adjustGeometry(geom)), so the overlay
-//   is computed against the stale window size and never fixed up.
-//   Symptom, measured live in the spike: every Overlay-hosted popup (the
-//   source ComboBox dropdown, AmpListOverlay) renders shifted by that
-//   offset and press-outside-to-close is dead outside the shifted rect.
-//   AppletPopup (7.1.0-7.8.0) never hit this. fixOverlay() below resets
-//   the overlay to (0,0) whenever the window's size or visibility lands;
-//   verified in the spike to make the dropdown render in place and
-//   press-outside close it again.
-//
-// - Sizing (finding 7.9.0 (2)): Dialog takes its window size from
-//   mainItem's actual size at show and thereafter follows ONLY the
-//   Layout.minimum*/maximum* attached hints (dialog.cpp getSizeHints() /
-//   updateMinimumWidth() & co), not mainItem's implicit size. The four
-//   hints below are therefore the sizing mechanism as well as the 7.7.0
-//   no-resize pin. HARD RULE: never bind them to 0, unset them, or
-//   otherwise zero them while the Dialog is shown - Phase 7.9.0 did that
-//   once (a `pin` toggle) and plasmashell died with a Wayland protocol
-//   error ("The Wayland connection experienced a fatal error"), taking
-//   the whole shell down. They are bound permanently to the content's
-//   implicit size, which is never 0 once FlyoutContent has loaded.
-//
-// - Positioning against the screen edge, blur, dismiss, Escape, focus:
-//   all verified on the spike (TODO.md 7.9.0); no KWin blur is expected
-//   or wanted - NoBackground is plain alpha over the desktop, exactly
-//   like the tooltip/toast.
+// - Sizing: Dialog takes its size from mainItem at show and afterwards
+//   follows only the Layout.minimum*/maximum* hints, not implicit size.
+//   The four equal hints below are both the sizing mechanism and the
+//   no-resize pin. Never bind them to 0, unset or zero them while the
+//   Dialog is shown: that kills plasmashell with a fatal Wayland protocol
+//   error. They are bound to the content's implicit size, which is never 0
+//   once FlyoutContent has loaded.
 
 import QtQuick
 import QtQuick.Layouts
@@ -101,28 +40,20 @@ import org.kde.kquickcontrolsaddons
 PlasmaCore.Dialog {
     id: flyoutPopup
 
-    // Named `flyoutVisualParent`, not `visualParent`, to avoid shadowing
-    // this component's own inherited `visualParent` property (which is
-    // bound to panelSpan below, not to this item directly - see header).
+    // Named `flyoutVisualParent` so it does not shadow Dialog's own
+    // `visualParent`, which is bound to panelSpan (see header).
     required property Item flyoutVisualParent
     required property PlasmoidItem plasmoidItem
-    // Forwarded through to FlyoutContent (Phase 5's shared pending-state
-    // consumer).
+    // Root-anchored shared state, forwarded to FlyoutContent
+    // (docs/DESIGN.md §3).
     required property PendingAmpState pendingAmpState
-    // Forwarded through to FlyoutContent - shared, root-anchored
-    // volume-range config (see VolumeSettings.qml's header comment).
     required property VolumeSettings volumeSettings
-    // Forwarded through to FlyoutContent - shared, root-anchored
-    // transparency alpha (Phase 9.1.0, see TransparencySettings.qml's
-    // header comment).
     required property TransparencySettings transparencySettings
-    // Phase 17.12.0: forwarded to FlyoutContent.
     required property ThemeSettings themeSettings
 
-    // Window-derived types default to visible:true in QML; without an
-    // explicit initial value this popup auto-opens on plasmashell startup
-    // (found the hard way in the Phase 7.0.0 spike). Initial value only,
-    // not a binding - CompactRepresentation.qml's onClicked reassigns it.
+    // Window-derived types default to visible:true; without this the
+    // popup opens on plasmashell startup. Initial value only, not a
+    // binding: CompactRepresentation.qml's onClicked reassigns it.
     visible: false
 
     type: PlasmaCore.Dialog.AppletPopup
@@ -134,10 +65,7 @@ PlasmaCore.Dialog {
     onVisibleChanged: {
         if (flyoutPopup.visible) {
             console.log("[FlyoutPopup] opening - about to call requestActivate()");
-            // Same call site as CompactApplet.qml's own dialog.
-            // requestActivate() (its known "QWindow::setWindowState does
-            // not accept Qt::WindowActive" warning did not reproduce on
-            // this system, Phase 7.0.0/7.9.0).
+            // Same call as CompactApplet.qml's own dialog makes on open.
             flyoutPopup.requestActivate();
         } else {
             console.log("[FlyoutPopup] closed");
@@ -179,11 +107,10 @@ PlasmaCore.Dialog {
         // +1 on the far side only: popupPosition() reads the anchor's
         // far edge through QRect::bottom()/right(), which are inclusive
         // (top + height - 1), so an exact span lands the popup 1px inside
-        // the panel (measured: y=35 on a 36px panel, and the icon-anchored
-        // spike's y=32 for a 3..33 icon). The near edges use top()/left()
-        // and need no correction. Window.* is the panel window's size -
-        // the attached property follows this item's real window after the
-        // reparent.
+        // the panel (measured: y=35 on a 36px panel). The near edges use
+        // top()/left() and need no correction. Window.* is the panel
+        // window's size: the attached property follows this item's real
+        // window after the reparent.
         x: alongX ? 0 : -iconOrigin.x
         y: alongX ? -iconOrigin.y : 0
         width: alongX ? (parent ? parent.width : 0) : Window.width + 1
@@ -206,8 +133,8 @@ PlasmaCore.Dialog {
         implicitWidth: flyoutContent.implicitWidth
         implicitHeight: flyoutContent.implicitHeight
 
-        // Phase 7.7.0 pin, now also Dialog's sizing mechanism - see header
-        // ("Sizing"). Never zero these while shown: it crashes plasmashell.
+        // Sizing mechanism and no-resize pin (see header, "Sizing").
+        // Never zero these while shown: it crashes plasmashell.
         Layout.minimumWidth: flyoutContent.implicitWidth
         Layout.maximumWidth: flyoutContent.implicitWidth
         Layout.minimumHeight: flyoutContent.implicitHeight
@@ -236,14 +163,11 @@ PlasmaCore.Dialog {
 
         Keys.onEscapePressed: flyoutPopup.visible = false
 
-        // Phase 7.8.0 Step A fix, kept: a QtQuick.Controls Popup
-        // (AmpListOverlay, SourceSelector's ComboBox dropdown) reparents
-        // its content into the window's Overlay.overlay, a SIBLING of
-        // mainItem, so Keys.onEscapePressed's parent-chain bubbling never
-        // reaches flyoutMainItem once focus has been there - confirmed
-        // outright in the 7.9.0 spike (the Keys handler never fired with
-        // focus on the ComboBox; this window-scoped Shortcut did, closing
-        // the dropdown first and the window on the second press).
+        // A QtQuick.Controls Popup reparents its content into the
+        // window's Overlay.overlay, a sibling of mainItem, so
+        // Keys.onEscapePressed never sees Escape while focus is in an open
+        // overlay. This window-scoped Shortcut does: the first press
+        // closes the overlay, the second the window.
         Shortcut {
             sequence: "Escape"
             context: Qt.WindowShortcut
@@ -261,21 +185,17 @@ PlasmaCore.Dialog {
             }
         }
 
-        // Phase 7.2.0 harness probe - non-visual, drives popup visibility
-        // and logs every item's coordinates only while
-        // tools/flyout-harness/ is running. `popup` is a var on the probe
-        // side, so the Dialog fits the same slot AppletPopup did (it reads
-        // x/y/width/height/visible/active, all present on both).
+        // Harness probe: non-visual; drives popup visibility and logs
+        // every item's coordinates only while tools/flyout-harness/ is
+        // running. It reads x/y/width/height/visible/active off `popup`.
         LayoutProbe {
             popup: flyoutPopup
             root: flyoutMainItem
             uiTarget: flyoutContent
         }
 
-        // The real flyout content - see FlyoutContent.qml. With
-        // NoBackground, its own tint Rectangle is now the flyout's entire
-        // visible surface, edge to edge (its old frame-inset bleed went
-        // with the frame - see the 7.10.0 note there).
+        // With NoBackground, FlyoutContent's own tint Rectangle is the
+        // flyout's entire visible surface, edge to edge.
         FlyoutContent {
             id: flyoutContent
             anchors.fill: parent

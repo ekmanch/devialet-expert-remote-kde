@@ -1,44 +1,25 @@
-// Phase 7.3.0 (spike/flyout-appletpopup-rebuild) - the amp picker list,
-// pulled OUT of in-flow mainColumn (§4 point 4, option (b)) into a
-// self-contained overlay so neither expand/collapse nor amp count can
-// ever perturb anything below the amp header (§1 master finding). See
-// TODO.md's Phase 7.3.0 entry and the plan it cites.
+// The amp picker list: an overlay card under the amp header, outside
+// mainColumn's flow, so neither opening it nor the amp count can move
+// anything below the header.
 //
-// Implemented as a QtQuick.Controls Popup, not a second PlasmaCore.Dialog:
-// the Popup's content is reparented into the flyout window's own Overlay -
-// no new native window, and so nothing that could trip the flyout's
-// hideOnWindowDeactivate / requestActivate focus relay (investigation
-// document §3's named risk). Verified live in Phase 7.3.0 (window count
-// unchanged on open, flyout stays active, no setWindowState warning - see
-// TODO.md). Phase 7.14.0: SourceListOverlay.qml is built on exactly this
-// same shape (see its header for why the ComboBox went away).
+// A QtQuick.Controls Popup, not a second PlasmaCore.Dialog: its content
+// is reparented into the flyout window's own Overlay, so no new native
+// window opens and the flyout's hideOnWindowDeactivate / requestActivate
+// focus handling is not disturbed. SourceListOverlay.qml has the same
+// shape (docs/DESIGN.md §3).
 //
-// Self-containment boundary (so reverting option (b) later is a targeted
-// change to this file + one line in FlyoutContent.qml): inputs are
-// `theme`, `knownAmps`, `ampIp`; outputs are the `closed` signal (Popup's
-// own) and `ampChosen(ip)`. The owner never binds this Popup's `visible`
-// (a closePolicy dismissal calls close() imperatively and would break
-// such a binding) - it drives open()/close() and listens to `closed`,
-// see FlyoutContent.qml's "Lifecycle and state sync".
+// Inputs `theme`, `knownAmps`, `ampIp`; outputs the Popup's own `closed`
+// signal and `ampChosen(ip)`. The owner never binds this Popup's
+// `visible` (a closePolicy dismissal calls close() imperatively and would
+// break such a binding) - it drives open()/close() and listens to
+// `closed`.
 //
-// Content (None row, inner divider, "No amps discovered yet" label, the
-// Repeater over knownAmps) is ported verbatim from
-// FullRepresentation.qml:940-1167 - findings 5 (empty label), 6 (divider,
-// see below) and 7 (Repeater height) all now live inside this overlay.
-// Finding 4: the old silent clip-at-220 (Item{clip:true} +
-// Math.min(...,220)) becomes a real ScrollView + ScrollBar; height changes
-// stay inside the overlay by construction.
-//
-// Phase 7.14.0 restyle (mockup v2 `.overlay-popup` / `.amp-option`): the
-// list is now a floating card inset 16px from the flyout's edges (was
-// flush/full-width with a bare bottom line), with the shared
-// OverlayCardBackground (13px radius, border, gradient, shadow), 8px
-// inner padding (`.amp-list-inner{padding:8px}`, replacing the per-row
-// 10px side margins + hand-placed 8px spacers) and 9px row radius. The
-// None row / divider / empty label are Android-port behaviour no mockup
-// version ever drew - kept as-is (Phase 7.14.0 is visual-only). The
-// connected dot's glow (`box-shadow`) is skipped, matching AmpHeader's
-// own dot which never drew its glow either.
+// Styling: mockup v2 `.overlay-popup` / `.amp-option` - a floating card
+// inset 16px from the flyout's edges with the shared
+// OverlayCardBackground, 8px inner padding (`.amp-list-inner{padding:8px}`)
+// and 9px row radius. The None row, divider and empty label are Android
+// app behaviour no mockup draws. The connected dot's glow (`box-shadow`)
+// is skipped, as on AmpHeader's own dot.
 
 pragma ComponentBehavior: Bound
 
@@ -51,12 +32,11 @@ Popup {
     objectName: "ampListOverlay"
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
     required property var knownAmps
     required property string ampIp
-    // Phase 9.1.1: chrome alpha for the card background - see
-    // TransparencySettings.qml's controlAlpha comment.
+    // Card background alpha - see OverlayCardBackground.qml.
     required property TransparencySettings transparencySettings
 
     signal ampChosen(string ip)
@@ -68,9 +48,9 @@ Popup {
     x: overlay.inset
     y: parent ? parent.height : 0
     width: parent ? parent.width - 2 * overlay.inset : 0
-    // Finding 4: capped height with a real scroll affordance, replacing
-    // the old silent clip. Popup padding is the card's inner padding
-    // (`.amp-list-inner{padding:8px}`); height = content + 2*padding.
+    // Capped height; beyond it the ScrollView scrolls. Popup padding is
+    // the card's inner padding (`.amp-list-inner{padding:8px}`); height =
+    // content + 2*padding.
     padding: 8
     readonly property int maxListHeight: 230
     height: Math.min(listColumn.implicitHeight + 2 * overlay.padding, overlay.maxListHeight)
@@ -91,7 +71,7 @@ Popup {
             width: overlay.availableWidth
             spacing: 2
 
-            // ---- "None" row (Android port, verbatim) ----
+            // ---- "None" row (as in the Android app) ----
             Rectangle {
                 id: ampNoneOption
                 objectName: "ampNoneRow"
@@ -112,8 +92,8 @@ Popup {
 
                     Rectangle {
                         Layout.alignment: Qt.AlignVCenter
-                        // Phase 17.6.0: 7 -> 10 px, matching the amp rows'
-                        // dots below (the mockup has no "None" row).
+                        // 10 px, matching the amp rows' dots below (the
+                        // mockup has no "None" row).
                         width: 10
                         height: 10
                         radius: 5
@@ -151,8 +131,8 @@ Popup {
                         }
                     }
 
-                    // Phase 17.8.0: painted 16 px tick (flyout mockup v2
-                    // :452-453) instead of the "✓" character.
+                    // Painted 16 px tick (flyout mockup v2 :452-453),
+                    // not the "✓" character.
                     Tick {
                         objectName: "ampNoneTick"
                         Layout.alignment: Qt.AlignVCenter
@@ -218,12 +198,12 @@ Popup {
                         Rectangle {
                             id: ampOptionDot
                             Layout.alignment: Qt.AlignVCenter
-                            // Phase 17.6.0: 7 -> 10 px (flyout mockup v2
-                            // :141, `.amp-option-dot`).
+                            // 10 px (flyout mockup v2 :141,
+                            // `.amp-option-dot`).
                             width: 10
                             height: 10
                             radius: 5
-                            // Phase 17.21.0: the connected amp's dot is the
+                            // The connected amp's dot is the
                             // gold sphere in light (flyout mockup v22
                             // :144-146).
                             readonly property bool gold: overlay.colors.isLight && ampOption.isCurrent
@@ -267,7 +247,7 @@ Popup {
                             }
                         }
 
-                        // Phase 17.8.0: painted 16 px tick, as above.
+                        // Painted 16 px tick, as above.
                         Tick {
                             objectName: "ampOptionTick:" + ampOption.modelData.ip
                             Layout.alignment: Qt.AlignVCenter

@@ -1,29 +1,16 @@
-// Phase 7.14.0 - the source picker list, a floating card that opens
-// UPWARD over the volume/action rows from the source row in
-// SourceSelector.qml (mockup v2 `#sourceList`, `.source-list.overlay-popup
-// {top:auto; bottom:72px; max-height:252px}`, `.source-option`).
+// The source picker list: a floating card that opens UPWARD over the
+// volume/action rows from the source row in SourceSelector.qml (mockup v2
+// `#sourceList`, `.source-list.overlay-popup{top:auto; bottom:72px;
+// max-height:252px}`, `.source-option`).
 //
-// Built on exactly AmpListOverlay.qml's shape - a QtQuick.Controls Popup
-// reparented into the flyout window's Overlay, content a synchronous
-// ColumnLayout + Repeater inside a ScrollView, height computed from the
-// column's implicit height before open() - and deliberately NOT on
-// PlasmaComponents3.ComboBox's own popup any more. Why (Phase 7.14.0
-// investigation, see TODO.md): the ComboBox popup's ListView only gets
-// its model once the popup is visible and reports its height as
-// delegates land, while QQuickPopupPositioner shrinks/flips it to fit -
-// any outside customization of that popup's height/background races
-// that (three live attempts: rows appearing then vanishing, or never
-// rendering). The old "ComboBox required per QTBUG-66446" rule turned
-// out to be an RTL LayoutMirroring bug filed against Popup in general,
-// not a reason to keep ComboBox - the actual Phase 3 failure was
-// qqc2-desktop-style's QtQuick.Controls ComboBox using a QStyle-drawn
-// Menu as its popup, which a plain Popup never touches. A side benefit:
-// PC3 ComboBox's built-in wheel handler that cycled currentIndex on
-// scroll over the closed row (each switch forcing -40 dB) is gone.
+// Same shape as AmpListOverlay.qml: a QtQuick.Controls Popup, content a
+// synchronous ColumnLayout + Repeater inside a ScrollView, height computed
+// from the column's implicit height before open(). Not a ComboBox popup -
+// see docs/DESIGN.md §3. No wheel handler on purpose: every source switch
+// sends the startup volume (known-gotchas #5).
 //
-// Self-containment boundary, mirroring AmpListOverlay: inputs `theme`,
-// `enabledSources` (already filtered by SourceSelector), and
-// `activeSourceIndex`; outputs the `closed` signal (Popup's own) and
+// Inputs `theme`, `enabledSources` (already filtered by SourceSelector)
+// and `activeSourceIndex`; outputs the Popup's own `closed` signal and
 // `sourceChosen(index, name)`. The owner (FlyoutContent) parents this
 // Popup to SourceSelector's row item, drives open()/close() off its own
 // `sourceListOpen` state and never binds `visible`.
@@ -39,13 +26,12 @@ Popup {
     objectName: "sourceListOverlay"
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
     // Array of {name, index, enabled, selected} - enabled ones only.
     required property var enabledSources
     required property int activeSourceIndex
-    // Phase 9.1.1: chrome alpha for the card background - see
-    // TransparencySettings.qml's controlAlpha comment.
+    // Card background alpha - see OverlayCardBackground.qml.
     required property TransparencySettings transparencySettings
 
     signal sourceChosen(int index, string name)
@@ -56,14 +42,12 @@ Popup {
     x: 0
     width: parent ? parent.width : 0
 
-    // Opens upward, its bottom edge over the row's top part. Phase 17.21.1:
-    // the mockup pins the card `bottom:66px` above the flyout's bottom and
-    // caps it at 264 px so six sources fit without a scrollbar (flyout
-    // mockup v22 :446). Measured on the live flyout (harness coords,
-    // 2026-10-03): the row's top is 99 px above the flyout's bottom (y 231
-    // of 330), so the card covers the row's top 33 px. Before, the card
-    // stopped 6 px above the row, which left 217 px for a list that needs
-    // 244 (6 x 36 + 5 x 4 + 2 x 4).
+    // Opens upward, its bottom edge over the row's top part. The mockup
+    // pins the card `bottom:66px` above the flyout's bottom and caps it at
+    // 264 px so six sources fit without a scrollbar (flyout mockup v22
+    // :446); six need 244 (6 x 36 + 5 x 4 + 2 x 4). Measured on the live
+    // flyout: the row's top is 99 px above the flyout's bottom (y 231 of
+    // 330), so the card covers the row's top 33 px.
     readonly property int rowOverlap: 33
     y: -overlay.height + overlay.rowOverlap
 
@@ -77,9 +61,8 @@ Popup {
     // tracks every `y`/`parent` read in the loop - same technique as
     // FlyoutPopup.qml's panelSpan.iconOrigin; Item.mapToItem() would
     // give the same number once but never re-evaluate). A plain Popup
-    // has no fit-inside-window logic of its own (unlike ComboBox's
-    // positioner, which is what used to flip the old dropdown upward),
-    // so the card is capped to the space actually above the row.
+    // has no fit-inside-window logic of its own, so the card is capped to
+    // the space actually above the row.
     readonly property real rowTopInWindow: {
         let y = 0;
         for (let i = overlay.parent; i; i = i.parent) {
@@ -102,11 +85,10 @@ Popup {
 
     background: OverlayCardBackground { theme: overlay.theme; colors: overlay.colors; transparencySettings: overlay.transparencySettings }
 
-    // Phase 17.1.1: since 17.1.0's shorter flyout, the real amp's six
-    // sources no longer fit in the room above the row, so the list
-    // scrolls. On open, scroll just far enough that the selected source is
-    // fully visible (a ComboBox popup positions itself; this Popup does
-    // not), and leave the list at the top when it already is.
+    // When the list is taller than the card, it scrolls. On open, scroll
+    // just far enough that the selected source is fully visible (a Popup
+    // does not do this itself), and leave the list at the top when it
+    // already is.
     onOpened: overlay.revealCurrent()
 
     function revealCurrent() {
@@ -131,12 +113,10 @@ Popup {
 
         ColumnLayout {
             id: listColumn
-            // Phase 17.1.1: the ScrollView's own availableWidth, not the
-            // Popup's. Under the desktop style the vertical ScrollBar
-            // reserves 21 px (rightPadding) once the list scrolls; binding
-            // to the Popup's width kept rows 260 px wide in a 239 px
-            // viewport, so the bar covered their right edge and the
-            // selection tick (measured on the 17.1.0 harness run).
+            // The ScrollView's own availableWidth, not the Popup's. Under
+            // the desktop style the vertical ScrollBar reserves 21 px
+            // (rightPadding) once the list scrolls; with the Popup's width
+            // the bar would cover the rows' right edge and the tick.
             width: scrollView.availableWidth
             spacing: overlay.rowSpacing
 
@@ -170,8 +150,8 @@ Popup {
                     readonly property bool isCurrent: modelData.index === overlay.activeSourceIndex
 
                     Layout.fillWidth: true
-                    // Pinned (house rule: AlignVCenter children + a row
-                    // height equal to the tallest child's real height):
+                    // Pinned (docs/DESIGN.md §5: AlignVCenter children +
+                    // a row height equal to the tallest child's height):
                     // the 20px glyph slot is the tallest child in every state -
                     // the 13px label's implicit height is below it - so
                     // 20 + 2*8 padding.
@@ -187,20 +167,17 @@ Popup {
                         anchors.rightMargin: 10
                         spacing: 9
 
-                        // Phase 17.7.0: painted 17 px glyph (flyout mockup
-                        // v2 :132-133), no box behind it - in either theme,
-                        // so it reads right over transparency + blur. The
-                        // 20 px slot keeps the objectName (harness key) and
-                        // the text position; the mockup's transparent
-                        // container is 22 px - spacing alignment is its own
-                        // pass.
+                        // Painted 17 px glyph (flyout mockup v2 :132-133),
+                        // no box behind it in either theme, so it reads
+                        // right over transparency + blur. The 20 px slot
+                        // keeps the objectName (harness key) and the text
+                        // position; the mockup's container is 22 px.
                         Item {
                             objectName: "sourceOptionChip:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
-                            // Phase 17.21.0: gold gradient + warm
-                            // shadow in light.
+                            // Gold gradient + warm shadow in light.
                             ThemedSourceGlyph {
                                 anchors.centerIn: parent
                                 colors: overlay.colors
@@ -223,8 +200,8 @@ Popup {
                             elide: Text.ElideRight
                         }
 
-                        // Phase 17.8.0: painted 16 px tick (flyout mockup v2
-                        // :452-453) instead of the "✓" character.
+                        // Painted 16 px tick (flyout mockup v2 :452-453),
+                        // not the "✓" character.
                         Tick {
                             objectName: "sourceOptionTick:" + sourceOption.modelData.index
                             Layout.alignment: Qt.AlignVCenter
@@ -238,8 +215,7 @@ Popup {
                         anchors.fill: parent
                         hoverEnabled: true
                         // Bounds-checked against the model this component
-                        // owns (the same rule SourceSelector's old
-                        // onActivated followed).
+                        // owns.
                         onClicked: {
                             const i = sourceOption.index;
                             if (i < 0 || i >= overlay.enabledSources.length) return;

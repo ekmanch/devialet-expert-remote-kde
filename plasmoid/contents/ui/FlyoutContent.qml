@@ -1,50 +1,23 @@
-// Phase 7.3.0 (spike/flyout-appletpopup-rebuild) - the real flyout content
-// root, successor to FullRepresentation.qml's root Item, hosted inside
-// FlyoutPopup.qml's PlasmaCore.AppletPopup mainItem. See TODO.md's Phase
-// 7.3.0 entry and the plan it cites.
+// The flyout content root, hosted in FlyoutPopup.qml's mainItem. Holds
+// the flyout's amp state and command surface and lays out the rows:
+// AmpHeader, VolumeBlock, ActionRow, SourceSelector, Footer, plus the
+// two overlay Popups (AmpListOverlay, SourceListOverlay).
 //
-// Phase 7.3.0 built the amp header (AmpHeader.qml, in-flow) + the amp list
-// (AmpListOverlay.qml, pulled out of flow per §4 point 4 option (b)).
-// Phase 7.4.0 added the volume block (VolumeBlock.qml - dB/unit readout,
-// source chip, -/slider/+). Phase 7.5.0 added the action row
-// (ActionRow.qml - mute/power buttons). Phase 7.6.0 adds the source
-// selector (SourceSelector.qml) and footer (Footer.qml), fully consuming
-// `sectionsPlaceholder` - every row in this file is now real content, no
-// placeholder spacer remains anywhere.
-//
-// State/functions below were the header-only subset ported verbatim from
-// FullRepresentation.qml through 7.3.0 (online/deviceName/ampIp/power/
-// powerState/knownAmps/selectedAmpIp + unwrap/unwrapKnownAmps/
-// fetchKnownAmpsFresh/selectAmpByIp + headerName/headerSub + its
-// Dbus.Properties mirror for exactly those properties). Phase 7.4.0 added
-// activeSourceName (a plain scalar, trusted directly like ampIp/
-// deviceName) plus the volume command surface (runCtl/exec/stepVolume/
-// releaseVolume) - volumeDb/muted themselves are deliberately NOT a new
-// local mirror, they're read from `pendingAmpState` (the required
-// property already forwarded in) per Phase 5's shared, daemon-resolved
-// architecture - see VolumeBlock.qml's header comment for the full
-// reasoning. Phase 7.5.0 added the mute/power command surface
-// (toggleMute/togglePower/beginPowerOnBoot): mute follows the same
-// pendingAmpState.muted pattern volume already established (no local
-// mirror, no debounce - Phase 5.0.2 Step B's daemon-resolved shape).
-// Power/PowerState are different - PendingAmpState deliberately doesn't
-// cover them (see its own header comment), so they stay in this file's
-// own D-Bus mirror (already present since 7.3.0 for the header), which
-// gained its first writer in 7.5.0 and therefore its first debounce guard
-// (`lastPowerChangeAtMs`, ported from FullRepresentation.qml). Phase
-// 7.6.0 adds `sources`/`activeSourceIndex` (array-of-struct, same
-// "don't trust the PropertiesChanged delta, re-fetch on signal"
-// treatment `knownAmps` already has - `unwrapSources`/
-// `fetchSourcesFresh`) plus `selectSource()`. `activeSourceName` (added
-// in 7.4.0 as an always-trusted scalar, since nothing wrote it locally
-// back then) now shares `ActiveSourceIndex`'s debounce guard
-// (`lastSourceChangeAtMs`) alongside it, for the identical reason Power/
-// PowerState gained one in 7.5.0: this phase gives it its first local
-// writer. Phase 8.0.1 wires the configured startup volume into both
-// selectSource() (same-invocation `--startup-volume-db`) and a deferred
-// send after a widget-initiated power-on (`pendingStartupVolumeIp` /
-// `startupVolumeTimer` / `sendStartupVolume()`, documented at that
-// block), arming PendingAmpState's post-boot display hold on "On".
+// State ownership:
+// - Volume and mute are not mirrored here: they are read from
+//   `pendingAmpState`, the shared daemon-resolved state (docs/DESIGN.md
+//   §3), and written through its notifyVolume()/notifyMute().
+// - Power/PowerState and ActiveSourceIndex/ActiveSourceName are mirrored
+//   here from D-Bus. The daemon has no pending-command state for them, so
+//   each pair has its own 400 ms guard against the late broadcast after
+//   an optimistic local write (`lastPowerChangeAtMs`,
+//   `lastSourceChangeAtMs`, applied in onPropertiesChanged).
+// - Sources and KnownAmps are arrays of structs whose PropertiesChanged
+//   payload is not trustworthy on repeat updates, so a change triggers an
+//   explicit Get instead (fetchSourcesFresh()/fetchKnownAmpsFresh()).
+// - The configured startup volume is sent with every source switch
+//   (selectSource()) and after a widget-initiated power-on (documented at
+//   `pendingStartupVolumeIp`).
 
 pragma ComponentBehavior: Bound
 
@@ -59,31 +32,19 @@ Item {
     id: root
 
     required property PlasmoidItem plasmoidItem
-    // Forwarded from FlyoutPopup - Phase 5's shared, daemon-resolved
-    // pending-state consumer. Phase 7.4.0: VolumeBlock's volumeDb is fed
-    // from pendingAmpState.volumeDb, and stepVolume/releaseVolume below
-    // call pendingAmpState.notifyVolume() - see VolumeBlock.qml's header
-    // comment for why this is deliberately not a new local mirror.
+    // Shared, daemon-resolved volume/mute state (see header).
     required property PendingAmpState pendingAmpState
-    // Shared, root-anchored volume-range config (floor/hard-limit/step/
-    // startup dB) - see VolumeSettings.qml's own header comment. Replaces
-    // this file's former local volumeStepDb/volumeCeilingDb/volumeFloorDb
-    // properties, which independently duplicated CompactRepresentation.
-    // qml's own copy of the same three numbers.
+    // Shared volume-range config (floor/hard-limit/step/startup dB).
     required property VolumeSettings volumeSettings
-    // Shared, root-anchored transparency alpha (Phase 9.1.0) - see
-    // TransparencySettings.qml's own header comment. Drives the panel
-    // tint gradient below.
+    // Shared transparency alpha; drives the tint gradient below.
     required property TransparencySettings transparencySettings
-    // Bound one-way from FlyoutPopup.visible - drives the amp-list reset on
-    // flyout hide below (and is the future binding target for the deferred
-    // pop-in animation, 7.7.0 polish).
+    // Bound one-way from FlyoutPopup.visible; drives the overlay reset on
+    // flyout hide below.
     property bool popupVisible: false
 
     readonly property Theme theme: Theme {}
-    // Phase 17.12.0: the theme, resolved by ThemeSettings (root-anchored in
-    // main.qml); `colors` is the flyout's palette, forwarded to every child
-    // alongside `theme`.
+    // The theme, resolved by ThemeSettings; `colors` is the flyout's
+    // palette, forwarded to every child alongside `theme`.
     required property ThemeSettings themeSettings
     readonly property ColorPalette colors: root.themeSettings.flyoutPalette
 
@@ -99,17 +60,12 @@ Item {
     property var knownAmps: []
     property string selectedAmpIp: ""
 
-    // ---- Phase 7.4.0/7.6.0: source state ----
-    // activeSourceName: plain scalar mirror (added 7.4.0), trusted like
-    // online/deviceName/ampIp - but see the Phase 7.6.0 debounce guard on
-    // it below now that selectSource() writes it locally.
+    // ---- source state ----
+    // ActiveSourceName/ActiveSourceIndex are scalars (`s`, `y`) and are
+    // read straight from PropertiesChanged, behind the source guard.
+    // `sources` (a(sybb)) is array-of-struct, so it is re-fetched (see
+    // fetchSourcesFresh()).
     property string activeSourceName: ""
-    // Phase 7.6.0: ActiveSourceIndex is a scalar too (`y`/byte, confirmed
-    // via FullRepresentation.qml's own busctl-checked header comment), no
-    // fetch-fresh workaround needed. `sources` (a(sybb)) IS array-of-
-    // struct like KnownAmps, so it gets the identical treatment -
-    // unwrapSources()/fetchSourcesFresh() below, ported from
-    // FullRepresentation.qml.
     property int activeSourceIndex: -1
     property var sources: []
     property double lastSourceChangeAtMs: 0
@@ -131,11 +87,9 @@ Item {
         return result;
     }
 
-    // Sources' PropertiesChanged delta payload is not trustworthy on
-    // repeat updates (see FullRepresentation.qml's own fetchSourcesFresh
-    // doc for the wire-level finding, same basis as fetchKnownAmpsFresh
-    // above) - re-fetch via an explicit Get on the signal rather than
-    // trusting `changed.Sources`.
+    // Sources' PropertiesChanged payload is not trustworthy on repeat
+    // updates, so re-fetch with an explicit Get on the signal rather than
+    // trusting `changed.Sources` (same as fetchKnownAmpsFresh()).
     function fetchSourcesFresh() {
         if (root.sourcesFetchInFlight) return;
         root.sourcesFetchInFlight = true;
@@ -167,28 +121,24 @@ Item {
         );
     }
 
-    // Called from SourceListOverlay's sourceChosen signal - index/name are
-    // already validated against the overlay's own model (see
-    // SourceListOverlay.qml's onClicked), so no bounds check needed here,
-    // matching FullRepresentation.qml's original onActivated body.
+    // Called from SourceListOverlay's sourceChosen signal. index/name are
+    // already validated against the overlay's own model (its onClicked),
+    // so no bounds check here.
     function selectSource(index, name) {
-        // Power gate (2026-09-08 follow-up) - the row is already inert
-        // unless "On" (SourceSelector.interactive); repeated here for the
-        // overlay's own click path.
+        // Power gate (gotcha #10): the row is already inert unless "On"
+        // (SourceSelector.interactive); repeated for the overlay's own
+        // click path.
         if (root.ampIp === "" || root.powerState !== "On") return;
         root.activeSourceIndex = index;
         root.activeSourceName = name;
         root.lastSourceChangeAtMs = root.now();
-        // Phase 8.0.1: the configured startup volume replaces the CLI's
-        // hardcoded -40 as the forced post-switch volume (known-gotchas
-        // #5). Pre-clamped here to [floor, hardLimit] like every other
-        // volume-set path (Phase 8.4.0's invariant; nothing downstream
-        // would re-apply the floor), and the CLI applies the ceiling again
-        // itself - the same defense-in-depth as Phase 8.1.0. Sent in the
-        // same invocation as the switch: Gate #1 (2026-09-07) honored the
-        // zero-delay source+volume pair 6/6 on the real amp. Then the same
-        // notifyVolume() step every other volume-set call site does, so
-        // the flyout/OSD/tooltip show the post-switch volume at once.
+        // Every source switch sends the configured startup volume
+        // (gotcha #5). Pre-clamped to [floor, hardLimit] like every other
+        // volume-set path, since nothing downstream re-applies the floor;
+        // the CLI clamps to the hard limit again itself. Sent in the same
+        // invocation as the switch: the amp honoured the zero-delay
+        // source+volume pair 6/6. notifyVolume() makes the flyout, OSD and
+        // tooltip show the post-switch volume at once.
         const target = root.volumeSettings.clamp(root.volumeSettings.startupVolumeDb);
         root.runCtl("source " + index + " --hard-limit-db " + root.volumeSettings.hardLimitDb
                     + " --startup-volume-db " + target);
@@ -197,7 +147,7 @@ Item {
 
     readonly property string devialetCtlCommand: "devialet-ctl"
 
-    // ---- Chime spike (branch spike/volume-audio-feedback, see TODO.md) ----
+    // ---- volume chime ----
     // One gain-compensated chime per discrete step, only while the PC is
     // the amp's source (Optical 1 - the PC -> HDMI -> TV -> optical path).
     // The binary does the math; QML supplies the two dB values it already
@@ -205,7 +155,7 @@ Item {
     // real last-broadcast dB (pendingAmpState.confirmedVolumeDb, decoded
     // from the daemon's unmasked VolumeRaw).
     readonly property string chimeCommand: "devialet-chime"
-    // Round-robin pool of DataSources, not one reused id (owner decision):
+    // Round-robin pool of DataSources, not one reused id:
     // KDE's Audio Devices tone plays via libcanberra, which spawns a fresh
     // stream per trigger so rapid triggers overlap and mix instead of
     // interrupting each other. Tick N uses chimePool[N % length]. Four
@@ -215,7 +165,8 @@ Item {
     // process-wide and keys running jobs by command string, so two ticks
     // with identical dB arguments would otherwise collapse into one
     // process regardless of the pool. The set of strings must stay
-    // bounded, though: see VolumeSettings.chimeArguments().
+    // bounded, though: see VolumeSettings.chimeArguments() and
+    // docs/DESIGN.md §5.
     readonly property var chimePool: [chimeExec0, chimeExec1, chimeExec2, chimeExec3]
     property int chimeTick: 0
 
@@ -227,18 +178,16 @@ Item {
     }
 
     function maybeChime(targetDb) {
-        // Phase 10.1.2: the ConfigDialog's master toggle (main.xml
-        // chimeEnabled, forwarded via VolumeSettings). Checked first so an
-        // off toggle never spawns devialet-chime at all - not a silenced
-        // or gained-down run, no process.
+        // The settings' master toggle (main.xml chimeEnabled, via
+        // VolumeSettings). Checked first so an off toggle spawns no
+        // devialet-chime process at all.
         if (!root.volumeSettings.chimeEnabled) return;
         if (!root.isPcSourceActive()) return;
         const confirmed = root.pendingAmpState.confirmedVolumeDb;
         if (typeof confirmed !== "number" || typeof targetDb !== "number") return;
-        // Phase 10.1.3: the ConfigDialog's chime source (VolumeSettings.
-        // chimeFileArgument()): "" in follow mode - no --file, the 10.1.0
-        // command unchanged; " --file '<path>'" for a pinned theme or a
-        // picked file; null when the mode needs a file but none resolves -
+        // The chime source (VolumeSettings.chimeFileArgument()): "" in
+        // follow mode (no --file); " --file '<path>'" for a pinned theme or
+        // a picked file; null when the mode needs a file but none resolves:
         // skip and warn, never silently fall back to another mode.
         const fileArg = root.volumeSettings.chimeFileArgument();
         if (fileArg === null) {
@@ -256,11 +205,9 @@ Item {
         root.chimePool[slot].connectSource(cmd);
     }
 
-    // ---- Phase 7.5.0: action row (mute/power) state ----
-    // Power/PowerState debounce - see this file's header comment for why
-    // this is still needed here (no daemon-owned pending-command state for
-    // Power, unlike VolumeDb/Muted) and PendingAmpState.qml's own comment
-    // for why it doesn't cover this either.
+    // ---- action row (mute/power) state ----
+    // Guard window for the Power/PowerState and source mirrors (see
+    // header): the daemon has no pending-command state for them.
     readonly property int debounceMs: 400
     property double lastPowerChangeAtMs: 0
 
@@ -273,52 +220,39 @@ Item {
         exec.connectSource(cmd);
     }
 
-    // Button/wheel step - mirrors CompactRepresentation.qml's stepVolume()
-    // exactly (Phase 5.0.2 Step B shape): reads pendingAmpState.volumeDb as
-    // its base (safe because notifyVolume() writes it synchronously before
-    // firing its D-Bus call, so a rapid second step still reads the value
-    // this call is about to set), not a local copy.
+    // Button/wheel step, mirroring CompactRepresentation.qml's
+    // stepVolume(). Reads pendingAmpState.volumeDb as its base: safe
+    // because notifyVolume() writes it synchronously before its D-Bus
+    // call, so a rapid second step reads the value this call just set.
     function stepVolume(direction) {
-        // Power gate (2026-09-08 follow-up): VolumeBlock already disables
-        // its inputs unless powerState === "On" (see its `interactive`);
-        // this repeats the check for autoRepeat ticks already queued when
-        // the state flips, and mirrors CompactRepresentation.stepVolume().
+        // Power gate (gotcha #10): VolumeBlock already disables its inputs
+        // unless "On" (its `interactive`); this repeats the check for
+        // autoRepeat ticks already queued when the state flips.
         if (root.ampIp === "" || root.powerState !== "On") return;
-        // Step/clamp math now lives in VolumeSettings.stepped() - see that
-        // file's header comment.
         const clamped = root.volumeSettings.stepped(root.pendingAmpState.volumeDb, direction);
-        // Mirrors CompactRepresentation.qml's stepVolume() - a volume
-        // change from any input (panel-icon scroll or the flyout's own
-        // +/- buttons/slider) auto-unmutes for real, matching KDE's own
-        // Audio Devices applet convention. Deliberately applied
-        // consistently across every volume-adjusting input in the
-        // widget, not just scroll - explicit scope decision, not an
-        // oversight.
+        // A volume change from any input (panel scroll, the flyout's
+        // +/- buttons or slider) unmutes for real, matching KDE's Audio
+        // Devices applet. Applied consistently on every volume input.
         if (root.pendingAmpState.muted) {
             root.runCtl("mute off");
             root.pendingAmpState.notifyMute(false);
         }
         root.runCtl("volume " + clamped + " --hard-limit-db " + root.volumeSettings.hardLimitDb);
         root.pendingAmpState.notifyVolume(clamped);
-        // Chime spike: one attempted chime per discrete step, no debounce
-        // (Phase 10.0.0 Finding 3). Reached by the flyout slider's wheel
-        // notches AND the +/- buttons (both emit VolumeBlock.stepRequested);
-        // releaseVolume() below deliberately does not chime.
+        // One attempted chime per discrete step, no debounce. Reached by
+        // the slider's wheel notches and the +/- buttons (both emit
+        // VolumeBlock.stepRequested); releaseVolume() deliberately does
+        // not chime.
         root.maybeChime(clamped);
     }
 
-    // Slider release - the value is the drag result computed inside
-    // VolumeBlock from its own live value (bounded by the Slider's own
-    // from/to already), but now also passed through the same shared
-    // clamp() every other volume-adjusting path uses - defense-in-depth so
-    // no dB value this widget sends ever depends solely on the Slider's
-    // own bounds being correct, matching the Rust protocol crate's own
-    // "clamp internally, don't trust the caller" convention.
+    // Slider release. The drag result is already bounded by the Slider's
+    // from/to, but still goes through the shared clamp() so no sent value
+    // depends on the Slider's bounds being right.
     function releaseVolume(value) {
         if (root.ampIp === "" || root.powerState !== "On") return;
         const clamped = root.volumeSettings.clamp(value);
-        // Same auto-unmute-on-volume-change as stepVolume() above - a
-        // slider drag counts as a volume-adjusting input too.
+        // Same unmute-on-volume-change as stepVolume().
         if (root.pendingAmpState.muted) {
             root.runCtl("mute off");
             root.pendingAmpState.notifyMute(false);
@@ -327,25 +261,20 @@ Item {
         root.pendingAmpState.notifyVolume(clamped);
     }
 
-    // Mirrors CompactRepresentation.qml's toggleMute() exactly (Phase
-    // 5.0.2 Step B shape) - reads pendingAmpState.muted directly, no local
-    // mirror, no debounce (see this file's header comment).
+    // Mirrors CompactRepresentation.qml's toggleMute(): reads
+    // pendingAmpState.muted directly, no local mirror, no guard.
     function toggleMute() {
-        // Power gate (2026-09-08 follow-up) - see ActionRow.muteInteractive.
+        // Power gate (gotcha #10), see ActionRow.muteInteractive.
         if (root.ampIp === "" || root.powerState !== "On") return;
         const newMuted = !root.pendingAmpState.muted;
         root.runCtl("mute " + (newMuted ? "on" : "off"));
         root.pendingAmpState.notifyMute(newMuted);
     }
 
-    // Tells the daemon a power-on boot is starting, so it can start
-    // tracking BOOT_TIMEOUT (Phase 4.3.0) - ported verbatim from
-    // FullRepresentation.qml. Called synchronously, back-to-back with
-    // runCtl("power on") in togglePower() below, before the devialet-ctl
-    // invocation - both are fire-and-forget async dispatches issued in the
-    // same handler, with no wait on either one's completion in between, so
-    // there's no window where the real power-on command has gone out but
-    // the daemon doesn't yet know a boot is in progress.
+    // Tells the daemon a power-on boot is starting, so it tracks
+    // BOOT_TIMEOUT. togglePower() calls it right before runCtl("power on")
+    // in the same handler, both fire-and-forget, so the power-on command
+    // never goes out before the daemon knows a boot is in progress.
     function beginPowerOnBoot() {
         Dbus.SessionBus.asyncCall(
             new Dbus.dbusMessage({
@@ -366,19 +295,16 @@ Item {
         );
     }
 
-    // Ported verbatim from FullRepresentation.qml's power button
-    // onClicked. Optimistic set on both power/powerState, stamped so the
-    // debounce guard in onPropertiesChanged below holds them through the
-    // 400ms window - see this file's header comment for why Power still
-    // needs this (unlike volume/mute).
+    // Optimistic set on both power/powerState, stamped so the guard in
+    // onPropertiesChanged holds them through the 400 ms window.
     function togglePower() {
         if (root.ampIp === "" || root.powerState === "Booting") return;
         const newPower = !root.power;
         root.power = newPower;
         root.powerState = newPower ? "Booting" : "Off";
         root.lastPowerChangeAtMs = root.now();
-        // Phase 8.0.1: arm (or, on a power-off click, disarm) the
-        // post-boot startup volume - see the block after this function.
+        // Arm (or, on a power-off click, disarm) the post-boot startup
+        // volume - see the block after this function.
         // After the optimistic assignments: the "Booting" they trigger in
         // onPowerStateChanged is a no-op there anyway.
         if (newPower) {
@@ -389,70 +315,48 @@ Item {
             root.pendingAmpState.endBootHold();
         }
         if (newPower) {
-            // Told the daemon first, then the real command - see
-            // beginPowerOnBoot()'s own doc for why this ordering leaves no
-            // gap. Power-off stays exactly as before: immediate, no
-            // daemon notification.
+            // Tell the daemon first, then send the command (see
+            // beginPowerOnBoot()). Power-off is immediate, no daemon
+            // notification.
             root.beginPowerOnBoot();
         }
         root.runCtl("power " + (newPower ? "on" : "off"));
     }
 
-    // ---- Phase 8.0.1: startup volume after a widget-initiated power-on ----
-    // Owner decision (TODO.md Phase 8.0.1): widget-initiated power-on only;
-    // an external power-on (remote, front panel) is deliberately not
-    // covered. Entirely in QML, no daemon/D-Bus change: the daemon's
-    // existing PowerState ("Off"/"Booting"/"On", Phase 4.3.0's boot
-    // tracking) is the boot-confirmation signal, observed here because
-    // this file owns the codebase's only PowerState mirror and the only
-    // `power on` call site. Power-on and the volume cannot share one
-    // devialet-ctl invocation - the CLI is fire-and-exit and cannot wait
-    // for the boot (measured 15.0-18.6 s across 21 boots) - so the
-    // follow-up is a plain `volume` invocation once "On" is observed.
+    // ---- startup volume after a widget-initiated power-on ----
+    // Widget-initiated power-on only; an external power-on (remote, front
+    // panel) is not covered. The daemon's PowerState is the boot
+    // confirmation, observed here because this file owns the only
+    // PowerState mirror and the only `power on` call site. Power-on and
+    // the volume cannot share one devialet-ctl invocation (the CLI cannot
+    // wait out a 15-19 s boot), so the volume is a separate send once "On"
+    // is observed.
     //
-    // Why 500 ms after "On" (startupVolumeAfterBootMs) and not 0: a volume
-    // command that reaches the amp before its own post-boot startup-volume
-    // application is dropped outright (docs/known-gotchas.md #9; raw UDP
-    // capture, never applied-then-overwritten). That application's latency
-    // after the first power-on broadcast is not fixed - observed at or
-    // before the first "On" (3 boots), ~+200 ms (9), +394 ms (1) and
-    // >+400 ms (3). Early-exit sweep, delay measured from the first raw
-    // power-on packet (1-40 ms *before* the daemon's "On", so every figure
-    // is conservative here): +2 ms 0/1, +100 ms 1/2 (the failure had the
-    // application at +394 ms), +200 ms 9/9 (every pass had it at
-    // <= +202 ms, i.e. inside the observed spread), +500 ms 3/3 (packets at
-    // +200/+400 still pre-application; it surfaced with the send), +1018
-    // and +2030 ms 1/1 each. 500 is the smallest round value above the
-    // latest observed amp-side application, and imperceptible after a
-    // 15 s boot.
+    // Why 500 ms after "On" and not 0: a volume command that reaches the
+    // amp before its own post-boot startup-volume application is dropped
+    // (gotcha #9). That application lands anywhere from before the first
+    // "On" to just over +400 ms after it; 500 is the smallest round value
+    // above the latest observed, passed every trial, and is imperceptible
+    // after a 15 s boot.
     //
-    // State: one string, the IP captured at click time ("" = not armed),
-    // so a multi-amp switch mid-boot can't misfire on the wrong amp (Phase
-    // 8.4.0's "only the currently-connected amp" scoping). Lives here, not
-    // in PendingAmpState (which owns only AmpIp/VolumeDb/Muted by its own
-    // header rule) and not at main.qml's root: FlyoutPopup is a plain
-    // Dialog child of CompactRepresentation with no Loader, so this item
-    // stays resident while the flyout is hidden during the boot.
+    // State: the IP captured at click time ("" = not armed), so a switch
+    // to another amp mid-boot cannot fire at the wrong amp. It lives here
+    // because FlyoutPopup is a plain Dialog child of CompactRepresentation
+    // with no Loader, so this item stays resident while the flyout is
+    // hidden during the boot.
     //
-    // Ordering (Phase 8.4.0's observe-then-react check): onPowerStateChanged
-    // fires synchronously at the guarded assignment in ampProps.
-    // onPropertiesChanged below; it reads only root.powerState and the
-    // local flag, and the deferred send reads root.ampIp (assigned before
-    // PowerState in that handler, and ~16 s stale anyway) plus config -
-    // nothing reads pendingAmpState.volumeDb, so the AmpIp-before-VolumeDb
-    // ordering that forced Qt.callLater in 8.4.0 doesn't apply, and the
-    // Timer defers the send past the whole handler regardless. Every armed
-    // state resolves: the daemon guarantees Booting -> On or Off within
-    // BOOT_TIMEOUT for a boot it tracks, bootWatchdog below ends "Booting"
-    // when the daemon stays silent, and "Off" (either timeout or a
-    // power-off click) disarms.
+    // Ordering: onPowerStateChanged fires synchronously inside
+    // ampProps.onPropertiesChanged, after AmpIp has been assigned; nothing
+    // here reads pendingAmpState.volumeDb, and the Timer defers the send
+    // past the whole handler anyway. Every armed state resolves: the
+    // daemon ends Booting with On or Off within BOOT_TIMEOUT, bootWatchdog
+    // ends it when the daemon stays silent, and "Off" disarms.
     //
     // Display: on "On" the hold in PendingAmpState.qml is armed with the
-    // target so no surface shows the amp's pre-shutdown or misreported
-    // post-boot value (gotcha #8) in the ~700 ms before the send lands;
-    // the send itself reads the hold's current target, so a user volume
-    // change inside that window wins on the amp too (see that file's
-    // header for the measurements).
+    // target, so no surface shows the amp's pre-shutdown or misreported
+    // post-boot value (gotcha #8) before the send lands. The send reads
+    // the hold's current target, so a user volume change inside that
+    // window wins on the amp too (docs/DESIGN.md §3).
     property string pendingStartupVolumeIp: ""
     readonly property int startupVolumeAfterBootMs: 500
 
@@ -463,7 +367,7 @@ Item {
         onTriggered: root.sendStartupVolume()
     }
 
-    // 2026-10-04: bounds "Booting" when the daemon never ends it - see
+    // Bounds "Booting" when the daemon never ends it - see
     // BootWatchdog.qml. Assigning "Off" here runs onPowerStateChanged's
     // "Off" branch below, which also disarms the startup volume.
     // daemonPowerState is the unguarded copy of the daemon's PowerState
@@ -480,8 +384,8 @@ Item {
     }
 
     onPowerStateChanged: {
-        // A source list left open when the amp goes off/booting closes -
-        // its row is no longer interactive (2026-09-08 follow-up).
+        // A source list left open when the amp goes off/booting closes;
+        // its row is no longer interactive.
         if (root.powerState !== "On") root.sourceListOpen = false;
         if (root.pendingStartupVolumeIp === "") return;
         if (root.powerState === "On") {
@@ -516,16 +420,14 @@ Item {
         // the window re-targeted it, else the configured startup volume.
         const held = root.pendingAmpState.bootHoldIp !== "";
         const target = held ? root.pendingAmpState.bootHoldDb : root.startupVolumeTarget();
-        // No `mute off` here - volume and mute are independent opcodes
-        // (Phase 8.4.0's rule); a startup volume is not a user's
-        // volume-adjusting gesture.
+        // No `mute off` here: volume and mute are independent opcodes,
+        // and a startup volume is not a user's volume gesture.
         root.runCtl("volume " + target + " --hard-limit-db " + root.volumeSettings.hardLimitDb);
         root.pendingAmpState.notifyVolume(target);
     }
 
     // Fires devialet-ctl once per connectSource() call, then disconnects
-    // itself - same pattern as CompactRepresentation.qml/
-    // FullRepresentation.qml's own `exec`.
+    // itself - same pattern as CompactRepresentation.qml's `exec`.
     P5Support.DataSource {
         id: exec
         engine: "executable"
@@ -536,8 +438,8 @@ Item {
         }
     }
 
-    // Chime spike: the four-slot round-robin pool maybeChime() cycles
-    // through - see the chimePool comment above. Same shape as `exec`,
+    // The four-slot round-robin pool maybeChime() cycles through - see
+    // the chimePool comment above. Same shape as `exec`,
     // distinct log prefix so the journal trail can be grepped per slot.
     P5Support.DataSource {
         id: chimeExec0
@@ -579,14 +481,13 @@ Item {
         }
     }
 
-    // The UI-state hooks (harness `uiTarget` points here). Writers are all
-    // imperative - see the header of this file's plan; no binding touches
-    // them, so the trigger->overlay->Popup chains can't loop.
+    // The UI-state hooks (harness `uiTarget` points here), one per
+    // overlay Popup (docs/DESIGN.md §3). Writers are all imperative; no
+    // binding touches them, so the trigger->overlay->Popup chains can't
+    // loop.
     property bool ampListOpen: false
-    // Phase 7.14.0: the source list is a second owner-driven Popup
-    // (SourceListOverlay.qml) with the identical contract.
     property bool sourceListOpen: false
-    // Phase 17.12.0, harness-only: a UiState key pinning the theme for a
+    // Harness-only: a UiState key pinning the theme for a
     // capture ("dark"/"light"; "" = follow the setting). Pushed into
     // ThemeSettings.harnessOverride; the harness sends "" on teardown.
     property string themeOverride: ""
@@ -596,8 +497,8 @@ Item {
     }
 
     // Reset both lists when the flyout hides, so neither is already
-    // expanded on the next open (neither the old flyout nor a QtQuick
-    // Popup resets on window hide on its own).
+    // expanded on the next open (a QtQuick Popup does not reset on window
+    // hide on its own).
     onPopupVisibleChanged: {
         if (!root.popupVisible) {
             root.ampListOpen = false;
@@ -608,8 +509,8 @@ Item {
     // Drive each overlay Popup imperatively off its own flag. close() on
     // an already-closed Popup is a no-op emitting nothing, so the
     // re-entrant path (overlay dismiss -> onClosed sets false -> here
-    // calls close()) terminates safely. Mutual exclusion (mockup v2's
-    // toggleAmpList()/toggleSourceList(): opening one closes the other)
+    // calls close()) terminates safely. Mutual exclusion (opening one
+    // closes the other, as in the mockup)
     // is enforced here explicitly rather than left to the two Popups'
     // press-outside close policies happening to fire: clearing the other
     // flag when it's already false emits nothing, so no ping-pong.
@@ -645,10 +546,9 @@ Item {
 
     property bool knownAmpsFetchInFlight: false
 
-    // KnownAmps is array-of-struct: its PropertiesChanged delta is not
-    // trustworthy on repeat updates (see FullRepresentation.qml's
-    // fetchKnownAmpsFresh doc for the wire-level finding), so re-fetch via
-    // an explicit Get on the signal rather than trusting `changed.KnownAmps`.
+    // KnownAmps is array-of-struct: its PropertiesChanged payload is not
+    // trustworthy on repeat updates, so re-fetch via an explicit Get on
+    // the signal rather than trusting `changed.KnownAmps`.
     function fetchKnownAmpsFresh() {
         if (root.knownAmpsFetchInFlight) return;
         root.knownAmpsFetchInFlight = true;
@@ -734,12 +634,9 @@ Item {
             if ("Online" in changed) root.online = root.unwrap(changed.Online, root.online);
             if ("DeviceName" in changed) root.deviceName = root.unwrap(changed.DeviceName, root.deviceName);
             if ("AmpIp" in changed) root.ampIp = root.unwrap(changed.AmpIp, root.ampIp);
-            // Phase 7.5.0: debounce guard added now that togglePower()
-            // below writes these optimistically - see this file's header
-            // comment for why Power/PowerState still need one (unlike
-            // volume/mute, which are pendingAmpState-resolved). Both share
-            // lastPowerChangeAtMs: one click drives both, so one guard is
-            // enough (matches FullRepresentation.qml's own reasoning).
+            // Guard against the late broadcast after togglePower()'s
+            // optimistic write (see header). One click drives both, so
+            // both share lastPowerChangeAtMs.
             if ("Power" in changed) {
                 if (!root.within(root.lastPowerChangeAtMs, root.debounceMs)) {
                     root.power = root.unwrap(changed.Power, root.power);
@@ -751,11 +648,8 @@ Item {
                     root.powerState = root.unwrap(changed.PowerState, root.powerState);
                 }
             }
-            // Phase 7.6.0: debounce guard added now that selectSource()
-            // writes both of these optimistically - same reasoning as the
-            // Power/PowerState guard above (one guard, one click drives
-            // both), ported from FullRepresentation.qml's identical
-            // treatment.
+            // Same guard for selectSource()'s optimistic write; one click
+            // drives both fields.
             if (("ActiveSourceIndex" in changed || "ActiveSourceName" in changed)
                 && !root.within(root.lastSourceChangeAtMs, root.debounceMs)) {
                 if ("ActiveSourceIndex" in changed) root.activeSourceIndex = root.unwrap(changed.ActiveSourceIndex, root.activeSourceIndex);
@@ -767,45 +661,25 @@ Item {
         }
     }
 
-    // ---- background tint, ported from FullRepresentation.qml:740-754.
-    // Phase 7.10.0: this is now the flyout's entire visible surface. The
-    // host window (FlyoutPopup.qml) is a PlasmaCore.Dialog with
-    // backgroundHints: NoBackground, so there is no Plasma frame SVG
-    // around this content any more - and with it went the box-in-box
-    // inset math this Rectangle used to bleed outward by (a FrameSvgItem
-    // measuring dialogs/background's fixedMargins minus its inset, to
-    // fill the frame's transparent inner margin). Under NoBackground
-    // mainItem is the whole window (Dialog's frame margins are 0 when the
-    // frame image path is empty, dialog.cpp updateTheme(); measured
-    // window == mainItem in the 7.9.0 spike), so a negative margin here
-    // would only push the rounded corners outside the window and clip
-    // them square. Edge to edge.
+    // ---- background tint: the flyout's entire visible surface ----
+    // The host Dialog has NoBackground, so there is no frame and mainItem
+    // is the whole window: fill it edge to edge. A negative margin would
+    // only push the rounded corners outside the window and clip them
+    // square.
     //
-    // Radius (Phase 7.14.0 follow-up, owner request): the mockup's
-    // `.flyout{border-radius:16px}` (theme.radiusLg), not
-    // Kirigami.Units.cornerRadius any more. That value (5 on this system)
-    // only ever existed to line up with Darkly's dialog frame SVG drawn
-    // underneath the old AppletPopup-hosted flyout (CLAUDE.md "sub-pixel
-    // corner seam"); with NoBackground there is no frame under this
-    // Rectangle, so nothing constrains the radius and the mockup's own
-    // value applies. AmpHeader's hover fill rounds its top corners to the
-    // same radius so it can't paint square corners over these.
+    // Radius: the mockup's `.flyout{border-radius:16px}` (theme.radiusLg;
+    // docs/DESIGN.md §7). AmpHeader's hover fill rounds its top corners to
+    // the same radius so it can't paint square corners over these.
     //
-    // Phase 9.1.0: the gradient's alpha is now the user-configured
-    // transparency setting, not a hardcoded value baked into Theme.qml -
-    // colors.panelTintTop/Bottom are the opaque base colours only (see
-    // Theme.qml's own comment), and transparencySettings.withAlpha()
-    // reads the live alpha on every call, so a ConfigDialog Apply/OK
-    // re-paints this immediately (no reload), per TransparencySettings.
-    // qml's own header comment.
+    // colors.panelTintTop/Bottom are opaque base colours; the alpha is the
+    // user's transparency setting. transparencySettings.withAlpha() reads
+    // the live alpha on every call, so Apply/OK repaints this at once.
     Rectangle {
         anchors.fill: parent
         radius: root.theme.radiusLg
         antialiasing: true
-        // Phase 17.5.0 (D2): no outer border - the v2 mockups draw none in
-        // either theme (flyout :280). This 1px divider-coloured border was
-        // the flyout's grey edge; NoBackground means no frame or KWin
-        // shadow replaces it.
+        // No outer border: the v2 mockups draw none in either theme
+        // (flyout :280).
         gradient: Gradient {
             GradientStop { position: 0.0; color: root.transparencySettings.withAlpha(root.colors.panelTintTop) }
             GradientStop { position: 1.0; color: root.transparencySettings.withAlpha(root.colors.panelTintBottom) }
@@ -876,12 +750,8 @@ Item {
             onToggleRequested: root.sourceListOpen = !root.sourceListOpen
         }
 
-        // Plain, unconditional section divider between the source
-        // selector and the footer - lives directly in mainColumn, not
-        // owned by either component, matching FullRepresentation.qml's
-        // own structure exactly (a bare Rectangle sibling of the source
-        // ColumnLayout and footer RowLayout there too, not nested inside
-        // either).
+        // Plain section divider between the source selector and the
+        // footer; lives in mainColumn, owned by neither component.
         Rectangle {
             objectName: "sourceFooterDivider"
             Layout.fillWidth: true
@@ -915,12 +785,9 @@ Item {
         onAmpChosen: ip => root.selectAmpByIp(ip)
     }
 
-    // Source list overlay (Phase 7.14.0) - parented to SourceSelector's
-    // row so it opens upward from it (Popup positions relative to
-    // `parent`); same owner-driven contract as AmpListOverlay above.
-    // Index/name arrive already validated against the overlay's own model
-    // (SourceListOverlay's onClicked), matching selectSource()'s existing
-    // "no bounds check here" doc.
+    // Source list overlay - parented to SourceSelector's row so it opens
+    // upward from it (Popup positions relative to `parent`); same
+    // owner-driven contract as AmpListOverlay above.
     SourceListOverlay {
         id: sourceListOverlay
         parent: sourceSelector.rowItem
@@ -936,7 +803,7 @@ Item {
         }
     }
 
-    // ---- settings trigger, ported from FullRepresentation.qml:772-801 ----
+    // ---- settings trigger (opens Plasma's configure dialog) ----
     Rectangle {
         id: settingsTrigger
         objectName: "settingsTrigger"

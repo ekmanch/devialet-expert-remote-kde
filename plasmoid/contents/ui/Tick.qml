@@ -1,10 +1,9 @@
-// Phase 17.8.0 - the painted selection tick from the v2 flyout mockup
-// (`.tick`, flyout mockup v2 :452-453, used at :685 and :707): one stroked
-// path `M3.8 9.4 L7.4 12.9 L14.2 5.4` on an 18-unit grid shown at 16 px,
-// 2-unit round-capped, round-joined stroke, flat `color`. Replaces the 11 px
-// "✓" text character in the amp and source lists. Like SourceGlyph.qml it
-// paints nothing but itself, so the light theme (17.21.0) can use it as a
-// GradientMask alpha source.
+// The painted selection tick of the amp and source lists (`.tick`, flyout
+// mockup v2 :452-453, used at :685 and :707): one stroked path
+// `M3.8 9.4 L7.4 12.9 L14.2 5.4` on an 18-unit grid shown at 16 px,
+// 2-unit round-capped, round-joined stroke, flat `color`. Like
+// SourceGlyph.qml it paints nothing but itself, so the light theme can use
+// it as a GradientMask alpha source.
 
 pragma ComponentBehavior: Bound
 

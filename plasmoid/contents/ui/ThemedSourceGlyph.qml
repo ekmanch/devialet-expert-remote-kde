@@ -1,4 +1,4 @@
-// Phase 17.21.0 - a source glyph painted for the active theme: SourceGlyph
+// A source glyph painted for the active theme: SourceGlyph
 // in flat copper (dark), or the same glyph as the alpha mask of the
 // glyphGold radial gradient with a warm drop shadow (light; flyout mockup
 // v22 :135-137 and the `#glyphGold` gradient at :485 - centre 6.4/5.6 and

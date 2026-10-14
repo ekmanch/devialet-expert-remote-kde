@@ -1,21 +1,18 @@
-// Phase 17.7.0 - the painted source glyphs from the v2 flyout mockup
-// (`const G = {...}`, flyout mockup v2 :630-636), replacing the text
-// characters (◉ ◫ ◍ ◈ ◐ ◇) that Theme.sourceGlyph() used to return.
+// The painted source glyphs from the v2 flyout mockup (`const G = {...}`,
+// flyout mockup v2 :630-636).
 //
 // Drawn on the mockup's own 20-unit grid and scaled to `size`, strokes
 // included (SVG viewBox scaling): 1.6-unit outline strokes, 1.1 for Roon's
 // four inner lines, round caps and joins (`.g .s`, :128-129). One flat
 // `color` for strokes and fills - the dark theme's copper. The light
-// theme's gold gradient + drop shadow (17.21.0) uses this item as an alpha
-// mask source for GradientMask (Phase 17.0.2), so it deliberately has no
+// theme's gold gradient + drop shadow (ThemedSourceGlyph.qml) uses this
+// item as an alpha mask source for GradientMask, so it deliberately has no
 // background of its own and paints nothing outside its glyph.
 //
-// Name matching moved here unchanged from Theme.sourceGlyph(): keyed on
-// the name the amp broadcasts (docs/devialet_source_mapping.md),
-// case-insensitive keyword match so "Optical 2" or a renamed slot still
-// resolves, "airplay" tested before "air", unknown or empty names fall
-// back to optical (the glyph the closed row showed before any source was
-// known).
+// Name matching is keyed on the name the amp broadcasts
+// (docs/devialet_source_mapping.md): a case-insensitive keyword match so
+// "Optical 2" or a renamed slot still resolves, "airplay" tested before
+// "air"; unknown or empty names fall back to optical.
 
 pragma ComponentBehavior: Bound
 

@@ -1,23 +1,15 @@
-// Phase 7.3.0 (spike/flyout-appletpopup-rebuild) - the amp header row,
-// extracted from FullRepresentation.qml:818-921 into its own in-flow
-// component for the FlyoutPopup rebuild. Stays in mainColumn (unlike the
-// amp list, which moved into AmpListOverlay.qml per option (b) - see
-// TODO.md's Phase 7.3.0 entry and the plan it cites). Visuals unchanged
-// from the original header.
+// The amp header row: dot, DEVIALET eyebrow, amp name and subtitle, and
+// the caret that toggles the amp list (AmpListOverlay.qml). In-flow in
+// mainColumn.
 //
-// Findings applied here (investigation document §4 / the flyout-rebuild
-// house rules in CLAUDE.md):
-//  - Finding 3: every Label pins `wrapMode: Text.NoWrap` +
-//    `maximumLineCount: 1` explicitly, instead of relying on the old
-//    implicit "no wrap because nothing wraps yet" safety.
-//  - §4 point 2 / the Qt.AlignBaseline house rule: the row's height is a
-//    measured literal (not `ampHeaderRow.implicitHeight + <pad>`), and
-//    every row child is Qt.AlignVCenter - no Qt.AlignBaseline anywhere -
-//    so a font/content change in one label can never move a sibling.
+// Every Label pins `wrapMode: Text.NoWrap` + `maximumLineCount: 1`. The
+// row height is a measured literal and every row child is
+// Qt.AlignVCenter, never Qt.AlignBaseline, so a font or content change in
+// one label cannot move a sibling (docs/DESIGN.md §5).
 //
 // Owns its own 1px bottom divider (the mockup's `.amp-header
-// border-bottom`, devialet_tray_boot_state_mockup.html), so mainColumn
-// sees a single fixed-height item for the whole header.
+// border-bottom`), so mainColumn sees a single fixed-height item for the
+// whole header.
 
 pragma ComponentBehavior: Bound
 
@@ -30,7 +22,7 @@ Rectangle {
     objectName: "ampHeader"
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
     required property string ampIp
     required property string headerName
@@ -42,24 +34,20 @@ Rectangle {
 
     signal toggleRequested()
 
-    // Measured, not bound: ampHeaderRow's implicit height is a constant 46
-    // across every amp state (three single-line labels, tallest run at
-    // 14px display + 11px mono + 10px mono eyebrow with 2px spacing;
-    // confirmed via the harness dump across amp=0known/1auto/2sel before
-    // pinning - see TODO.md's Phase 7.3.0 verification). 46 + 26 padding =
-    // 72, matching the original `ampHeaderRow.implicitHeight + 26`. Pinned
-    // so no future label font/content change can alter the header's
-    // contribution to mainColumn's height.
+    // Measured, not bound: ampHeaderRow's implicit height is 46 in every
+    // amp state (14px display + 11px mono + 10px mono eyebrow, 2px
+    // spacing; checked with the harness dump for 0, 1 and 2 known amps).
+    // 46 + 26 padding = 72. Pinned so no label font or content change can
+    // alter the header's contribution to mainColumn's height.
     readonly property int rowHeight: 46
     Layout.fillWidth: true
     implicitHeight: ampHeaderBg.rowHeight + 26
     color: ampHeaderArea.containsMouse ? ampHeaderBg.colors.headerHover : "transparent"
-    // Phase 7.14.0 follow-up: this hover fill is the only thing painted
-    // into the flyout's top corners besides FlyoutContent's tint
-    // Rectangle, so its top corners follow the flyout's own 16px radius
-    // (theme.radiusLg) - otherwise a hover paints square corners over the
-    // rounded ones. Bottom corners stay square (the header ends at its
-    // divider, mid-flyout). Per-corner radii are Qt 6.7+.
+    // This hover fill is the only thing painted into the flyout's top
+    // corners besides FlyoutContent's tint Rectangle, so its top corners
+    // follow the flyout's 16px radius (theme.radiusLg); otherwise a hover
+    // paints square corners over the rounded ones. Bottom corners stay
+    // square (the header ends at its divider). Per-corner radii are Qt 6.7+.
     topLeftRadius: ampHeaderBg.theme.radiusLg
     topRightRadius: ampHeaderBg.theme.radiusLg
 
@@ -76,24 +64,20 @@ Rectangle {
             id: ampDot
             objectName: "ampDot"
             Layout.alignment: Qt.AlignVCenter
-            // Phase 17.6.0: 8 -> 12 px per the mockup (flyout v2 :140),
-            // then 10 px on the owner's live review (2026-09-27): a solid
-            // disc reads heavier than the outlined 20 px source glyphs, so
-            // 12 looked too big. 10 matches the amp list's dots. Colours,
-            // the no-amp hollow ring and the booting pulse unchanged.
+            // 10 px, not the mockup's 12 (flyout v2 :140): a solid disc
+            // reads heavier than the outlined 20 px source glyphs. 10
+            // matches the amp list's dots.
             width: 10
             height: 10
             radius: 5
             // Lifted 1 px (2 px bottom margin on a vertically centred item)
-            // so the disc is centred on the amp name's capital height:
-            // centred on the three-line block it sat 1 px below that and
-            // its bottom edge 1 px under the name's baseline (2x capture
-            // 20261003-143540: disc rows 62-81, "D" rows 60-79). Same
+            // so the disc is centred on the amp name's capital height;
+            // centred on the three-line block it measured 1 px low. Same
             // correction as Footer.qml's dot.
             Layout.bottomMargin: 2
-            // Phase 17.21.0: in light the connected dot is the gold sphere
-            // (flyout mockup v22 :143-147); booting, not responding and
-            // the no-amp ring stay flat.
+            // In light the connected dot is the gold sphere (flyout mockup
+            // v22 :143-147); booting, not responding and the no-amp ring
+            // stay flat.
             readonly property bool gold: ampHeaderBg.colors.isLight && ampHeaderBg.ampIp !== "" && ampHeaderBg.powerState !== "Booting" && ampHeaderBg.online
             color: ampHeaderBg.ampIp === "" || ampDot.gold ? "transparent" : (ampHeaderBg.powerState === "Booting" ? ampHeaderBg.colors.warningBright : (ampHeaderBg.online ? ampHeaderBg.colors.copperBright : ampHeaderBg.colors.textFaint))
             Loader {
@@ -124,8 +108,8 @@ Rectangle {
                 Layout.fillWidth: true
                 text: "DEVIALET"
                 font.family: ampHeaderBg.theme.fontMono
-                // Phase 17.20.0: semibold gold wordmark in light (flyout
-                // mockup v22 :117-120); the Label holds the layout and the
+                // Semibold gold wordmark in light (flyout mockup v22
+                // :117-120); the Label holds the layout and the
                 // gradient is painted over the word itself (contentWidth,
                 // the mockup's `width:fit-content`).
                 font.weight: ampHeaderBg.colors.isLight ? Font.DemiBold : Font.Normal
@@ -167,7 +151,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: ampHeaderBg.headerSub
                 font.family: ampHeaderBg.theme.fontMono
-                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                // One weight heavier in light (flyout mockup v22 :152-157).
                 font.weight: ampHeaderBg.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
                 color: ampHeaderBg.colors.textFaint

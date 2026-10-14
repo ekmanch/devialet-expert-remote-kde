@@ -1,56 +1,18 @@
-// Phase 7.4.0 (spike/flyout-appletpopup-rebuild) - the volume block (dB/
-// unit readout, source chip, -/slider/+), extracted from
-// FullRepresentation.qml's volume ColumnLayout (~1173-1480) into its own
-// self-contained component for the FlyoutPopup rebuild, following the
-// AmpHeader.qml/AmpListOverlay.qml precedent set in Phase 7.3.0. Replaces
-// part of FlyoutContent.qml's `sectionsPlaceholder` spacer - see TODO.md's
-// Phase 7.4.0 entry and the plan it cites
-// (docs/context-on-spike-flyout-dialog-rebuild-b-quirky-wand.md, §4).
+// The flyout's volume block: dB readout, source chip, and the -/slider/+
+// row.
 //
-// Findings applied here:
-//  - Finding 1 (dormant Qt.AlignBaseline on the dB-value/unit RowLayout,
-//    investigation doc line 55): converted to Qt.AlignVCenter + a measured
-//    Layout.preferredHeight on `dbValueRow`, per CLAUDE.md's house rule.
-//    Neither Label's font swaps state here (unlike VolumeToast.qml's
-//    valueText, which swaps between numeric-dB and "Muted"/"Unmuted"
-//    forms) - only dbValueLabel's text *length* varies (numeric vs the
-//    "—" placeholder) - so the row's implicit height is already constant
-//    across every content state today; pinned explicitly anyway per the
-//    house rule ("even though nothing currently activates it"). Value
-//    measured via the §5 harness dump across the vol dimension before
-//    pinning - see TODO.md's Phase 7.4.0 entry.
-//  - Finding 2 (source chip, doc line 64): `sourceChip`/`sourceChipLabel`
-//    gain `elide: Text.ElideRight` + `Layout.maximumWidth`, matching
-//    VolumeToast.qml's own fix for the identical unbounded-width gap -
-//    a long source name can no longer grow the chip past the fillWidth
-//    spacer bottoming out at 0.
-//  - Finding 8 (the slider, doc line 111): shape unchanged - width fully
-//    determined by the two fixed 26x26 sibling buttons, implicitHeight a
-//    hardcoded 26 literal, background/handle sized purely from the
-//    Slider's own availableWidth/visualPosition. Re-verified clean after
-//    being rebuilt alongside the rest of this file.
-//  - Finding 3's convention (every dynamic Label pinned `wrapMode:
-//    Text.NoWrap`, matching AmpHeader.qml) applied to every Label here too,
-//    not just the ones getting `elide`.
+// Signal-up only, like AmpHeader.qml and AmpListOverlay.qml: no D-Bus or
+// exec calls here. FlyoutContent runs devialet-ctl and calls
+// pendingAmpState.notifyVolume() in response to stepRequested and
+// sliderReleased.
 //
-// Architecture: pure signal-up, no direct D-Bus/exec calls here - matches
-// AmpHeader.qml (toggleRequested) and AmpListOverlay.qml (ampChosen).
-// FlyoutContent owns the actual devialet-ctl invocation and
-// pendingAmpState.notifyVolume() call in response to stepRequested/
-// sliderReleased below.
+// `volumeDb` is PendingAmpState's shared pending-or-confirmed value, not a
+// local mirror, so no drag/step debounce is needed here: notifyVolume()
+// writes the value in the same tick before its D-Bus call, and the daemon
+// resolves confirmed-vs-expired (docs/DESIGN.md §3).
 //
-// `volumeDb` is fed in from FlyoutContent's `root.pendingAmpState.volumeDb`
-// (Phase 5's shared, daemon-resolved pending-or-confirmed value) - not a
-// new local mirror. This also means FullRepresentation.qml's
-// lastVolumeButtonStepAtMs/lastVolumeSliderReleaseAtMs/volumeInteracting
-// debounce machinery is deliberately NOT ported into this rebuild: Phase
-// 5.0.2 Step B already made PendingAmpState.notifyVolume() write
-// synchronously, same-tick, before firing its D-Bus call, and the daemon's
-// own resolve_pending_commands() (Phase 5.0.0) already owns confirmed-vs-
-// expired resolution - CompactRepresentation.qml's stepVolume()/
-// toggleMute() already rely on exactly this and carry no such bookkeeping
-// either. FullRepresentation.qml still carries the old machinery only
-// because it's being replaced by this rebuild, not patched in place.
+// Every dynamic Label is pinned to `wrapMode: Text.NoWrap`, as in
+// AmpHeader.qml.
 
 pragma ComponentBehavior: Bound
 
@@ -63,38 +25,29 @@ ColumnLayout {
     objectName: "volumeBlock"
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
     required property string ampIp
-    // undefined | number - see header comment, fed from
-    // FlyoutContent's root.pendingAmpState.volumeDb.
+    // undefined | number - see header comment.
     required property var volumeDb
     // Shared, root-anchored volume-range config (floor/hard-limit/step dB)
-    // - see VolumeSettings.qml's own header comment. Replaces this file's
-    // former 3 separate required real properties (volumeFloorDb/
-    // volumeCeilingDb/volumeStepDb); passed as one object rather than
-    // exploded fields, matching this file's own existing `theme` property
-    // convention.
+    // - see VolumeSettings.qml.
     required property VolumeSettings volumeSettings
-    // Phase 9.1.1: chrome alpha (volume +/- buttons, source chip) - see
-    // TransparencySettings.qml's controlAlpha comment.
+    // Feeds colors.controlColor() for the -/+ buttons and the source chip:
+    // control fills track the panel alpha with a floor.
     required property TransparencySettings transparencySettings
     required property string activeSourceName
-    // Phase 8.0.1 follow-up (owner request, 2026-09-08): the daemon's
-    // PowerState ("Off"/"Booting"/"On"), fed from FlyoutContent's own
-    // guarded mirror - the same property whose change handler arms
-    // PendingAmpState's post-boot hold, so the controls below become
-    // interactive in the very tick the hold arms, never before.
+    // The daemon's PowerState ("Off"/"Booting"/"On"), fed from
+    // FlyoutContent's own mirror - the same property whose change handler
+    // arms PendingAmpState's post-boot hold, so the controls below become
+    // interactive in the tick the hold arms, never before.
     required property string powerState
 
-    // Every volume input is interactive only with an amp connected AND
-    // powered on. Before this the gate was `ampIp !== ""` alone, so during
-    // "Off"/"Booting" the slider looked live while the amp dropped the
-    // command; the daemon's 400 ms pending mask (Phase 5.0.0) then
-    // reverted the optimistic value to the amp's real status byte - a
-    // visible snap-back within a fraction of a second. Nothing here
-    // changes that mask; the control is simply not offered. The dB
-    // readout stays (the amp reports its volume in standby), only dimmed.
+    // Power gate (known-gotchas #10): every volume input needs an amp
+    // connected AND On. The amp drops commands while Off or Booting, and
+    // the daemon's 400 ms pending mask would then snap the value back, so
+    // the control is not offered. The dB readout stays (the amp reports
+    // its volume in standby), only dimmed.
     readonly property bool interactive: volumeBlock.ampIp !== "" && volumeBlock.powerState === "On"
 
     // -1 / +1, one per button click/autoRepeat tick or wheel notch.
@@ -109,10 +62,8 @@ ColumnLayout {
     Layout.leftMargin: 16
     Layout.rightMargin: 16
     spacing: 10
-    // Same whole-group dim Android's setGroupEnabled()/disabledAlpha uses
-    // when nothing is selected - ported 1:1 from FullRepresentation.qml,
-    // and the same 0.4 factor Phase 8.3.0 reused for blocked steppers.
-    // Now also applied while the amp is off or booting (`interactive`).
+    // Whole-group dim when not `interactive` (no amp, or not On) - the
+    // same 0.4 factor as the Android app's disabledAlpha.
     opacity: volumeBlock.interactive ? 1.0 : 0.4
 
     RowLayout {
@@ -124,29 +75,23 @@ ColumnLayout {
             id: dbValueRow
             objectName: "dbValueRow"
             spacing: 0
-            // Finding 1 fix - see this file's header comment. Measured
-            // tallest implicit height across "0.0"/"-40.0"/"-60.0"/"—"
-            // (the font never swaps in this row, only text length does) -
-            // a constant 35 in every state per the §5 harness dump (see
-            // TODO.md's Phase 7.4.0 entry), confirming the "already
-            // constant, pin it anyway" premise this finding was flagged
-            // under.
+            // AlignVCenter children + a pinned height instead of
+            // AlignBaseline (docs/DESIGN.md §5). Measured tallest implicit
+            // height across "0.0"/"-40.0"/"-60.0"/"—": a constant 35 (the
+            // font never changes here, only the text length).
             Layout.preferredHeight: 35
 
             Label {
                 id: dbValueLabel
                 objectName: "dbValueLabel"
                 Layout.alignment: Qt.AlignVCenter
-                // Bound to the slider's own live value (tracks a drag
-                // continuously), not volumeBlock.volumeDb directly -
-                // matches FullRepresentation.qml's original Phase 3 fix
-                // for the same reason (the label used to stay static
-                // during a drag when bound to the external property).
+                // Bound to the slider's live value, not volumeDb, so the
+                // readout tracks a drag continuously.
                 text: (volumeBlock.ampIp !== "" && volumeBlock.volumeDb !== undefined) ? volumeSlider.value.toFixed(1) : "—"
                 font.family: volumeBlock.theme.fontMono
                 font.weight: Font.Medium
                 font.pixelSize: 26
-                // Phase 17.20.0: in light the Label only holds the layout
+                // In light the Label only holds the layout
                 // (transparent text) and the gold gradient + glow is
                 // painted over it, so the row's geometry is the same in
                 // both themes.
@@ -187,17 +132,14 @@ ColumnLayout {
             id: sourceChip
             objectName: "sourceChip"
             Layout.alignment: Qt.AlignVCenter
-            // Finding 2 fix: cap the chip's own width so a long source
-            // name can't grow it past the fillWidth spacer above bottoming
-            // out at 0 - see this file's header comment.
+            // Capped (with the label's elide) so a long source name can't
+            // grow the chip once the fillWidth spacer above reaches 0.
             Layout.maximumWidth: 140
             radius: 999
-            // Phase 9.1.1: tracks panel alpha with a floor - see
-            // TransparencySettings.qml's controlAlpha comment. Was a flat
-            // colors.surface (always fully opaque regardless of panel
-            // transparency) before this phase.
+            // Tracks panel alpha with a floor - see
+            // ColorPalette.controlColor().
             color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
-            // Phase 17.19.0: light-theme card shadow (hidden in dark).
+            // Light-theme card shadow (hidden in dark).
             CardShadow { colors: volumeBlock.colors; radius: parent.radius }
             border.width: 1
             border.color: volumeBlock.colors.chipBorder
@@ -212,7 +154,7 @@ ColumnLayout {
                 horizontalAlignment: Text.AlignHCenter
                 text: volumeBlock.activeSourceName !== "" ? volumeBlock.activeSourceName : "—"
                 font.family: volumeBlock.theme.fontMono
-                // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                // One weight heavier in light (flyout mockup v22 :152-157).
                 font.weight: volumeBlock.colors.isLight ? Font.Medium : Font.Normal
                 font.pixelSize: 11
                 color: volumeBlock.colors.textFaint
@@ -241,12 +183,10 @@ ColumnLayout {
 
             implicitWidth: 26
             implicitHeight: 26
-            // Phase 9.1.1: tracks panel alpha with a floor - see
-            // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
                 color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
-                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                // Light-theme card shadow (hidden in dark).
                 CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
                 border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder
@@ -267,18 +207,16 @@ ColumnLayout {
             objectName: "volumeSlider"
             Layout.fillWidth: true
             // Widens the click/drag hit area to match the sibling -/+
-            // buttons' 26px row height - see Phase 4.2.2 (finding 8 is
-            // this same, already-clean shape, re-verified here).
+            // buttons' 26 px row height.
             implicitHeight: 26
             from: volumeBlock.volumeSettings.floorDb
             to: volumeBlock.volumeSettings.hardLimitDb
             stepSize: volumeBlock.volumeSettings.stepDb
             enabled: volumeBlock.interactive
 
-            // External state (the daemon-resolved pending-or-confirmed
-            // value) drives `value` except while actively dragging - see
-            // this file's header comment for why no snap-back-risk holdout
-            // is needed here (unlike FullRepresentation.qml's own Binding).
+            // The daemon-resolved pending-or-confirmed value drives
+            // `value` except while dragging - see the header comment for
+            // why no other holdout is needed.
             Binding {
                 target: volumeSlider
                 property: "value"
@@ -309,11 +247,11 @@ ColumnLayout {
                 }
             }
 
-            // Phase 17.19.0: flat copperBright disc in dark; in light the
-            // mockup's gold sphere (flyout mockup v3 :99-100 - radial
+            // Flat copperBright disc in dark; in light the mockup's gold
+            // sphere (flyout mockup v3 :99-100 - radial
             // #fcecc0/#f0a623/#a8710b, `0 1px 3px rgba(110,72,10,.35)` shadow,
-            // 3 px rgba(240,166,35,.14) halo) - GoldSphere, promoted from the
-            // 17.0.2 spike. Same 15 px footprint in both, so nothing moves.
+            // 3 px rgba(240,166,35,.14) halo). Same 15 px footprint in both,
+            // so nothing moves.
             handle: Item {
                 x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
@@ -337,10 +275,9 @@ ColumnLayout {
                 }
             }
 
-            // Phase 4.5.1: scroll-to-adjust-volume - see FullRepresentation
-            // .qml's original for the acceptedButtons: Qt.NoButton
-            // reasoning (lets press/drag pass through to the Slider
-            // underneath, matches org.kde.desktop's own style technique).
+            // Scroll to adjust volume. acceptedButtons: Qt.NoButton lets
+            // press/drag pass through to the Slider underneath (the same
+            // technique as org.kde.desktop's own style).
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
@@ -395,12 +332,10 @@ ColumnLayout {
 
             implicitWidth: 26
             implicitHeight: 26
-            // Phase 9.1.1: tracks panel alpha with a floor - see
-            // TransparencySettings.qml's controlAlpha comment.
             background: Rectangle {
                 radius: volumeBlock.theme.radiusSm
                 color: volumeBlock.colors.controlColor(volumeBlock.transparencySettings)
-                // Phase 17.19.0: light-theme card shadow (hidden in dark).
+                // Light-theme card shadow (hidden in dark).
                 CardShadow { colors: volumeBlock.colors; radius: parent.radius }
                 border.width: 1
                 border.color: parent.hovered ? volumeBlock.colors.copperDim : volumeBlock.colors.controlBorder

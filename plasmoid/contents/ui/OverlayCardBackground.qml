@@ -1,4 +1,4 @@
-// Phase 7.14.0 - the floating-card background shared by AmpListOverlay.qml
+// The floating-card background shared by AmpListOverlay.qml
 // and SourceListOverlay.qml (mockup v2 `.overlay-popup`: 13px radius, 1px
 // rgba(255,255,255,0.1) border, #1e1e21 -> #19191c vertical gradient,
 // soft drop shadow). One definition so the two cards can't drift apart.
@@ -18,17 +18,12 @@ Kirigami.ShadowedRectangle {
     id: card
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
-    // Phase 9.1.1 REVISION: overlay alpha (the card's own fill) - a
-    // genuine floor, deliberately NOT controlAlpha's compositing-
-    // corrected offset - see TransparencySettings.qml's overlayAlpha
-    // comment for why list cards get their own, independent formula.
-    // Layered on top of this card's own opaque-by-design mockup styling
-    // (see this file's header comment) rather than replacing it - the
-    // gradient/border/radius/shadow shape is unchanged, only the fill's
-    // alpha now tracks the panel with a floor instead of always being
-    // 1.0.
+    // The card's fill alpha (overlayAlpha): tracks the panel with a
+    // floor, a separate formula from the controls' controlColor() - see
+    // TransparencySettings.qml's overlayAlpha comment. Only the fills'
+    // alpha follows it; border, radius and shadow are fixed.
     required property TransparencySettings transparencySettings
 
     radius: card.theme.radiusOverlay

@@ -1,35 +1,19 @@
-// Phase 7.6.0 (spike/flyout-appletpopup-rebuild) - the source selector,
-// extracted from FullRepresentation.qml into its own self-contained
-// component for the FlyoutPopup rebuild, following the AmpHeader.qml/
-// AmpListOverlay.qml/VolumeBlock.qml/ActionRow.qml precedent.
+// The flyout's source selector: the CLOSED row only (mockup v2
+// `.source-row`) - a clickable card (icon chip, "Source" eyebrow over the
+// current source name, caret) shaped like AmpHeader.qml (`listOpen` in,
+// `toggleRequested()` out). The dropdown is SourceListOverlay.qml, a
+// Popup that FlyoutContent parents to this row via `rowItem` and
+// opens/closes itself, as with AmpHeader + AmpListOverlay
+// (docs/DESIGN.md §3).
 //
-// Phase 7.14.0 rebuild (mockup v2 `.source-row`): this is now the CLOSED
-// row only - a clickable card (icon chip, "Source" eyebrow + current
-// source name stacked, caret) shaped exactly like AmpHeader.qml
-// (`listOpen` in, `toggleRequested()` out). The dropdown itself lives in
-// SourceListOverlay.qml, a QtQuick.Controls Popup that FlyoutContent
-// parents to this row via `rowItem` - the same owner-driven
-// open()/close() contract AmpHeader + AmpListOverlay use. The
-// PlasmaComponents3.ComboBox this file was built on through 7.13.0 is
-// gone; see SourceListOverlay.qml's header for why (and for what the
-// old QTBUG-66446 justification actually covered).
+// Placeholder: "No source" (the Android app's `no_source_label`) when no
+// amp is connected. The name label is fillWidth + ElideRight in a
+// fixed-width row, so switching between "No source" and a real name (up
+// to the protocol's 16-char slot) can't move the chip (fixed 24x24,
+// first) or the caret (last).
 //
-// The "SOURCE" eyebrow that used to sit above the ComboBox as its own
-// Label now sits inside the row next to the chip (mockup `.source-label`
-// > `.source-eyebrow`), so this component's contribution to mainColumn
-// is one pinned-height row plus its margins.
-//
-// Placeholder form: "No source" (ported verbatim from the Android app's
-// `no_source_label`), shown when no amp is connected. The name label is
-// fillWidth + ElideRight inside a row whose width is fixed by
-// Layout.fillWidth, so "No source" <-> a real name (up to the protocol's
-// 16-char slot maximum) can't nudge the chip (fixed 24x24, first) or the
-// caret (last, AlignVCenter) - Phase 7.6.0's containment argument,
-// unchanged in substance.
-//
-// House rule (CLAUDE.md, Qt.AlignBaseline): every row child is
-// AlignVCenter and the row's height is a pinned literal measured live
-// across every name state - see `rowHeight` below.
+// Every row child is AlignVCenter and the row height is a measured
+// literal (docs/DESIGN.md §5) - see `rowHeight` below.
 
 pragma ComponentBehavior: Bound
 
@@ -42,7 +26,7 @@ ColumnLayout {
     objectName: "sourceSelector"
 
     required property Theme theme
-    // Phase 17.11.0: colour tokens (ColorPalette.qml), forwarded by the owner.
+    // Colour tokens (ColorPalette.qml), forwarded by the owner.
     required property ColorPalette colors
     required property string ampIp
     // Raw array of {name, index, enabled, selected} objects - see
@@ -53,14 +37,12 @@ ColumnLayout {
     required property var sources
     required property int activeSourceIndex
     required property string activeSourceName
-    // 2026-09-08 follow-up: "Off" | "Booting" | "On", from FlyoutContent's
-    // guarded mirror - the row is selectable only while the amp is on
-    // (same gate as VolumeBlock/ActionRow's mute; the amp drops a source
-    // command while off/booting). The last-known source name stays
-    // shown, dimmed.
+    // "Off" | "Booting" | "On", from FlyoutContent's mirror. Power gate
+    // (known-gotchas #10): the row is selectable only while the amp is
+    // On. The last-known source name stays shown, dimmed.
     required property string powerState
-    // Phase 9.1.1: chrome alpha (the source row's own background) - see
-    // TransparencySettings.qml's controlAlpha comment.
+    // Feeds colors.controlColor() for the row background: control fills
+    // track the panel alpha with a floor.
     required property TransparencySettings transparencySettings
     // Owner-driven open state (FlyoutContent.sourceListOpen) - drives the
     // caret only; the Popup itself is opened/closed by the owner.
@@ -93,9 +75,9 @@ ColumnLayout {
     Layout.leftMargin: 16
     Layout.rightMargin: 16
     spacing: 0
-    // Same whole-group dim as every block above (Android's
-    // setGroupEnabled(soundControls, connected)), now keyed on
-    // `interactive` so an off/booting amp dims the row too.
+    // Same whole-group dim as the blocks above (Android's
+    // setGroupEnabled(soundControls, connected)), keyed on `interactive`
+    // so an off/booting amp dims the row too.
     opacity: sourceSelector.interactive ? 1.0 : 0.4
 
     // `.source-row`: surface bg, 1px divider border (copper-dim on hover),
@@ -104,20 +86,18 @@ ColumnLayout {
         id: sourceRow
         objectName: "sourceRow"
 
-        // Measured, not bound (house rule): the tallest child across
-        // every name state is the two-line label stack - 14 (eyebrow) +
-        // 1 spacing + 17 (name) = 32, identical for "Optical 1", the
-        // 16-char "Chromecast Audio" and "No source" (harness coords
-        // dump, Phase 7.14.0 smoke run 20260905-182810). 32 + 2*9 padding
-        // = 50 (mockup `.source-row{padding:9px 10px}`).
+        // Measured, not bound: the tallest child across every name state
+        // is the two-line label stack - 14 (eyebrow) + 1 spacing + 17
+        // (name) = 32, identical for "Optical 1", the 16-char "Chromecast
+        // Audio" and "No source". 32 + 2*9 padding = 50 (mockup
+        // `.source-row{padding:9px 10px}`).
         readonly property int rowHeight: 32
         Layout.fillWidth: true
         implicitHeight: sourceRow.rowHeight + 18
         radius: sourceSelector.theme.radiusMd
-        // Phase 9.1.1: tracks panel alpha with a floor - see
-        // TransparencySettings.qml's controlAlpha comment.
+        // Tracks panel alpha with a floor - see ColorPalette.controlColor().
         color: sourceSelector.colors.controlColor(sourceSelector.transparencySettings)
-        // Phase 17.19.0: light-theme card shadow (hidden in dark).
+        // Light-theme card shadow (hidden in dark).
         CardShadow { colors: sourceSelector.colors; radius: parent.radius }
         border.width: 1
         border.color: sourceRowArea.containsMouse && sourceSelector.interactive ? sourceSelector.colors.copperDim : sourceSelector.colors.controlBorder
@@ -130,19 +110,17 @@ ColumnLayout {
             anchors.rightMargin: 10
             spacing: 10
 
-            // Follows the ACTIVE source's glyph (owner decision - the
-            // mockup's static ◉ was a JS shortcut). Phase 17.7.0: painted
-            // 20 px glyph (flyout mockup v2 :126-131), no box behind it in
-            // either theme; optical when no amp is connected. The 24 px
-            // slot keeps the objectName (harness key) and the text
-            // position; the mockup's transparent container is 26 px -
-            // spacing alignment is its own pass.
+            // Shows the ACTIVE source's glyph (the mockup's static ◉ was
+            // a shortcut): a painted 20 px glyph (flyout mockup v2
+            // :126-131), no box behind it; optical when no amp is
+            // connected. The 24 px slot keeps the objectName (harness key)
+            // and the text position; the mockup's container is 26 px.
             Item {
                 objectName: "sourceIconBadge"
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: 24
                 Layout.preferredHeight: 24
-                // Phase 17.21.0: gold gradient + warm shadow in light.
+                // Gold gradient + warm shadow in light.
                 ThemedSourceGlyph {
                     anchors.centerIn: parent
                     colors: sourceSelector.colors
@@ -162,7 +140,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: "SOURCE"
                     font.family: sourceSelector.theme.fontMono
-                    // Phase 17.19.3: one weight heavier in light (flyout mockup v22 :152-157).
+                    // One weight heavier in light (flyout mockup v22 :152-157).
                     font.weight: sourceSelector.colors.isLight ? Font.Medium : Font.Normal
                     font.pixelSize: 10
                     font.letterSpacing: 1
