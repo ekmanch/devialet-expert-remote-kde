@@ -1,21 +1,15 @@
-// Phase 11.0.0: the ONE place that knows how the daemon's launch-at-login
-// state is read and changed - `systemctl --user is-enabled` /
-// `enable` / `disable` on devialet-remote-daemon.service, per CLAUDE.md's
-// "Persistence" decision: systemd's own enablement state is the storage,
-// there is no KConfig bool anywhere (and never should be - see the
-// "must persist" exception in CLAUDE.md's Settings ConfigDialog section).
-// ConfigGeneral.qml instantiates one per dialog open; nothing on the
-// widget side reads it yet. Lives in contents/ui/ like SoundThemes.qml so
-// a later phase could, without moving it.
+// The one place that reads and changes the daemon's launch-at-login
+// state: `systemctl --user is-enabled` / `enable` / `disable` on
+// devialet-remote-daemon.service. systemd's enablement state is the
+// storage; there is no KConfig bool (docs/DESIGN.md §4).
+// ConfigGeneral.qml instantiates one per dialog open.
 //
 // Plain QtObject (no qmldir/singleton in this KPackage) holding its
-// P5Support.DataSource as an object-typed property, the way
-// SoundThemes.qml does. Deliberately does not import
-// org.kde.plasma.plasmoid (see VolumeSettings.qml's header for why bare
-// QtObject files here never do).
+// P5Support.DataSource as an object-typed property, like SoundThemes.qml.
+// Deliberately does not import org.kde.plasma.plasmoid.
 //
-// Why the query result is classified by the stdout TOKEN and not the
-// exit code (measured on this machine, systemd 261, before writing this):
+// The query result is classified by the stdout TOKEN, not the exit code
+// (measured, systemd 261):
 //   enabled        -> stdout "enabled",   exit 0
 //   disabled       -> stdout "disabled",  exit 1   (a normal answer)
 //   unit missing   -> stdout "not-found", exit 4
@@ -40,9 +34,8 @@ QtObject {
 
     readonly property string unitName: "devialet-remote-daemon.service"
 
-    // Real default. Only a standalone test driver ever overrides this
-    // (e.g. to "/nonexistent/systemctl --user") to exercise the failing-
-    // query path hands-free; ConfigGeneral.qml never sets it.
+    // Only a test driver overrides this (e.g. "/nonexistent/systemctl
+    // --user", for the failing-query path); ConfigGeneral.qml never does.
     property string systemctl: "systemctl --user"
 
     // One of: "unknown" (never queried), "querying", "enabled",
@@ -75,12 +68,12 @@ QtObject {
     // completed): ok = the enable/disable command exited 0.
     signal applied(bool ok)
 
-    // Every command string must be unique: the executable engine is
-    // shared process-wide and keys running jobs by command string, so a
-    // second identical is-enabled while the first is still in flight
-    // would collapse into it (same DEVIALET_*_TICK=<n> no-op env-prefix
-    // trick as ConfigGeneral.previewChime() and maybeChime()'s --tick).
-    // The exact strings are also the dispatch keys in onNewData below.
+    // Each command gets a no-op DEVIALET_SYSTEMD_TICK=<n> env prefix: the
+    // shared executable engine keys running jobs by command string, so a
+    // second identical is-enabled while the first is in flight would
+    // collapse into it. The exact strings are also the dispatch keys in
+    // onNewData below. The tick is not wrapped (cf. docs/DESIGN.md §5);
+    // it restarts with each dialog open.
     property int tick: 0
     property string pendingQuery: ""
     property string pendingWrite: ""
@@ -101,10 +94,9 @@ QtObject {
         root.probe.connectSource(root.pendingQuery);
     }
 
-    // Plain enable/disable, no --now (owner decision, Phase 11.0.0): the
-    // toggle means "launch at login", not "run the daemon now" - a
-    // running daemon keeps running after disable, and enabling doesn't
-    // start a stopped one before the next login.
+    // Plain enable/disable, no --now: the toggle means "launch at login",
+    // not "run the daemon now". A running daemon keeps running after
+    // disable, and enabling doesn't start a stopped one before next login.
     function apply(enable) {
         root.lastWriteFailed = false;
         root.writeDetail = "";

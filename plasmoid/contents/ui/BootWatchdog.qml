@@ -1,11 +1,8 @@
-// Ends FlyoutContent.qml's "Booting" display when the daemon never does
-// (2026-10-04). "Booting" disables the power button (togglePower() returns
-// early) and only a daemon push used to end it, so anything that kept the
-// daemon silent left the flyout stuck until plasmashell restarted. Found
-// live: BeginPowerOnBoot was a no-op for a selected amp the daemon had not
-// heard since login, PowerState never left "Off", and no signal came. The
-// same holds when the daemon is down, restarts mid-boot (its deadline is
-// in memory only) or the BeginPowerOnBoot call fails.
+// Ends FlyoutContent.qml's "Booting" display when the daemon never does.
+// "Booting" disables the power button (togglePower() returns early), so
+// without this a silent daemon would leave the flyout stuck until
+// plasmashell restarts: the daemon down, restarted mid-boot (its deadline
+// is in memory only) or a failed BeginPowerOnBoot call.
 //
 // Bounds every "Booting", whoever set it (the optimistic click, a daemon
 // push, onRefreshed after a shell restart mid-boot): the timer runs for as

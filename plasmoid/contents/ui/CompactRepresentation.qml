@@ -1,37 +1,10 @@
-// Minimal panel icon: click to open/close the flyout. No status glyph,
-// no drag-and-drop - that's what org.kde.kdeconnect's CompactRepresentation
-// (the real, shipped reference this pattern was taken from) adds on top for
-// its own feature set; not needed here yet. Same structure works whether
-// the applet ends up tray-hosted or panel-pinned - this plasmoid is
-// panel-pinned (see CLAUDE.md).
-//
-// Phase 4.5.0: scroll-to-adjust-volume + hover/toast volume indicators,
-// added directly on this icon. Deliberately an INDEPENDENT D-Bus mirror
-// and stepVolume() from FullRepresentation.qml's much richer one, not a
-// shared refactor - confirmed via libplasma's appletquickitem.cpp
-// (createFullRepresentationItem()'s preload path, AppletQuickItem::init())
-// that fullRepresentationItem is only *opportunistically* preloaded in the
-// background per an adaptive weight/policy, not guaranteed to exist by the
-// time a user first hovers this icon - so this file can't safely reach
-// into FullRepresentation's state. Real precedent for keeping compact and
-// full representations' interaction logic independent rather than shared:
-// the real org.kde.plasma.volume applet's own compactRepresentation
-// MouseArea (applet/main.qml) and its VolumeSlider.qml each implement
-// wheel-to-volume separately, with no shared function between them either
-// - both call into the same underlying service, but don't share code.
-//
-// Volume-range configuration (floor/hard-limit/step/startup dB) is the one
-// exception to that independence, and deliberately so: unlike interaction
-// *logic*, that state must not diverge, or the flyout, the OSD toast, and
-// the hover tooltip could each show a different idea of what the volume
-// range even is. It's owned by VolumeSettings (forwarded in below), the
-// same root-anchored-and-forwarded pattern PendingAmpState already uses for
-// VolumeDb/Muted - not "reach into FullRepresentation's state" (still
-// correctly avoided, see above), but "read from the one object main.qml
-// anchors for exactly this reason." This file used to keep its own
-// hardcoded -15.0/-60.0 copy of these three numbers ("duplicated in spirit,
-// not by reference") before VolumeSettings existed - see CLAUDE.md's
-// "Shared cross-view state" note.
+// Panel icon: click toggles the flyout, middle-click toggles mute, the
+// wheel steps the volume, and hovering shows the volume tooltip. Keeps its
+// own small D-Bus mirror (AmpIp, DeviceName, ActiveSourceName) and its own
+// devialet-ctl DataSource. Cross-view state (volume/mute, volume range,
+// transparency, theme, power) comes from main.qml's root-anchored objects,
+// forwarded in as required properties and on to the flyout
+// (docs/DESIGN.md §3).
 
 pragma ComponentBehavior: Bound
 
@@ -45,70 +18,39 @@ MouseArea {
     id: root
 
     required property PlasmoidItem plasmoidItem
-    // Phase 5.0.1: shared, root-anchored VolumeDb/Muted consumer - not
-    // used by anything in this file yet (additive-only this phase, see
-    // PendingAmpState.qml's own header comment). Cutover is Phase 5.0.2.
     required property PendingAmpState pendingAmpState
-    // Shared, root-anchored volume-range config (floor/hard-limit/step/
-    // startup dB) - see VolumeSettings.qml's own header comment and this
-    // file's header comment above.
     required property VolumeSettings volumeSettings
-    // Shared, root-anchored transparency alpha (Phase 9.1.0) - see
-    // TransparencySettings.qml's own header comment and this file's
-    // header comment above.
     required property TransparencySettings transparencySettings
-    // Phase 17.12.0/17.13.0: forwarded to the flyout, the toast and the tooltip.
+    // Forwarded to the flyout, the toast and the tooltip.
     required property ThemeSettings themeSettings
-    // 2026-09-08 follow-up: the amp's PowerState, from main.qml's root-
-    // anchored mirror (ampPowerState) - forwarded like pendingAmpState/
-    // volumeSettings rather than reaching into the flyout's own guarded
-    // mirror, per CLAUDE.md's "Shared cross-view state" rule. Gates the
-    // panel-icon scroll: with the amp off or booting the amp drops volume
-    // commands and the daemon's 400 ms pending mask snaps the optimistic
-    // value back, so a scroll must not be turned into a command at all.
+    // The amp's PowerState, from main.qml's root mirror. Gates the wheel
+    // and middle-click: off or booting, the amp drops volume commands, so
+    // no command is sent at all (docs/DESIGN.md §3, known-gotchas.md #10).
     required property string powerState
 
-    // ---- Local mirror of just the D-Bus state this icon needs (see
-    // header comment for why this isn't shared with FullRepresentation) ----
+    // ---- Local mirror of the D-Bus state this icon needs. Volume and
+    // mute are read from pendingAmpState instead. All three are plain
+    // string scalars, so no unwrap ambiguity and no debounce. ----
     property string ampIp: ""
     property string deviceName: ""
-    // Phase 5.0.2 Step B: volumeDb/muted removed from this mirror -
-    // Step A already redirected every display read in this file to
-    // pendingAmpState.volumeDb/.muted, and pendingAmpState now also
-    // covers the one remaining job these local copies had (stepVolume()/
-    // toggleMute()'s own rapid-repeat accumulation base, since
-    // PendingAmpState.notifyVolume()/notifyMute() write synchronously
-    // before firing their D-Bus call - see that file's own comment).
-    // Nothing left anywhere in this file reads either property.
-    // Phase 4.5.3: source name for the tooltip/toast mockups' stat/source
-    // rows - a plain string scalar like AmpIp/DeviceName (no unwrap
-    // ambiguity, confirmed the same way in FullRepresentation.qml's own
-    // header comment: "DeviceName/AmpIp/ActiveSourceName are s"), so no
-    // debounce guard is needed - matches deviceName/ampIp above, which
-    // don't have one either.
+    // Source name for the tooltip/toast source rows.
     property string activeSourceName: ""
 
     readonly property string devialetCtlCommand: "devialet-ctl"
 
-    // ---- Chime spike (branch spike/volume-audio-feedback, see TODO.md) ----
-    // One gain-compensated chime per discrete step, only while the PC is
-    // the amp's source (Optical 1 - the PC -> HDMI -> TV -> optical path).
-    // The binary does the math; QML supplies the two dB values it already
-    // holds: the optimistic target (the OSD's own number) and the amp's
-    // real last-broadcast dB (pendingAmpState.confirmedVolumeDb, decoded
-    // from the daemon's unmasked VolumeRaw).
+    // ---- Volume chime ----
+    // One gain-compensated chime per wheel step, only while the PC is the
+    // amp's source (Optical 1 - the PC -> HDMI -> TV -> optical path).
+    // devialet-chime does the math, reading the target and confirmed dB
+    // from the daemon itself.
     readonly property string chimeCommand: "devialet-chime"
-    // Round-robin pool of DataSources, not one reused id (owner decision):
-    // KDE's Audio Devices tone plays via libcanberra, which spawns a fresh
-    // stream per trigger so rapid triggers overlap and mix instead of
-    // interrupting each other. Tick N uses chimePool[N % length]. Four
-    // slots: the chime is 0.30 s and even ~10 ticks/s leaves at most 3 in
-    // flight. The `--tick` argument keeps concurrently running chimes'
-    // command strings distinct - Plasma's executable engine is shared
-    // process-wide and keys running jobs by command string, so two ticks
-    // with identical dB arguments would otherwise collapse into one
-    // process regardless of the pool. The set of strings must stay
-    // bounded, though: see VolumeSettings.chimeArguments().
+    // Round-robin pool of DataSources, so rapid chimes overlap and mix
+    // like KDE's own libcanberra volume tone instead of interrupting each
+    // other. Tick N uses chimePool[N % length]. `--tick` keeps the command
+    // strings of concurrently running chimes distinct (the shared
+    // executable engine keys running jobs by command string) while keeping
+    // the set of strings fixed: see VolumeSettings.chimeArguments() and
+    // docs/DESIGN.md §5.
     readonly property var chimePool: [chimeExec0, chimeExec1, chimeExec2, chimeExec3]
     property int chimeTick: 0
 
@@ -120,17 +62,14 @@ MouseArea {
     }
 
     function maybeChime(targetDb) {
-        // Phase 10.1.2: the ConfigDialog's master toggle (main.xml
-        // chimeEnabled, forwarded via VolumeSettings). Checked first so an
-        // off toggle never spawns devialet-chime at all - not a silenced
-        // or gained-down run, no process.
+        // Master toggle (kcfg chimeEnabled). Checked first so an off toggle
+        // spawns no devialet-chime process at all.
         if (!root.volumeSettings.chimeEnabled) return;
         if (!root.isPcSourceActive()) return;
         const confirmed = root.pendingAmpState.confirmedVolumeDb;
         if (typeof confirmed !== "number" || typeof targetDb !== "number") return;
-        // Phase 10.1.3: the ConfigDialog's chime source (VolumeSettings.
-        // chimeFileArgument()): "" in follow mode - no --file, the 10.1.0
-        // command unchanged; " --file '<path>'" for a pinned theme or a
+        // Chime source (VolumeSettings.chimeFileArgument()): "" in follow
+        // mode (no --file); " --file '<path>'" for a pinned theme or a
         // picked file; null when the mode needs a file but none resolves -
         // skip and warn, never silently fall back to another mode.
         const fileArg = root.volumeSettings.chimeFileArgument();
@@ -154,21 +93,9 @@ MouseArea {
     readonly property string tooltipAmpName: root.ampIp === "" ? "No Amplifier" : root.ampDisplayName
     readonly property string iconSource: Plasmoid.icon
 
-    // Phase 4.5.3: normalized 0..1 position between the same floor/ceiling
-    // FullRepresentation's own volumeSlider uses (from/to), for the
-    // tooltip/toast progress bars - matches that slider's own math
-    // ((value - from) / (to - from)) rather than inventing new bounds.
-    // Phase 5.0.2 Step A: rebased on pendingAmpState.volumeDb (the shared,
-    // daemon-resolved value) instead of this file's own local optimistic
-    // root.volumeDb - see PendingAmpState.qml/TODO.md for why. No
-    // suppress/reactivate mechanic reads this (unlike FullRepresentation's
-    // slider Binding), so the only visible effect is the intended one: the
-    // toast/tooltip progress bar now catches up via the shared object like
-    // everything else, instead of via this file's own local optimism.
-    // Now delegates the actual math to VolumeSettings.fractionFor() - see
-    // that file's header comment - so the OSD/tooltip fill and the
-    // flyout's slider position can never disagree about what "the volume
-    // range" is.
+    // 0..1 position of the shared volume for the tooltip/toast progress
+    // bars. VolumeSettings.fractionFor() is the same math the flyout
+    // slider uses, so the two can never disagree about the range.
     readonly property real volumeFraction: root.volumeSettings.fractionFor(root.pendingAmpState.volumeDb)
 
     function unwrap(prop, fallback) {
@@ -181,57 +108,36 @@ MouseArea {
         // Power gate - see `powerState` above. Also guards onWheel below,
         // whose notches all route through here.
         if (root.ampIp === "" || root.powerState !== "On") return;
-        // Phase 5.0.2 Step B: base now reads pendingAmpState.volumeDb,
-        // not a local copy - safe because PendingAmpState.notifyVolume()
-        // writes it synchronously before its D-Bus call, so a rapid
-        // second step still reads the value this call is about to set,
-        // not something stale. Step/clamp math now lives in
-        // VolumeSettings.stepped() - see that file's header comment.
+        // Base is pendingAmpState.volumeDb: notifyVolume() writes it
+        // synchronously before its D-Bus call, so a rapid second step
+        // accumulates on this one rather than on a stale value.
         const clamped = root.volumeSettings.stepped(root.pendingAmpState.volumeDb, direction);
-        // Scrolling on the panel icon while muted now unmutes for real,
-        // matching KDE's own Audio Devices applet convention - a scroll
-        // must always produce audible sound at the new volume, not just
-        // silently update a number the user can't hear until they open
-        // the flyout. Checked once, before either D-Bus write below, so
-        // this single scroll notch drives one real UDP unmute command
-        // (devialet-ctl mute off) alongside the volume command - not
-        // just an internally-tracked unmute.
+        // Scrolling while muted unmutes for real (KDE's Audio Devices
+        // applet convention): a scroll must be audible at the new volume.
+        // One notch sends the unmute command alongside the volume command.
         if (root.pendingAmpState.muted) {
             exec.connectSource(root.devialetCtlCommand + " --ip " + root.ampIp + " mute off");
             root.pendingAmpState.notifyMute(false);
         }
         exec.connectSource(root.devialetCtlCommand + " --ip " + root.ampIp + " volume " + clamped +
             " --hard-limit-db " + root.volumeSettings.hardLimitDb);
-        // Tells the daemon directly, so FullRepresentation (and anything
-        // else reading pendingAmpState) sees this as authoritative
-        // without waiting for the real amp broadcast - see
-        // PendingAmpState.qml/TODO.md.
+        // Tells the daemon, so every surface reading pendingAmpState shows
+        // the commanded value before the amp's broadcast confirms it
+        // (docs/DESIGN.md §3).
         root.pendingAmpState.notifyVolume(clamped);
-        // pendingAmpState.muted is already false by this point (written
-        // synchronously above, same as notifyVolume()'s own volumeDb) -
-        // one showVolume() call reflects both the unmute and the new
-        // volume together, not two separate toast triggers racing/
-        // flickering against each other.
+        // muted is already false here (notifyMute() writes synchronously),
+        // so one showVolume() covers both the unmute and the new volume.
         volumeToast.showVolume(root.tooltipAmpName, root.activeSourceName, clamped, root.volumeFraction, root.pendingAmpState.muted);
-        // Chime spike: one attempted chime per discrete notch, no debounce
-        // (matches plasma-pa's own un-debounced tone - Phase 10.0.0
-        // Finding 3). Wheel notches only route through here; middle-click
-        // mute (toggleMute) deliberately does not chime.
+        // One chime per paced step, no debounce (like plasma-pa's own
+        // tone). Middle-click mute (toggleMute) deliberately does not chime.
         root.maybeChime(clamped);
     }
 
-    // Phase 4.5.2: same mute-toggle logic as the flyout's own Mute button
-    // (FullRepresentation.qml's onClicked, ~line 1451) - not a shared call
-    // (that button's logic is inline, not an extracted function, and its
-    // `root` is a different file's root - see this file's header comment
-    // on why state here is an independent mirror, not shared, matching the
-    // same precedent stepVolume() above already established).
+    // Middle-click mute. Same logic as the flyout's Mute button, kept
+    // separate like stepVolume().
     function toggleMute() {
-        // Power gate - same as stepVolume() above (middle-click mute).
+        // Power gate - same as stepVolume() above.
         if (root.ampIp === "" || root.powerState !== "On") return;
-        // Phase 5.0.2 Step B: see the matching comment in stepVolume() -
-        // same reasoning, reads pendingAmpState.muted instead of a local
-        // copy.
         const newMuted = !root.pendingAmpState.muted;
         exec.connectSource(root.devialetCtlCommand + " --ip " + root.ampIp + " mute " + (newMuted ? "on" : "off"));
         root.pendingAmpState.notifyMute(newMuted);
@@ -242,38 +148,23 @@ MouseArea {
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
     onClicked: mouse => {
         if (mouse.button === Qt.LeftButton) {
-            // FlyoutPopup/FlyoutContent is the only thing left-click
-            // opens - unconditionally. Nothing in this file sets
-            // `plasmoidItem.expanded` (see main.qml's comment on why
-            // that's safe even though the shell's own auto-generated
-            // per-applet activation shortcut can still flip it).
+            // Left-click only toggles FlyoutPopup. Nothing here sets
+            // `plasmoidItem.expanded` (see main.qml on why that is safe
+            // even though the shell's activation shortcut can flip it).
             flyoutPopup.visible = !flyoutPopup.visible;
         } else if (mouse.button === Qt.MiddleButton) {
             root.toggleMute();
         }
     }
 
-    // Hover show/hide timing replicates libplasma's own ToolTipArea/
-    // ToolTipDialog exactly (read their source, not guessed - see
-    // VolumeHoverTooltip.qml's header comment for the full citation):
-    // ToolTipArea::hoverEnterEvent starts a single-shot show timer
-    // (m_showTimer.start(m_interval)) rather than showing immediately;
-    // ToolTipDialog::dismiss() starts a 200ms hide timer rather than
-    // hiding immediately. hoverEnterEvent's "already visible -> show
-    // immediately, no delay" branch (avoids flicker when quickly moving
-    // between tooltip areas) has no equivalent here since there's only
-    // one hover target - re-entering before hoverHideTimer fires just
-    // cancels it below, which is the same practical effect for a single
-    // icon.
+    // Hover show/hide timing follows libplasma's ToolTipArea/ToolTipDialog:
+    // a show delay on enter, a 200 ms hide delay on leave. Their "already
+    // visible -> show at once" branch has no equivalent with a single
+    // hover target; re-entering just cancels the hide timer.
     //
-    // Phase 4.5.3 item 2 fix (follow-up round): the earlier fix only
-    // reacted to a one-shot transition, which left a gap - leaving and
-    // re-entering the icon while the flyout was already open restarted
-    // hoverShowTimer with nothing to stop it, so the tooltip could
-    // reappear on top of it. Guarding the trigger itself (both here and
-    // in hoverShowTimer's own onTriggered) means it never shows at all
-    // while the flyout is open, regardless of how many times the mouse
-    // re-enters - not just once at the moment it opens.
+    // The tooltip never shows while the flyout is open: the guard sits on
+    // the trigger itself (here and in hoverShowTimer), so re-entering the
+    // icon with the flyout open cannot bring it back.
     onEntered: {
         hoverHideTimer.stop();
         if (!hoverTooltip.visible && !flyoutPopup.visible) {
@@ -289,17 +180,10 @@ MouseArea {
 
     Timer {
         id: hoverShowTimer
-        // Kirigami.Units.toolTipDelay - the same QML-exposed value real
-        // KDE apps bind QQC2 ToolTip.delay to, itself backed by the
-        // global "PlasmaToolTips/Delay" KConfig entry ToolTipArea reads
-        // directly (tooltiparea.cpp: cfg.readEntry("Delay", 700)) - using
-        // the Kirigami property rather than reading that KConfig group
-        // ourselves, since it's the standard path to the same value.
+        // Kirigami.Units.toolTipDelay: the standard QML path to the global
+        // "PlasmaToolTips/Delay" setting ToolTipArea reads (default 700).
         interval: Kirigami.Units.toolTipDelay
-        // Re-checked here too, not just in onEntered - flyoutPopup could
-        // have opened via some other path while the timer was already
-        // running, and showing this hover tooltip on top of it would be
-        // the same Phase 4.5.3 bug back.
+        // Re-checked here: the flyout may have opened while the timer ran.
         onTriggered: {
             if (!flyoutPopup.visible) {
                 hoverTooltip.visible = true;
@@ -312,33 +196,19 @@ MouseArea {
         onTriggered: hoverTooltip.visible = false
     }
 
-    // Phase 7.1.0: promoted from the Phase 7.0.0 spike
-    // (AppletPopupSpike.qml, now removed) into the real flyout popup
-    // shell - see FlyoutPopup.qml's own header comment for the real-build
-    // deltas (appletInterface, hideOnWindowDeactivate) applied this
-    // phase. Phase 7.8.0 Step A: this is now the *only* thing onClicked
-    // above opens - toggled unconditionally, no flag gating it anymore.
-    // Always instantiated (cheap, matches how hoverTooltip/volumeToast
-    // below are always-instantiated-but-usually-hidden too).
+    // The flyout (see FlyoutPopup.qml). Always instantiated and usually
+    // hidden, like hoverTooltip and volumeToast below.
     FlyoutPopup {
         id: flyoutPopup
         flyoutVisualParent: root
         plasmoidItem: root.plasmoidItem
-        // Phase 7.3.0: forwarded so FlyoutContent can hand it to the
-        // volume section in 7.4.0 (Phase 5's shared pending-state
-        // consumer). Same instance CompactRepresentation already holds.
+        // The shared root-anchored objects, forwarded on (docs/DESIGN.md §3).
         pendingAmpState: root.pendingAmpState
-        // Same forwarding, for the shared volume-range config - see
-        // VolumeSettings.qml's header comment.
         volumeSettings: root.volumeSettings
-        // Same forwarding, for the shared transparency alpha (Phase
-        // 9.1.0) - see TransparencySettings.qml's header comment.
         transparencySettings: root.transparencySettings
         themeSettings: root.themeSettings
 
-        // Phase 4.5.3 item 4's fix, flyout-side: hides the hover tooltip
-        // whenever this popup opens, or the tooltip would silently start
-        // appearing on top of it.
+        // Hide the hover tooltip whenever the flyout opens.
         onVisibleChanged: {
             if (flyoutPopup.visible) {
                 hoverShowTimer.stop();
@@ -354,19 +224,10 @@ MouseArea {
         visualParent: root
         ampName: root.tooltipAmpName
         sourceName: root.activeSourceName
-        // Phase 5.0.2 Step A: sourced from the shared pendingAmpState
-        // object rather than this file's own local root.volumeDb/muted -
-        // see PendingAmpState.qml/TODO.md. Safe here (unlike
-        // FullRepresentation's slider): the tooltip has no suppress/
-        // reactivate binding mechanic, so this is a plain, always-correct
-        // reactive read with no glitch risk.
         volumeDb: root.pendingAmpState.volumeDb
         volumeFraction: root.volumeFraction
         hasAmp: root.ampIp !== ""
-        // Phase 4.5.3 item 3 fix: was missing entirely, so the tooltip
-        // kept showing the last dB reading instead of "Muted" - the same
-        // Muted D-Bus mirror VolumeToast.showMute() already reacts to
-        // (see the Dbus.Properties block below), just never wired here.
+        // Needed so the tooltip shows "Muted" instead of the last dB.
         muted: root.pendingAmpState.muted
     }
 
@@ -404,14 +265,10 @@ MouseArea {
     Kirigami.Icon {
         anchors.fill: parent
         source: Plasmoid.icon
-        // Phase 4.2.5: devialet_icon_glow_dot.svg uses hardcoded copper
-        // fill/stroke (not currentColor), unlike the previous
-        // devialet_icon_currentColor_tray.svg this replaced - isMask is
-        // deliberately off so the SVG's own colors (and the outer ring's
-        // opacity, the "glow") render as designed, rather than being
-        // collapsed into a flat Kirigami.Theme.textColor mask the way the
-        // old currentColor icon needed. Trade-off: this icon no longer
-        // adapts to a light panel theme the way a true symbolic/mask icon
+        // The panel SVG uses hardcoded copper fill/stroke, so isMask is
+        // off: its own colours and the outer ring's opacity (the "glow")
+        // render as designed instead of a flat text-colour mask. Trade-off:
+        // it does not adapt to a light panel theme like a symbolic icon
         // would - not yet verified against a light Plasma theme.
         isMask: false
     }
@@ -421,18 +278,13 @@ MouseArea {
         themeSettings: root.themeSettings
     }
 
-    // PC-originated commands from outside this widget (the MPV scroll-to-
-    // volume script, any future tool) - PendingAmpState re-emits the
-    // daemon's VolumeCommandNotified/MuteCommandNotified minus this
-    // widget's own echoes (see its header), so nothing here can double-
-    // show for stepVolume()/toggleMute() above, and the flyout/settings
-    // clamp paths stay OSD-less as before. Same argument sources as those
-    // two functions; the fraction is computed from the signal's own dB
-    // rather than volumeFraction, which tracks pendingAmpState.volumeDb
-    // (already equal by the time the signal lands, since the daemon emits
-    // it after the same call's PropertiesChanged, but the explicit form
-    // doesn't depend on that ordering). No chime: maybeChime() is a
-    // wheel-notch behaviour, deliberately not extended to external calls.
+    // OSD for commands from other tools on this PC (e.g. the MPV volume
+    // script). PendingAmpState re-emits the daemon's VolumeCommandNotified/
+    // MuteCommandNotified minus this widget's own echoes, so stepVolume()/
+    // toggleMute() never show twice and the flyout/settings-clamp paths
+    // stay OSD-less. The fraction comes from the signal's own dB so it
+    // does not depend on PropertiesChanged landing first. No chime: that
+    // is a wheel-notch behaviour only.
     Connections {
         target: root.pendingAmpState
         function onExternalVolumeCommand(db) {
@@ -444,11 +296,10 @@ MouseArea {
         }
     }
 
-    // Fires devialet-ctl once per connectSource() call, then disconnects
-    // itself - same pattern as FullRepresentation.qml's own `exec`
-    // (confirmed pattern from Phase 2 (luisbocanegra.panel.colorizer's
-    // RunCommand.qml)), kept as an independent instance here rather than
-    // shared - see header comment.
+    // Runs devialet-ctl once per connectSource() call, then disconnects
+    // the source (the panel-colorizer RunCommand.qml pattern). Command
+    // strings per amp IP: one per volume step and hard limit, plus mute
+    // on/off - a small fixed set (docs/DESIGN.md §5).
     P5Support.DataSource {
         id: exec
         engine: "executable"
@@ -459,9 +310,8 @@ MouseArea {
         }
     }
 
-    // Chime spike: the four-slot round-robin pool maybeChime() cycles
-    // through - see the chimePool comment above. Same shape as `exec`,
-    // distinct log prefix so the journal trail can be grepped per slot.
+    // The chimePool slots (see above). Same shape as `exec`, with a
+    // per-slot log prefix for grepping the journal.
     P5Support.DataSource {
         id: chimeExec0
         engine: "executable"
@@ -515,11 +365,8 @@ MouseArea {
             root.activeSourceName = root.unwrap(properties.ActiveSourceName, "");
         }
 
-        // Phase 5.0.2 Step B: VolumeDb/Muted branches removed - this
-        // interface-level subscription still receives them on every
-        // emission (unavoidable, same as PendingAmpState's own
-        // subscription), just no longer processed here. Both are read
-        // exclusively via root.pendingAmpState.volumeDb/.muted now.
+        // VolumeDb/Muted also arrive here but are ignored: this file reads
+        // them only through pendingAmpState.
         onPropertiesChanged: (interfaceName, changed, invalidated) => {
             if ("AmpIp" in changed) root.ampIp = root.unwrap(changed.AmpIp, root.ampIp);
             if ("DeviceName" in changed) root.deviceName = root.unwrap(changed.DeviceName, root.deviceName);

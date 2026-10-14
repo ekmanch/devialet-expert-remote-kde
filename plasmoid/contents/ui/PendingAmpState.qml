@@ -1,141 +1,65 @@
-// Phase 5.0.1: single shared, root-anchored consumer of the daemon's
-// resolved VolumeDb/Muted (pending-or-confirmed - see interface.rs's
-// NotifyVolumeCommand/NotifyMuteCommand + resolve_pending_commands,
-// Phase 5.0.0). Both CompactRepresentation and FullRepresentation read
-// volumeDb/muted from ONE instance of this object (handed down from
-// main.qml via a `required property`, the same mechanism
-// CompactRepresentation's existing `plasmoidItem` already uses) instead
-// of each maintaining its own independent optimistic/debounce copy -
-// see TODO.md's Phase 5.0.0/5.0.1 entries for the full architecture
-// decision and rejected alternatives.
+// The one shared consumer of the daemon's resolved VolumeDb/Muted
+// (pending-or-confirmed; the daemon owns pending state, docs/DESIGN.md
+// §3). Instantiated once at main.qml's root and forwarded as a
+// `required property`, so every surface (panel icon, flyout, OSD,
+// tooltip) reads the same value.
 //
-// This object owns its own Dbus.Properties subscription to the daemon
-// interface. That subscription is interface-level, not per-property, so
-// it unavoidably also receives Online/DeviceName/Sources/KnownAmps/etc.
-// on every PropertiesChanged emission - deliberately ignored here. Only
-// AmpIp/VolumeDb/Muted are ever processed/exposed - plus, since Phase
-// 8.0.1, VolumeRaw, read for exactly one purpose (the post-boot hold's
-// confirmation check below) and never exposed - except that the volume-
-// chime spike (TODO.md, branch spike/volume-audio-feedback) additionally
-// exposes that same decoded byte as `confirmedVolumeDb` (the amp's real
-// last-broadcast dB, never the daemon's 400 ms pending mask) for the
-// chime's gain compensation; still nothing beyond AmpIp/VolumeDb/Muted/
-// VolumeRaw is processed here. Do NOT add handling for
-// any other property to this file - that boundary is what keeps this
-// object out of full-mirror-consolidation territory (a legitimate,
-// larger, explicitly separate future phase - see TODO.md).
+// Scope: the D-Bus subscription is interface-level, but only AmpIp,
+// VolumeDb, Muted and VolumeRaw are processed here. VolumeRaw is the
+// amp's unmasked status byte, used for the post-boot hold's
+// confirmation and exposed as `confirmedVolumeDb` for the chime. Keep
+// other properties out of this file.
 //
-// Phase 8.0.1 - post-boot volume-display hold (`beginBootHold`/
-// `endBootHold`, `bootHold*` below). The second instance of the
-// optimistic-guard pattern FlyoutContent.qml's 400 ms Power/PowerState
-// guard established, scoped to VolumeDb in the window right after a
-// widget-initiated power-on confirms. Why it lives here and not in
-// FlyoutContent: unlike Power/PowerState, VolumeDb never passes through
-// a FlyoutContent mirror - VolumeBlock, CompactRepresentation's scroll/
-// fill fraction, the OSD toast and the hover tooltip all read
-// `volumeDb` from this one object (Phase 5.0.2 removed every per-view
-// copy), so a guard anywhere else could not cover the panel icon/OSD/
-// tooltip and would recreate the duplicated optimistic copy this file
-// exists to eliminate.
+// Post-boot volume hold (`beginBootHold`/`endBootHold`, `bootHold*`).
+// After a boot the amp's broadcast first carries the pre-shutdown byte,
+// then ~200 ms later a value 2 dB low (raw 111 = -42.0 while the panel
+// reads -40) that stays until a volume command is sent (gotcha #8).
+// FlyoutContent sends the startup volume 500 ms after "On" (gotcha #9),
+// confirmed 96-199 ms later; without the hold every surface would show
+// -42 for ~300-500 ms and then jump. It lives here, not in
+// FlyoutContent, because every surface reads volumeDb from this object.
 //
-// What it masks (measured 2026-09-07 on the real amp with an
-// independent raw UDP capture next to the daemon, 21+ boots): the first
-// power-on broadcast still carries the pre-shutdown volume byte; ~200 ms
-// later the amp switches to its own startup volume but *misreports* it
-// by 2 dB (raw 111 = -42.0 while the front panel reads -40; docs/
-// known-gotchas.md #8), and it stays there until a volume command is
-// sent. FlyoutContent's startup send goes out 500 ms after "On" (gotcha
-// #9) and the amp's broadcast confirms it 96-199 ms later - so without
-// this hold every surface would show -42 for ~300-500 ms and then jump
-// to the configured value.
+// FlyoutContent arms the hold on Booting -> On, which shows the target
+// at once. While held, VolumeDb pushes are recorded (`lastRealVolumeDb`)
+// but not applied. Any notifyVolume() re-targets the hold to that value
+// and shows it, so the user always wins; the deferred startup send reads
+// `bootHoldDb`, so the amp gets the same value. The hold ends when a
+// VolumeRaw push decodes to `bootHoldDb` after a send - not on the
+// daemon's echo of our own NotifyVolumeCommand, which fires at the send.
+// A match before any send does not count: the first power-on packet
+// carries the pre-shutdown byte, which equals the target whenever the
+// amp was switched off at the startup volume, and PowerState (which
+// arms the hold) arrives before that packet's VolumeRaw (gotcha #8).
+// Fallback: `bootHoldTimeoutMs` (1500 ms: 500 ms send + ~200 ms confirm
+// + the >400 ms late-application allowance, rounded) runs from arming
+// until a send, then from the latest send, and shows the last real
+// value. The hold also ends on an AmpIp change and, via FlyoutContent,
+// on a power-off click or boot timeout. Its console.log lines (a
+// handful per boot) stay on so the journal shows which path released
+// it.
 //
-// Mechanism: FlyoutContent arms the hold on Booting→On (`beginBootHold(
-// ip, target)`), which shows `target` at once. While held, VolumeDb
-// pushes are recorded (`lastRealVolumeDb`) but not applied; any
-// `notifyVolume(db)` from any call site (flyout step/slider, panel
-// scroll, settings clamp) re-targets the hold to the user's value and
-// shows it the same tick - the user always wins, and FlyoutContent's
-// deferred send reads `bootHoldDb` so the amp gets the same value
-// (verified at the amp level 4/4: the user's change inside the window
-// is honored and the later send is idempotent). The hold ends on real
-// confirmation - a VolumeRaw push decoding to `bootHoldDb` ((raw - 195)
-// / 2, the daemon's deliberately unmasked byte, interface.rs) - not on
-// the daemon's 400 ms VolumeDb echo of our own NotifyVolumeCommand,
-// which fires at the send before anything is confirmed. Bounded
-// fallback `bootHoldTimeoutMs` (1500: 500 send + ~200 confirm + the
-// >400 ms late-application allowance from the sweep, rounded) then
-// shows the last real value instead. Also ended on AmpIp change and,
-// via FlyoutContent, on a power-off click or boot timeout. Outside the
-// window nothing here changes; the daemon's own pending mask keeps
-// working underneath.
+// Apart from the hold and the echo guard (next to noteVolumeDb), this
+// file never resolves pending-vs-confirmed itself; the daemon does.
 //
-// 2026-09-20 fix - the release needs a send first (`bootHoldSent`). The
-// hold used to release on ANY VolumeRaw push decoding to bootHoldDb.
-// But the first power-on broadcast carries the amp's pre-shutdown byte
-// (gotcha #8), and the daemon re-emits every property on each change,
-// as separate PropertiesChanged messages in emit_all() order:
-// PowerState (arms the hold via FlyoutContent) is delivered before that
-// same packet's VolumeRaw reaches this object. So whenever the amp had
-// been powered off at exactly the startup target (common after a source
-// switch, which itself sets the startup volume), the stale byte released
-// the hold ~0 ms after it was armed, and the -42 misreport ~200 ms later
-// was shown until the send landed - the intermittent "-42.0 then -40.0"
-// flicker. Now a raw match only releases once a volume command has
-// actually gone out while held (`notifyVolume`, i.e. the startup send or
-// a user re-target - the only paths that make a matching byte a real
-// confirmation), and the fallback timer is restarted at that send, so
-// the 1500 ms allowance is measured from the send rather than from "On"
-// (before, only 1000 ms of it remained after the 500 ms send delay).
-// Before a send the fallback still runs from arming, so an armed hold
-// whose send never happens can't stick. The hold-scoped console.log
-// lines below (arm/sent/release/timeout, a handful per boot) are always
-// on, so the journal shows which path released it the next time
-// anything looks off - see TODO.md's entry for the investigation.
+// External-command signals. The daemon emits `VolumeCommandNotified` /
+// `MuteCommandNotified` from NotifyVolumeCommand/NotifyMuteCommand, so a
+// command from another tool (e.g. an MPV script) can show the OSD;
+// changes the daemon only observes from the amp never emit them. Every
+// widget-originated Notify* call goes through notifyVolume/notifyMute
+// here, so this is the one place that can tell our own echo from an
+// external call: `ownInFlight` remembers each call, the signal handler
+// consumes a matching entry silently, and only an unmatched signal is
+// re-emitted as `externalVolumeCommand`/`externalMuteCommand` for
+// CompactRepresentation's toast. The daemon emits the signal before
+// replying, so the echo normally consumes the entry first; reply
+// callbacks only forget entries no signal matched (unknown IP, an old
+// daemon), and they forget by id, never by value, because two calls
+// with equal values can be in flight (fast scrolling at a clamp edge).
+// Matching by sender is not possible: QML cannot read plasmashell's own
+// unique bus name.
 //
-// Thin consumer only: the confirmed-vs-expired resolution logic stays
-// entirely in the daemon (Phase 5.0.0's resolve_pending_commands). This
-// file never tracks the amp-confirmation deadline itself - volumeDb/muted
-// below are what the daemon currently reports, whether still pending or
-// already confirmed. Exception (2026-09-29): while this widget's own
-// NotifyVolumeCommand calls are unreplied, VolumeDb pushes are only
-// recorded, then reconciled once the last reply lands - see the echo guard
-// next to noteVolumeDb (its watchdog is a stuck-reply guard, not an
-// amp-confirmation deadline).
-//
-// PC-originated-command signal (2026-09-15, unnumbered phase). The daemon
-// now emits `VolumeCommandNotified(ip, db)` / `MuteCommandNotified(ip,
-// muted)` from NotifyVolumeCommand/NotifyMuteCommand (interface.rs) so a
-// command sent by anything other than this widget - the MPV scroll-to-
-// volume script, a future tool - can show the widget's OSD toast. Changes
-// the daemon merely observes from the amp (physical remote) never take
-// that path, so they keep showing no OSD - which is why this is a signal
-// from those two methods and not a watcher on VolumeDb/Muted. This file
-// owns the subscription (`commandSignals` below) because it is also the
-// single funnel every widget-originated Notify* call goes through
-// (notifyVolume/notifyMute - panel wheel/middle-click, flyout slider/
-// step/mute, main.qml's settings clamp), which makes it the one place that
-// can tell the daemon's echo of our own call apart from an external one:
-// `ownInFlight` remembers each call we made, the signal handler consumes
-// an entry with a matching value silently, and only an unmatched signal is re-emitted as
-// `externalVolumeCommand`/`externalMuteCommand` for CompactRepresentation
-// to turn into a toast. Owner decision: every widget-originated call is
-// suppressed (the flyout and the settings clamp never showed the OSD and
-// still don't), so behaviour is unchanged except for external callers.
-// The daemon emits the signal inside the method before replying, so the
-// echo normally consumes the entry before the reply callback runs; the
-// callbacks only forget an entry no signal ever matched (unknown-ip no-op,
-// a daemon predating the signal). They forget their own call's entry by
-// id, never by value (2026-09-29 fix): with two equal values in flight -
-// fast scrolling past the floor/ceiling re-sends the clamped value - a
-// by-value forget in reply #1 deleted call #2's entry, so call #2's echo
-// went unmatched and showed the OSD from the flyout, stuck on that one
-// value. A sender-based scheme was not possible:
-// QML has no access to plasmashell's own unique bus name to compare with.
-//
-// Plain QtObject root, not `pragma Singleton` - matches Theme.qml's own
-// precedent (this KPackage has no qmldir/module registration set up for
-// a true singleton). A headless data object; no visual representation
-// needed.
+// A plain QtObject, not `pragma Singleton`: this KPackage has no qmldir
+// module for a real singleton.
 
 import QtQml
 import org.kde.plasma.workspace.dbus as Dbus
@@ -147,9 +71,7 @@ QtObject {
     readonly property string objectPath: "/com/ekmanch/DevialetRemote/Amp"
     readonly property string interfaceName: "com.ekmanch.DevialetRemote.Amp1"
 
-    // Phase 5.0.1 verification aid only - flip to true for a live
-    // lifecycle-independence pass (see TODO.md's Phase 5.0.1 entry),
-    // false otherwise. Not left permanently on.
+    // Verbose lifecycle logging; off unless debugging.
     readonly property bool debugLogging: false
 
     property string ampIp: ""
@@ -207,24 +129,21 @@ QtObject {
         }
     }
 
-    // Phase 8.0.1 post-boot hold state - see the header comment.
-    // bootHoldIp "" = not held. bootHoldDb = the value currently asserted
-    // (configured startup volume, or the user's latest change inside the
-    // window). lastRealVolumeDb = the most recent daemon VolumeDb push
-    // seen (kept current whether held or not), the fallback shown if the
-    // hold times out unconfirmed - Plasma.DBusProperties has no refresh()
-    // to re-read the live value with, hence tracked here.
+    // Post-boot hold state (see the header). bootHoldIp "" = not held.
+    // bootHoldDb = the value currently shown (startup volume, or the
+    // user's latest change). lastRealVolumeDb = the latest daemon VolumeDb
+    // push, kept whether held or not; shown if the hold times out.
+    // Tracked here because Plasma.DBusProperties has no refresh().
     property string bootHoldIp: ""
     property var bootHoldDb: undefined
     // True once a volume command has been sent while held (notifyVolume);
-    // a VolumeRaw match releases the hold only after that - see the
-    // 2026-09-20 paragraph in the header.
+    // a VolumeRaw match releases the hold only after that.
     property bool bootHoldSent: false
     property var lastRealVolumeDb: undefined
-    // Chime spike: (VolumeRaw - 195) / 2, the amp's real last-broadcast
-    // dB - deliberately NOT volumeDb (optimistic, then daemon-masked for
-    // 400 ms after every command). undefined until an amp is selected and
-    // has broadcast. Written only by noteVolumeRaw(); read-only elsewhere.
+    // (VolumeRaw - 195) / 2, the amp's real last-broadcast dB for the
+    // chime - not volumeDb, which is optimistic and then daemon-masked for
+    // 400 ms after every command. undefined until an amp is selected and
+    // has broadcast. Written only by noteVolumeRaw().
     property var confirmedVolumeDb: undefined
     readonly property int bootHoldTimeoutMs: 1500
 
@@ -271,17 +190,16 @@ QtObject {
     // volume_db()). bootHoldDb is a whole-dB config value or a clamp of
     // one, and raw decodes to a multiple of 0.5, so `===` is exact.
     function noteVolumeRaw(raw) {
-        // Chime spike: expose the decoded byte first, before the hold's
-        // early return. The daemon emits VolumeRaw=0 with AmpIp="" when
-        // no amp is selected, which would decode to -97.5 - hence the
-        // ampIp guard (noteAmpIp always runs before this in both
-        // onRefreshed and onPropertiesChanged below).
+        // Expose the decoded byte before the hold's early return. The
+        // daemon emits VolumeRaw=0 with AmpIp="" when no amp is selected
+        // (would decode to -97.5), hence the ampIp guard; noteAmpIp always
+        // runs first in both handlers below.
         root.confirmedVolumeDb = (raw === undefined || root.ampIp === "") ? undefined : (raw - 195) / 2;
         if (root.bootHoldIp === "" || raw === undefined) return;
         if ((raw - 195) / 2 !== root.bootHoldDb) return;
-        // A matching byte before any send is the amp's pre-shutdown or
-        // own-startup value, not a confirmation of ours (2026-09-20 fix,
-        // see header) - keep holding; the fallback timer still bounds it.
+        // A match before any send is the amp's pre-shutdown or own
+        // startup byte, not a confirmation of ours (see header). Keep
+        // holding; the fallback timer still bounds it.
         if (!root.bootHoldSent) {
             console.log("[PendingAmpState] boot hold: VolumeRaw", raw, "matches the target before any send - ignored");
             return;
@@ -298,26 +216,21 @@ QtObject {
         if (root.bootHoldIp === "" && root.ownVolumeCallsPending === 0) root.volumeDb = db;
     }
 
-    // Echo guard (2026-09-29, the parked "dropped/repeated notch" item).
-    // NotifyVolumeCommand makes the daemon push VolumeDb = that call's own
-    // value before it replies (interface.rs notify_volume_command). When a
-    // later notch has already gone out, call N's push used to rewind
-    // volumeDb - the base both stepVolume()s build the next notch on - to
-    // N, so the next notch repeated or lost a step (14 direction reversals
-    // measured in one pre-rate-limit burst). While any own volume call is
-    // unreplied, pushes are therefore only recorded (lastRealVolumeDb);
-    // once the last reply lands - after every push of those calls, since
-    // the daemon emits them inside the method - volumeDb is reconciled
-    // with the daemon's latest value once, which also picks up a genuine
-    // change (physical remote) that arrived meanwhile.
+    // Echo guard. NotifyVolumeCommand makes the daemon push VolumeDb = that
+    // call's value before replying. When a later notch has already gone
+    // out, call N's push would rewind volumeDb - the base stepVolume()
+    // builds the next notch on - so the next notch repeated or lost a
+    // step. While any own volume call is unreplied, pushes are only
+    // recorded (lastRealVolumeDb); once the last reply lands (after all
+    // of those calls' pushes), volumeDb is reconciled with the daemon's
+    // latest value, which also picks up a real change made meanwhile.
     //
-    // The count must never stick (owner requirement): the callbacks
-    // decrement before anything else; a watchdog resets it if the latest
-    // send has gone ownVolumeWatchdogMs without every reply (round trip
-    // measured ~1 ms; QtDBus's own call timeout is 25 s); the daemon's
-    // bus name vanishing or reappearing resets it too. A reset bumps the
-    // epoch, so late replies from abandoned calls can't lower a newer
-    // burst's count.
+    // The count must never stick: the callbacks decrement first; a
+    // watchdog resets it if the latest send has gone ownVolumeWatchdogMs
+    // without every reply (round trip measured ~1 ms; QtDBus's own call
+    // timeout is 25 s); the daemon's bus name vanishing or reappearing
+    // resets it too. A reset bumps the epoch, so late replies from
+    // abandoned calls can't lower a newer burst's count.
     property int ownVolumeCallsPending: 0
     property int ownVolumeEpoch: 0
     property int ownVolumeWatchdogMs: 3000
@@ -380,48 +293,28 @@ QtObject {
         root.ampIp = ip;
     }
 
-    // Third copy of a helper already duplicated identically in both
-    // CompactRepresentation.qml and FullRepresentation.qml - deliberate,
-    // not an oversight. Small, stable, no timing/debounce concerns, same
-    // category CompactRepresentation's own header comment already
-    // carves out as "duplicated in spirit, not by reference", unrelated
-    // to the actual debounce/state-machine duplication this phase exists
-    // to eliminate.
+    // Same helper as in CompactRepresentation and FlyoutContent;
+    // duplicated on purpose, it is small and stable.
     function unwrap(prop, fallback) {
         if (prop === undefined || prop === null) return fallback;
         if (typeof prop === "object" && prop.value !== undefined) return prop.value;
         return prop;
     }
 
-    // Phase 5.0.2 Step B: both functions below now write volumeDb/muted
-    // synchronously, before firing the async D-Bus call - this is what
-    // lets CompactRepresentation.qml's stepVolume()/toggleMute() safely
-    // use these properties as their own rapid-repeat accumulation base
-    // (reading "the value I just set" needs that value to exist in the
-    // same tick, not after a D-Bus round trip). Also what finally makes
-    // the FullRepresentation.qml slider holdout liftable in a future
-    // step (not done here - the Binding itself still needs switching and
-    // re-verifying for the snap-back risk separately).
+    // Both functions write volumeDb/muted synchronously, before the async
+    // D-Bus call, so callers can use them as the accumulation base for
+    // rapid repeats (the next notch needs the value set this tick).
     //
-    // Rollback on failure: verified safe via the actual KDE source
-    // (plasma-workspace's components/dbus/dbusconnection.cpp) that the
-    // resolve/reject callbacks below are mutually exclusive AND
-    // single-shot (Qt::SingleShotConnection guarding a reply->isValid()
-    // if/else) - together, at most one of the two ever fires, so a
-    // rollback here can't double-fire or race a late success. Without
-    // this, a failed call (e.g. daemon down/restarting) would leave an
-    // unconfirmed optimistic value asserted indefinitely, correctable
-    // only by luck (some unrelated future onRefreshed/onPropertiesChanged
-    // happening to overwrite it) rather than promptly and deliberately.
+    // Rollback on failure: the resolve/reject callbacks are single-shot
+    // and mutually exclusive (plasma-workspace dbusconnection.cpp), so a
+    // rollback cannot double-fire or race a late success. Without it a
+    // failed call (daemon down) would leave an unconfirmed value shown.
     function notifyVolume(db) {
         if (root.ampIp === "") return;
-        // Phase 8.0.1: a user change inside the post-boot window re-targets
-        // the hold, so it is shown at once (below) and FlyoutContent's
-        // deferred startup send carries it instead of the configured value.
-        // 2026-09-20: every notifyVolume while held is a real command going
-        // out (the startup send, or the user's own), so it is what makes a
-        // later matching VolumeRaw a confirmation - and the fallback
-        // allowance restarts from it (see header).
+        // While held, every notifyVolume is a real command going out (the
+        // startup send or the user's own): it re-targets the hold, makes a
+        // later matching VolumeRaw count as confirmation and restarts the
+        // fallback timer (see header).
         if (root.bootHoldIp !== "") {
             root.bootHoldDb = db;
             root.bootHoldSent = true;
@@ -487,14 +380,8 @@ QtObject {
         );
     }
 
-    // Assigned via a named property, NOT a bare child object - QtObject
-    // has no `data` default property in Qt6 (that's an Item/QQuickItem
-    // thing, confirmed against this machine's actual installed
-    // qmltypes, not assumed - the two existing bare-Dbus.Properties-child
-    // precedents in this codebase, CompactRepresentation.qml and
-    // FullRepresentation.qml, are both Item-derived roots). This is the
-    // same pattern Theme.qml already uses for its own QObject-derived
-    // FontLoader children under a QtObject root.
+    // A named property, not a bare child: QtObject has no default
+    // property in Qt 6 (Theme.qml does the same for its FontLoaders).
     readonly property Dbus.Properties ampProps: Dbus.Properties {
         busType: Dbus.BusType.Session
         service: root.serviceName
@@ -511,15 +398,10 @@ QtObject {
             }
         }
 
-        // Interface-level subscription - unavoidably also delivers
-        // Online/DeviceName/Sources/KnownAmps/etc. on every emission.
-        // Deliberately ignored: only AmpIp/VolumeDb/Muted (and VolumeRaw,
-        // for the hold's confirmation only - Phase 8.0.1) are ever
-        // processed here. Full mirror consolidation is an explicitly
-        // separate, larger, deferred future phase - see TODO.md.
-        // Order matters and matches the daemon's emit_all(): AmpIp, then
-        // VolumeRaw, then VolumeDb - so a confirming raw byte ends the
-        // hold before the same emission's VolumeDb is considered.
+        // Interface-level subscription: other properties arrive too and
+        // are ignored (see header). Order matches the daemon's emit_all():
+        // AmpIp, then VolumeRaw, then VolumeDb, so a confirming raw byte
+        // ends the hold before the same emission's VolumeDb is considered.
         onPropertiesChanged: (interfaceName, changed, invalidated) => {
             if ("AmpIp" in changed) root.noteAmpIp(root.unwrap(changed.AmpIp, root.ampIp));
             if ("VolumeRaw" in changed) root.noteVolumeRaw(root.unwrap(changed.VolumeRaw, undefined));
@@ -532,13 +414,10 @@ QtObject {
     }
 
     // Subscription to the daemon's two custom signals (see the header).
-    // Plasma's SignalWatcher (org.kde.plasma.workspace.dbus, plasma-
-    // workspace components/dbus/dbussignalwatcher.cpp) connects to every
-    // member of `iface` and dispatches each received signal to a JS
-    // function on this object named "dbus" + <member>, arguments
-    // positionally - so the two function names below are the D-Bus signal
-    // names, not free choices. Named property, not a bare child, for the
-    // same QtObject-has-no-default-property reason as ampProps above.
+    // Plasma's SignalWatcher dispatches each signal of `iface` to a JS
+    // function named "dbus" + <member>, arguments positionally, so the two
+    // function names below are fixed by the D-Bus signal names. A named
+    // property for the same reason as ampProps above.
     readonly property Dbus.SignalWatcher commandSignals: Dbus.SignalWatcher {
         busType: Dbus.BusType.Session
         service: root.serviceName

@@ -1,67 +1,29 @@
-// Phase 4.5.0: custom hover indicator for the panel icon, showing this
-// plasmoid's own copper/graphite look instead of generic tooltip styling.
+// Hover tooltip for the panel icon, in the widget's own look rather than
+// the shell's tooltip styling.
 //
-// Phase 4.5.3 Bug 3 fix: originally implemented via PlasmoidItem.
-// toolTipItem, which hands content to the shell's own ToolTipDialog
-// (plasma-workspace's CompactApplet.qml -> PlasmaCore.ToolTipArea ->
-// internally instantiates ToolTipDialog : PopupPlasmaWindow :
-// PlasmaWindow). That class always paints its own background/frame behind
-// whatever toolTipItem content is supplied - PlasmaWindow::BackgroundHints
-// (confirmed in libplasma's plasmawindow.h) has only StandardBackground/
-// SolidBackground, no NoBackground value at all, so the frame could not be
-// suppressed. Confirmed by direct comparison against VolumeToast.qml
-// (Phase 4.5.0's OSD toast), which achieves a genuinely zero-frame look
-// via a DIFFERENT class this file now also uses: PlasmaCore.Dialog, built
-// directly by us rather than handed off to the shell, whose
-// BackgroundHints enum (confirmed in libplasma's dialog.h) does include a
-// real NoBackground value.
+// Its own PlasmaCore.Dialog, not PlasmoidItem.toolTipItem: the shell's
+// ToolTipDialog is a PlasmaWindow, whose BackgroundHints have no
+// NoBackground, so it always paints a frame behind the content. Dialog
+// has a real NoBackground (as in VolumeToast.qml). `type: Tooltip` gives
+// it the shell tooltip's Wayland role. main.qml sets toolTipMainText/
+// toolTipSubText to explicit empty strings so ToolTipArea::isValid() is
+// false and the shell's default tooltip (metadata Name/Comment) never
+// shows alongside this one (see main.qml).
 //
-// This file is its own PlasmaCore.Dialog (type: Tooltip, matching the
-// real role_tooltip Wayland role the shell's own tooltip uses - confirmed
-// in dialog.cpp's applyType()), driven directly by CompactRepresentation.
-// qml's own hover state instead of PlasmoidItem.toolTipItem. main.qml
-// additionally sets toolTipMainText/toolTipSubText to explicit empty
-// strings (Phase 4.5.3 item 1 fix - see main.qml's own comment for why
-// merely leaving them unset wasn't enough) so libplasma's own
-// ToolTipArea::isValid() (tooltiparea.cpp: `m_mainItem ||
-// !mainText().isEmpty() || !subText().isEmpty()`) returns false and the
-// shell's default tooltip machinery cleanly no-ops on hover instead of
-// showing metadata.json's Name/Comment alongside our own.
+// Positioning is not hand-computed: Dialog::popupPosition() places a
+// Dialog with `visualParent` and `location` on the far side of
+// `location`, centred on the parent - the same thing ToolTipArea does
+// with Plasmoid.location.
 //
-// Positioning is NOT hand-computed - Dialog::popupPosition() (confirmed
-// in dialog.cpp) automatically places a Dialog with both `visualParent`
-// and `location` set on the opposite edge from `location` (e.g.
-// location: TopEdge -> appears below visualParent, horizontally centered
-// on it) - the same mechanism the flyout's own popup relies on. `location:
-// Plasmoid.location` here mirrors exactly what the real ToolTipArea does
-// with its own `m_location` for the same purpose (tooltiparea.cpp's
-// showToolTip()).
+// Show/hide timing (toolTipDelay before showing, 200 ms before hiding,
+// as in ToolTipArea/ToolTipDialog) and hiding it while the flyout is open
+// are driven by CompactRepresentation.qml; this file only reacts to
+// `visible`.
 //
-// Show/hide timing replicates ToolTipArea/ToolTipDialog's own real
-// behavior (confirmed by reading tooltiparea.cpp/tooltipdialog.cpp), not
-// invented: a delay before first showing (Kirigami.Units.toolTipDelay -
-// the same property real KDE apps bind QQC2 ToolTip.delay to, itself
-// backed by the global "PlasmaToolTips/Delay" KConfig entry ToolTipArea
-// reads directly, default 700ms - using the Kirigami property instead of
-// reading that KConfig group ourselves, since it's the standard QML-
-// exposed path to the same value), and a short grace period before
-// hiding (200ms, matching ToolTipDialog::dismiss()'s own hardcoded
-// `m_hideTimer.start(200)` exactly) rather than an instant hide - both
-// timers driven from CompactRepresentation.qml's hover handlers, not
-// this file (this file only reacts to its own `visible` property).
-// CompactRepresentation.qml also forces this hidden (and refuses to
-// re-show it) while the flyout is open (Phase 4.5.3 item 4, then item 2
-// of the follow-up round), so it never floats on top of it.
-//
-// Phase 4.5.3 item 2 (follow-up round): the volume-level icon added in
-// the previous round was a mistake - the approved mockup
-// (devialet_tray_tooltip_mockup_v4.html) only ever used a small copper
-// status dot next to the amp name, never a full icon box. Reverted back
-// to the dot; "Muted" still swaps in for the dB reading (that part of
-// the earlier fix was correct and is kept), just with no icon
-// accompanying it, muted or not. Background gradient/radius/border still
-// match VolumeToast.qml's OSD-toast look (colors.osdGradientTop/Bottom,
-// radiusLg) - only the icon was reverted, nothing else from that round.
+// Layout follows the tooltip mockup (devialet_tray_tooltip_mockup_v4 and
+// later): a small status dot by the amp name, no icon box; "Muted"
+// replaces the dB reading. The card gradient and radius match
+// VolumeToast.qml.
 
 pragma ComponentBehavior: Bound
 
@@ -82,9 +44,8 @@ PlasmaCore.Dialog {
     property bool muted: false
 
     readonly property Theme theme: Theme {}
-    // Phase 17.13.0: the theme, resolved by ThemeSettings (root-anchored in
-    // main.qml, forwarded by CompactRepresentation); `colors` is the OSD/
-    // tooltip palette, which ThemeSettings keeps separate from the flyout's.
+    // `colors` is ThemeSettings' OSD/tooltip palette, kept separate from
+    // the flyout's (docs/DESIGN.md §6).
     required property ThemeSettings themeSettings
     readonly property ColorPalette colors: tooltip.themeSettings.osdPalette
     readonly property bool isWordValue: tooltip.hasAmp && tooltip.muted
@@ -100,7 +61,7 @@ PlasmaCore.Dialog {
         implicitWidth: 172
         implicitHeight: column.implicitHeight + 18
         radius: tooltip.theme.radiusLg
-        // Phase 17.5.0 (D2): no outer border (tooltip mockup v2 :122).
+        // No outer border (tooltip mockup v2 :122).
 
         gradient: Gradient {
             orientation: Gradient.Vertical
@@ -120,32 +81,22 @@ PlasmaCore.Dialog {
             RowLayout {
                 id: nameRow
                 spacing: 6
-                // NOT the mockup's literal margin-bottom:5px - re-measured
-                // after fixing the real statRow baseline bug below (a
-                // nested RowLayout doesn't get a usable Qt.AlignBaseline,
-                // which is what caused the "Optical 1 sitting over the
-                // value" bug, not a margin issue) and confirmed the
-                // literal 5/6 values still render gap-above/gap-below at
-                // roughly 19.75px/19.25px - nearly equal, not the
-                // mockup's own ~70:100 (stat-row-hugs-the-bar) rhythm.
-                // Confirmed the mockup's own rendering only produces that
-                // ratio via font-metric/line-height differences (likely
-                // Google Fonts not resolving from a bare file:// page)
-                // that don't carry over to QML's real bundled fonts, so
-                // matching the actual visual rhythm needs different
-                // numbers here, not the literal CSS ones.
+                // Not the mockup's literal margin-bottom:5px (nor statRow's
+                // 6px): the mockup's rhythm (stat row hugging the bar, gaps
+                // ~70:100) comes from its own font metrics, likely web fonts
+                // failing to load from file://. The literal values render
+                // near-equal gaps here, so these margins were measured to
+                // match the mockup's look instead.
                 Layout.bottomMargin: 7
 
-                // Phase 17.6.0: 5 -> 7 px and no glow (tooltip mockup v2
-                // :133 - dark palette has no glows; the light theme's gold
-                // sphere comes in 17.23.0).
+                // 7 px, no glow in dark (tooltip mockup v2 :133).
                 Rectangle {
                     id: dot
                     width: 7; height: 7
                     radius: 3.5
                     color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
-                    // Phase 17.23.0: the gold sphere in light (tooltip
-                    // mockup v5 :98-99, :132-134; shadow 0 1px 2px).
+                    // The gold sphere in light (tooltip mockup v5 :98-99,
+                    // :132-134; shadow 0 1px 2px).
                     Loader {
                         anchors.centerIn: parent
                         active: tooltip.colors.isLight
@@ -168,70 +119,21 @@ PlasmaCore.Dialog {
                 }
             }
 
-            // Flat children, not a nested RowLayout for the value+unit pair -
-            // found the real bug (not a margin issue): Qt.AlignBaseline on a
-            // *nested* RowLayout doesn't work, since a generic layout
-            // container has no real font-metric baselineOffset the way a
-            // Label does - the outer statRow was aligning "Optical 1" to an
-            // actual text baseline while aligning the value+unit pair to
-            // effectively nothing, visibly offsetting them onto different
-            // lines instead of sharing one (confirmed live: a screenshot
-            // showed "Optical 1" and "Muted" sitting at different heights,
-            // not just spaced differently - reported directly, not
-            // self-diagnosed). Every prior margin-tuning pass in this same
-            // investigation was chasing a symptom of this bug, not a real
-            // spacing question, and produced unreliable measurements (the
-            // baseline-broken value+unit pair was splitting into a second
-            // detected "band" that got mistaken for real row content).
-            // bottomMargin below is retuned from a clean, bug-fixed
-            // measurement instead of trusted at face value - see nameRow's
-            // own comment for why the literal CSS number alone (6px here)
-            // still doesn't reproduce the mockup's own visual rhythm even
-            // once the real bug was out of the way.
+            // Flat children, no nested RowLayout for the value+unit pair: a
+            // nested layout has no font baseline of its own, so the pair and
+            // the source name would not line up.
             RowLayout {
                 id: statRow
                 spacing: 1
                 Layout.bottomMargin: 4
-                // Pinned rather than left implicit: statRow's natural
-                // implicitHeight differs by 2px between states (16 muted /
-                // 18 unmuted), since the "dB" unit Label is excluded from
-                // layout entirely via visible:false when muted (QtQuick
-                // Layouts drops invisible children from sizing, not just
-                // rendering). Confirmed via live onHeightChanged/onYChanged
-                // logging (journalctl) that this 2px implicitHeight swing -
-                // despite statRow being AFTER nameRow in the column - was
-                // perturbing ColumnLayout's positioning of nameRow itself
-                // (nameRow.y measured at 0 unmuted vs 1 muted, in logical
-                // px - exactly the +2 physical-px shift reported against
-                // "Devialet Expert 140 Pro"), a QtQuick Layouts stacking
-                // artifact, not a structural bug in nameRow (which has no
-                // nested layout or baseline alignment at all - confirmed by
-                // reading it directly). Pinning statRow's own height to a
-                // constant removes the trigger at its source rather than
-                // trying to patch nameRow for a problem that isn't really
-                // there. 18 matches the taller (unmuted, numeric+"dB")
-                // natural height.
+                // Pinned: the "dB" Label drops out of layout when muted
+                // (16 vs 18 px implicit), and that swing also moved nameRow
+                // above by a pixel. 18 is the taller, unmuted height.
                 //
-                // Round 5: pinning this height did NOT fully fix
-                // mute-dependent shifting - "Optical 1" (a direct sibling
-                // here) kept moving a couple px between states even after
-                // this pin and the flattening above. Root cause: this row's
-                // children used Qt.AlignBaseline, which computes a shared
-                // baseline offset *within* this fixed height from the font
-                // metrics of whichever children currently participate - and
-                // that set/those metrics still varied by mute state (the
-                // value Label swaps font.family/pixelSize/weight between
-                // the numeric and "Muted" forms; the "dB" Label drops out of
-                // the row's sizing/baseline computation entirely via
-                // visible:false when muted). So even with a pinned outer
-                // height and flat siblings, every AlignBaseline child -
-                // including "Optical 1", whose own font never changes - got
-                // repositioned along with the shifting computed baseline.
-                // Fixed by switching every child below to Qt.AlignVCenter:
-                // centering is computed from each Label's own height only,
-                // with no dependency on sibling content/fonts/visibility, so
-                // no element's position can be perturbed by another
-                // element's mute-driven content change again.
+                // Every child uses AlignVCenter, not AlignBaseline: the
+                // value Label swaps font between number and "Muted" and the
+                // "dB" Label comes and goes, so a shared baseline would move
+                // the source name too (docs/DESIGN.md §5).
                 Layout.preferredHeight: 18
 
                 Label {
@@ -255,9 +157,9 @@ PlasmaCore.Dialog {
                     font.family: tooltip.isWordValue ? tooltip.theme.fontDisplay : tooltip.theme.fontMono
                     font.weight: tooltip.isWordValue ? Font.DemiBold : Font.Medium
                     font.pixelSize: tooltip.isWordValue ? 12 : 13
-                    // Phase 17.23.0: in light the Label holds the layout and
-                    // the readout's gold sweep with a 7 px glow is painted
-                    // over it, "Muted" included (tooltip mockup v5 :145-150).
+                    // In light the Label holds the layout and the readout's
+                    // gold sweep with a 7 px glow is painted over it, "Muted"
+                    // included (tooltip mockup v5 :145-150).
                     color: tooltip.colors.isLight ? "transparent" : tooltip.colors.copperBright
 
                     Loader {
@@ -298,8 +200,7 @@ PlasmaCore.Dialog {
                     height: parent.height
                     width: parent.width * tooltip.volumeFraction
                     radius: 999
-                    // Phase 17.23.0: palette tokens (same values as before
-                    // in dark; flat gold / #d8d3cb in light).
+                    // In light: flat gold, #d8d3cb when muted.
                     color: tooltip.muted ? tooltip.colors.mutedFill : tooltip.colors.accentFill
                 }
             }

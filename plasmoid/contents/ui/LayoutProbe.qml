@@ -1,7 +1,5 @@
-// Phase 7.2.0 (spike/flyout-appletpopup-rebuild) - harness-only layout
-// probe, the QML half of tools/flyout-harness/ (see its README.md and
-// TODO.md's Phase 7.2.0 entry; basis: the investigation document's §5,
-// context-on-spike-flyout-dialog-rebuild-b-quirky-wand.md).
+// Harness-only layout probe, the QML half of tools/flyout-harness/ (see
+// its README.md).
 //
 // What it does, only while the harness is running: listens on a separate
 // session-bus name (com.ekmanch.DevialetRemote.Harness, owned by
@@ -10,36 +8,30 @@
 //                 CompactRepresentation.qml's click handler runs, so no
 //                 synthetic input is needed to open/close the flyout;
 //   UiState    -> each key assigned onto `uiTarget` (QML-internal UI state
-//                 that has no D-Bus property, e.g. ampListOpen - content
-//                 phases point uiTarget at the item owning such state);
+//                 that has no D-Bus property, e.g. ampListOpen);
 //   SettleMs   -> the settle timer's interval;
 //   StateId/Seq-> a Seq change (with a non-empty StateId) restarts the
 //                 settle timer, and when it fires every Item under `root`
 //                 is logged as one JSON line per item via console.log,
 //                 prefixed "[FlyoutProbe] ", which the harness reads back
-//                 through journalctl (Phase 5.0.3's debug-logging path).
+//                 through journalctl.
 //
-// Shippable permanently, stated plainly (asked for in the Phase 7.2.0 plan
-// review): the only always-on cost is the DBusServiceWatcher below - a
-// single NameOwnerChanged match rule for a name that never appears in
+// Safe to ship: the only always-on cost is the DBusServiceWatcher below -
+// a single NameOwnerChanged match rule for a name that never appears in
 // normal use. Everything else lives inside a Loader that is inactive until
 // that name is registered: no Dbus.Properties object, no GetAll, no timer,
-// no tree walk, and this file never requests any bus name of its own (it
-// is only ever a client). Nothing here needs stripping before Phase
-// 7.8.0's cutover.
+// no tree walk, and this file never requests a bus name of its own (it is
+// only ever a client).
 //
 // Coordinates are logged raw (no rounding) - sub-pixel shifts are exactly
-// what the harness exists to catch (the tooltip's three-round history,
-// investigation document §2). Both window-relative (mapToItem(null)) and
-// global (mapToGlobal) points are logged, plus width/height/implicit
+// what the harness exists to catch. Both window-relative (mapToItem(null))
+// and global (mapToGlobal) points are logged, plus width/height/implicit
 // sizes, visibility, and - when the item has them - `text` and
 // font.pixelSize, so a legitimately-changed label can be told apart from a
-// bystander that moved. Keys: `objectName` when set (house rule for every
-// anchored element from Phase 7.3.0 on), else the structural path.
-// Non-Item children exposing a `mainItem` (a nested PlasmaCore.Dialog /
-// AppletPopup - Phase 7.3.0's planned amp-list overlay window) are
-// recursed with their own window-geometry record, so a second window is
-// covered too.
+// bystander that moved. Keys: `objectName` when set (every anchored
+// element should have one), else the structural path. Non-Item children
+// exposing a `mainItem` (a nested PlasmaCore.Dialog) are recursed with
+// their own window-geometry record, so a second window is covered too.
 
 pragma ComponentBehavior: Bound
 
@@ -54,7 +46,7 @@ Item {
     width: 0
     height: 0
 
-    // The PlasmaCore.AppletPopup (Window-derived, not an Item) whose
+    // The flyout's PlasmaCore.Dialog (a window, not an Item) whose
     // visibility this probe drives and whose geometry it reports.
     required property var popup
     // The item tree to walk - the popup's mainItem.
@@ -232,11 +224,11 @@ Item {
                 const begin = {
                     type: "begin", state: st, seq: seq,
                     dpr: Screen.devicePixelRatio,
-                    // `active` (Phase 7.3.0): the overlay-is-not-a-second-
-                    // window check - an in-window Popup must leave the
-                    // flyout window itself visible AND active; a second
-                    // native window taking activation would flip this false
-                    // (and hideOnWindowDeactivate would then close us).
+                    // `active`: the overlay-is-not-a-second-window check -
+                    // an in-window Popup must leave the flyout window itself
+                    // visible AND active; a second native window taking
+                    // activation would flip this false (and
+                    // hideOnWindowDeactivate would then close us).
                     win: { x: p.x, y: p.y, w: p.width, h: p.height, visible: p.visible, active: p.active },
                     mainItem: { w: r.width, h: r.height, iw: r.implicitWidth, ih: r.implicitHeight },
                     amp: {
@@ -251,11 +243,11 @@ Item {
                 console.log(probe.tag + JSON.stringify(begin));
                 session.count = 0;
                 session.walk(r, "root");
-                // Phase 7.3.0: a QtQuick.Controls Popup reparents its
-                // content into the window's Overlay, not under mainItem, so
-                // walk it as a second root (prefix "overlay"). Its items
-                // carry window-relative coords like everything else; when no
-                // Popup is open the overlay just has no relevant children.
+                // A QtQuick.Controls Popup reparents its content into the
+                // window's Overlay, not under mainItem, so walk it as a
+                // second root (prefix "overlay"). Its items carry
+                // window-relative coords like everything else; when no Popup
+                // is open the overlay just has no relevant children.
                 const ov = Overlay.overlay;
                 if (ov) {
                     session.walk(ov, "overlay");
@@ -285,8 +277,8 @@ Item {
                     vis: item.visible, op: item.opacity
                 };
                 if (item.text !== undefined) rec.text = String(item.text);
-                // `en` (2026-09-08): the item's own `enabled` - lets a run
-                // assert an input is really blocked, not just dimmed.
+                // `en`: the item's own `enabled` - lets a run assert an
+                // input is really blocked, not just dimmed.
                 if (item.enabled !== undefined) rec.en = item.enabled;
                 if (item.font !== undefined && item.font !== null && item.font.pixelSize !== undefined) rec.fpx = item.font.pixelSize;
                 console.log(probe.tag + JSON.stringify(rec));
@@ -302,11 +294,11 @@ Item {
                     session.walk(c, path + "/" + cn + "[" + n + "]");
                 }
 
-                // Nested popup windows (PlasmaCore.Dialog / AppletPopup are
-                // not Items - they only appear in `data`, and expose
-                // `mainItem`). Logged with their own window geometry, then
-                // walked; their mapToItem(null) is relative to their own
-                // window, which is what the window record is for.
+                // Nested popup windows (a PlasmaCore.Dialog is not an Item -
+                // it only appears in `data`, and exposes `mainItem`). Logged
+                // with their own window geometry, then walked; their
+                // mapToItem(null) is relative to their own window, which is
+                // what the window record is for.
                 const data = item.data;
                 for (let i = 0; i < data.length; i++) {
                     const o = data[i];
