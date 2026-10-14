@@ -240,6 +240,29 @@ against a physical amp.
   the delay below 500 ms: the +200 ms figure is not a safety margin,
   it is the middle of the observed spread.
 
+## 10. Controls stayed live while the amp was Off or Booting, and a drag snapped back — [Control]
+
+- **Symptom:** during a boot the volume slider looked live, and a drag
+  jumped back to the pre-power-off value within half a second. With the
+  amp off, the mute button and the source row were live too.
+- **Root cause:** the amp drops commands while Off or Booting (#9 shows
+  drops even 2 ms after "On"). Nothing confirms the command, so the
+  daemon's 400 ms pending mask expires and VolumeDb reverts to the amp's
+  real value. The mask was doing its job: every input was gated on
+  `ampIp !== ""` alone, so the widget offered controls the amp could not
+  act on.
+- **Fix (KDE widget, Phase 8.0.1 follow-up):** every input except power
+  requires `powerState === "On"`: the slider, −/+, mute, the source row,
+  the panel wheel, middle-click and the settings clamp. They dim to 0.4
+  and keep their last-known labels; the power button stays live while
+  Off and is disabled while Booting. An open source list closes when
+  power leaves On.
+- **Commit:** `6df836c`
+- **Watch out for this:** when adding a precondition, enumerate every
+  entry point (buttons, drag, wheel, middle-click, keyboard, settings
+  side effects) and gate them all; disable the control, don't let the
+  command fail.
+
 ## Non-bugs worth knowing about (deliberate behavior, not defects)
 
 - **No retry beyond a fixed double-send** (`sendTwice`) has existed since the
