@@ -3,9 +3,8 @@
 //! The chime is meant to sound approximately as loud as the amp *will*
 //! sound at the tick's target dB, while the amp is still at its last
 //! confirmed dB. Chime and media both pass through the same PipeWire sink
-//! gain and the same amp gain, so the sink volume cancels (owner decision,
-//! 2026-09-10) and the only per-tick term is the amp's own not-yet-applied
-//! delta:
+//! gain and the same amp gain, so the sink volume cancels and the only
+//! per-tick term is the amp's own not-yet-applied delta:
 //!
 //! ```text
 //! delta_db = clamp(target_db - confirmed_db, -DELTA_CLAMP_DB, +DELTA_CLAMP_DB)
@@ -16,9 +15,8 @@
 //! `V` is what `paplay --volume=` takes: an integer on PulseAudio's *cubic*
 //! software-volume scale (`pa_sw_volume_from_dB`: amplitude = (V/65536)^3,
 //! so dB -> V uses an exponent of dB/60, not dB/20). The help text's
-//! "(linear)" refers to the integer scale, not amplitude. Verified
-//! empirically against PipeWire's applied `channelVolumes` in the spike
-//! (see TODO.md), not just taken from the PulseAudio source.
+//! "(linear)" refers to the integer scale, not amplitude. Verified against
+//! PipeWire's applied `channelVolumes`, not just the PulseAudio source.
 //!
 //! `headroom_db` is a constant offset so a positive delta (scrolling up
 //! faster than the amp confirms) has room under unity. Its absolute value
@@ -31,11 +29,10 @@
 pub const PA_VOLUME_NORM: u32 = 65536;
 
 /// Default constant offset below unity - tune by ear via `--headroom-db`.
-// -6.0 at first build, then -3.0, then -1.0; the owner's soaks
-// (2026-09-10) found each too quiet and settled on 0: the file plays at
-// its own level for a zero delta, exactly as plasma-pa's tone does. Note
-// this leaves NO upward compensation - any positive delta clips to unity
-// - only downward deltas are compensated.
+// Tuned by ear: -6, -3 and -1 all sounded too quiet. At 0 the file plays
+// at its own level for a zero delta, as plasma-pa's tone does. This
+// leaves NO upward compensation - any positive delta clips to unity -
+// only downward deltas are compensated.
 pub const DEFAULT_HEADROOM_DB: f64 = 0.0;
 
 /// Sanity clamp on |target - confirmed|. A real tick never exceeds a few
@@ -107,7 +104,7 @@ mod tests {
         let c = compute(-40.0, -40.0, DEFAULT_HEADROOM_DB);
         assert_eq!(c.volume, 65536);
         assert!(!c.clipped_to_unity);
-        // Any upward delta clips at this headroom - by owner decision.
+        // Any upward delta clips at this headroom, by design.
         assert!(compute(-39.0, -40.0, DEFAULT_HEADROOM_DB).clipped_to_unity);
     }
 

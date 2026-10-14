@@ -1,13 +1,10 @@
 //! Synthetic status-packet construction for tests, in this crate and in
-//! downstream crates (`devialet-remote-daemon`'s multi-amp tracking tests in
-//! particular). Not gated behind `#[cfg(test)]` so it's usable across crate
-//! boundaries - it has zero I/O and negligible size, same as the rest of
-//! this crate, so there's no real cost to always compiling it in.
+//! downstream crates (e.g. `devialet-remote-daemon`). Not gated behind
+//! `#[cfg(test)]` so it is usable across crate boundaries; it has no I/O
+//! and negligible size.
 //!
-//! Mirrors the exact offsets from docs/protocol.md /
-//! `DevialetStatusListener.parseStatus()` - kept in sync with `parse_status`
-//! by construction, since `status.rs`'s own tests build fixtures with this
-//! same builder and round-trip them through `parse_status`.
+//! Uses the offsets from docs/protocol.md. `status.rs`'s tests round-trip
+//! these fixtures through `parse_status`, which keeps the two in sync.
 
 use crate::status::STATUS_MIN_LEN;
 

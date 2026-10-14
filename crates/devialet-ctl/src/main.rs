@@ -1,8 +1,7 @@
 //! Single-shot command CLI, invoked from QML via
 //! `Plasma5Support.DataSource`'s executable engine. Builds one (or, for
-//! `source`, two) logical UDP commands, sends each twice per
-//! docs/protocol.md's `sendTwice()` behavior, and exits. No daemon
-//! interaction, no D-Bus - see CLAUDE.md.
+//! `source`, two) logical UDP commands, sends each twice (docs/protocol.md)
+//! and exits. No daemon, no D-Bus (docs/DESIGN.md §1).
 //!
 //! Usage:
 //!   devialet-ctl --ip <amp-ip> power <on|off>
@@ -10,57 +9,34 @@
 //!   devialet-ctl --ip <amp-ip> volume <db, e.g. -20.0> --hard-limit-db <db|none>
 //!   devialet-ctl --ip <amp-ip> source <status-broadcast index, 0-29> --hard-limit-db <db|none> [--startup-volume-db <db>]
 //!
-//! `--ip` is required: unlike the original single-process Kotlin app (which
-//! held the target IP as instance state across its whole session), this CLI
-//! is a fresh process per invocation with no persisted "selected amp"
-//! concept yet (amp discovery/selection UI is a later phase) - so the
-//! caller (QML, eventually) must supply the target IP every time.
+//! `--ip` is required: each invocation is a fresh process with no notion of
+//! a selected amp, so the caller supplies the target every time.
 //!
-//! `--hard-limit-db <db|none>` (Phase 8.1.0): **required** for `volume`
-//! and `source` (a missing flag is a CLI error, not a silent gap) - applies
-//! `devialet_protocol::volume_packet`'s hard-limit clamp to every
-//! volume-set command this invocation sends (the plain `volume` command,
-//! and `source`'s forced post-switch volume). The literal value `none`
-//! (case-insensitive) means explicitly unbounded - a deliberate choice,
-//! not a fallback for an omitted flag; see that function's own doc for why
-//! unbounded isn't the same as reintroducing a hardcoded ceiling. A named
-//! flag rather than a second positional value: `source` is expected to
-//! gain its own optional trailing value in Phase 8.0.1 (startup/
-//! source-switch volume) - two independent optional positional slots
-//! would be ambiguous about which value fills which when only one is
-//! given, where two independent named flags aren't.
+//! `--hard-limit-db <db|none>` is **required** for `volume` and `source`;
+//! a missing flag is a usage error, never a silent "unbounded". It feeds
+//! `volume_packet`'s clamp for every volume-set command sent (`volume`,
+//! and `source`'s post-switch volume). `none` (any case) is an explicit
+//! choice of unbounded. Named flags rather than positional values so the
+//! two optional values cannot be confused.
 //!
-//! **This flag closes the hard-limit guarantee only for QML-originated
-//! invocations** - QML passes `volumeSettings.hardLimitDb` on every call
-//! (see plasmoid/contents/ui/FlyoutContent.qml, CompactRepresentation.qml).
-//! A bare manual invocation of this binary from a terminal now has to
-//! supply the flag explicitly (`--hard-limit-db none` for unbounded, or a
-//! real number) - the CLI has no way to independently re-derive the
-//! widget's configured limit itself without a value being passed in. See
-//! TODO.md's Phase 8.1.0 entry for why a fully caller-independent
-//! guarantee (e.g. this CLI reading Plasma's own KConfig directly) was
-//! investigated and not pursued.
+//! The guarantee holds only for callers that pass the configured limit:
+//! QML passes `volumeSettings.hardLimitDb` on every call
+//! (FlyoutContent.qml, CompactRepresentation.qml). The CLI cannot derive
+//! the widget's limit itself, so a manual invocation must pass the flag.
 //!
-//! `--startup-volume-db <db>` (Phase 8.0.1): **optional**, consumed only by
-//! `source` - the post-switch volume to send instead of the hardcoded
-//! `devialet_protocol::SOURCE_SWITCH_VOLUME_DB` (-40dB). Omitted → that
-//! default, silently (deliberately NOT required, unlike `--hard-limit-db`:
-//! an omitted safety ceiling used to mean "unbounded", a real gap, while
-//! an omitted startup volume just means "the existing safe default", which
-//! is already correct - see TODO.md's Phase 8.0.1 entry). Whatever value
-//! is given still goes through `volume_packet`'s `--hard-limit-db` clamp
-//! like every other volume-set command this binary sends. Parsed globally
-//! like `--hard-limit-db` (accepted on any command, in either order
-//! relative to it); only `source` reads it. Power-on has no equivalent
-//! flag: the CLI is fire-and-exit and cannot wait ~16 s for the amp to
-//! boot, so the widget sends a separate plain `volume` invocation once the
-//! daemon confirms the boot (see plasmoid/contents/ui/FlyoutContent.qml).
+//! `--startup-volume-db <db>` is **optional** and read only by `source`:
+//! the post-switch volume, default `SOURCE_SWITCH_VOLUME_DB` (-40dB). It
+//! is optional because omitting it falls back to a safe default, whereas
+//! an omitted hard limit would be a safety gap. It is still clamped by
+//! `--hard-limit-db`. Both flags are parsed globally, in either order.
+//! Power-on has no equivalent: the CLI cannot wait for the amp to boot, so
+//! the widget sends a separate `volume` once the daemon confirms the boot
+//! (FlyoutContent.qml).
 //!
-//! Gate #1 (2026-09-07, real amp): the same-invocation shape - source×2
-//! then volume×2 back-to-back with zero settling time - was honored 6/6
-//! against a pre-set, distinguishable per-input volume memory; the first
-//! broadcast ~200 ms after the send already carried the new index and
-//! the forced volume together. No delay is needed on this path.
+//! Measured on the real amp: source×2 then volume×2 back-to-back, with no
+//! settling time, was honored 6/6; the first broadcast ~200 ms later
+//! already carried both the new index and the forced volume. No delay is
+//! needed on this path.
 
 use devialet_protocol as proto;
 use std::net::{ToSocketAddrs, UdpSocket};
@@ -71,14 +47,12 @@ struct Args {
     ip: String,
     command: String,
     value: String,
-    /// `None` = flag not given at all (an error for `volume`/`source`,
-    /// checked at the point of use, not here - `power`/`mute` don't need
-    /// it). `Some(None)` = flag given as the literal `none` - explicitly
-    /// unbounded. `Some(Some(db))` = flag given with a real limit.
+    /// `None` = flag not given (an error for `volume`/`source`, checked
+    /// at the point of use). `Some(None)` = literal `none`, explicitly
+    /// unbounded. `Some(Some(db))` = a real limit.
     hard_limit_db: Option<Option<f64>>,
-    /// `None` = flag not given - `source` falls back to
-    /// `proto::SOURCE_SWITCH_VOLUME_DB`, no error (see module doc for why
-    /// this is optional where `--hard-limit-db` is required).
+    /// `None` = flag not given; `source` falls back to
+    /// `proto::SOURCE_SWITCH_VOLUME_DB`.
     startup_volume_db: Option<f64>,
 }
 
@@ -86,8 +60,7 @@ fn parse_args() -> Result<Args, String> {
     parse_args_from(std::env::args().skip(1).collect())
 }
 
-/// Pure parser over an already-collected argument list (everything after
-/// argv[0]) - split from `parse_args()` so it is unit-testable without a
+/// Pure parser over the arguments after argv[0], unit-testable without a
 /// process.
 fn parse_args_from(raw: Vec<String>) -> Result<Args, String> {
     if raw.len() < 4 || raw[0] != "--ip" {
@@ -140,9 +113,8 @@ fn parse_args_from(raw: Vec<String>) -> Result<Args, String> {
 }
 
 /// The volume `source` sends right after the switch: the caller's
-/// `--startup-volume-db` when given, else the hardcoded default that has
-/// applied since Phase 3 (docs/known-gotchas.md #5). The hard-limit clamp
-/// is applied later by `volume_packet`, not here.
+/// `--startup-volume-db` when given, else the default
+/// (docs/known-gotchas.md #5). `volume_packet` applies the hard-limit clamp.
 fn post_switch_volume_db(args: &Args) -> f64 {
     args.startup_volume_db.unwrap_or(proto::SOURCE_SWITCH_VOLUME_DB)
 }
@@ -158,9 +130,8 @@ fn usage() -> String {
         .to_string()
 }
 
-/// `volume`/`source` both require the flag - a missing `--hard-limit-db`
-/// is a CLI usage error, not a silent "unbounded" default. Only an
-/// explicit `none` means unbounded.
+/// A missing `--hard-limit-db` is a usage error for `volume`/`source`;
+/// only an explicit `none` means unbounded.
 fn require_hard_limit(args: &Args) -> Result<Option<f64>, String> {
     args.hard_limit_db
         .ok_or_else(|| format!("--hard-limit-db is required (pass a number, or \"none\" to explicitly send unbounded)\n\n{}", usage()))
@@ -174,14 +145,10 @@ fn parse_on_off(value: &str) -> Result<bool, String> {
     }
 }
 
-/// Sends one logical command twice, per docs/protocol.md's `sendTwice()` -
-/// the two wire copies carry different counter values (see
-/// `next_counter`), not identical bytes. `counters` is `(packet, command)`
-/// and is advanced by 2 (once per send) so a caller sending multiple
-/// logical commands in one process invocation (`source` + the forced
-/// follow-up volume) keeps counters moving forward across both, matching
-/// the original single-process app's behavior of never resetting counters
-/// between logical commands within one session.
+/// Sends one logical command twice (docs/protocol.md); the two copies
+/// carry different counter values. `counters` is `(packet, command)` and
+/// advances once per send, so several logical commands in one invocation
+/// (`source` + the follow-up volume) keep counting forward without reset.
 fn send_twice(
     socket: &UdpSocket,
     build: impl Fn(u16, u16) -> [u8; proto::PACKET_LEN],
@@ -210,14 +177,9 @@ fn run() -> Result<(), String> {
         .connect(addr)
         .map_err(|e| format!("failed to target {addr}: {e}"))?;
 
-    // Counter state for this process invocation only - see CLAUDE.md /
-    // module doc: whether the amp requires counters to stay contiguous
-    // *across* separate CLI invocations is explicitly flagged
-    // "inferred, not confirmed" in docs/protocol.md and unverified here.
-    // Each invocation currently starts from (0, 0); if real-device testing
-    // shows the amp cares about cross-invocation continuity, this is the
-    // place to switch to a persisted counter (e.g. a small state file)
-    // instead.
+    // Counters live for this invocation only and start at (0, 0). Whether
+    // the amp needs them contiguous across invocations is "inferred, not
+    // confirmed" in docs/protocol.md; if it does, persist them here.
     let mut counters: (u16, u16) = (0, 0);
 
     match args.command.as_str() {
@@ -252,17 +214,11 @@ fn run() -> Result<(), String> {
             let hard_limit_db = require_hard_limit(&args)?;
             send_twice(&socket, |p, c| proto::source_packet(index, p, c), &mut counters)
                 .map_err(|e| format!("send failed: {e}"))?;
-            // Forced follow-up volume after every source switch - not
-            // optional, not source-dependent. See
-            // docs/known-gotchas.md #5 and proto::SOURCE_SWITCH_VOLUME_DB's
-            // doc comment. Continues the same counter sequence. Phase
-            // 8.0.1: the value is the caller's `--startup-volume-db` when
-            // given (the widget passes its configured startup volume),
-            // else the hardcoded -40dB default, unchanged. Either way it
-            // is subject to the configured hard limit (Phase 8.1.0) like
-            // any other volume-set command - `volume_packet` clamps to
-            // `hard_limit_db` itself, so a startup volume configured above
-            // the limit lands on the limit (covered by a test below).
+            // Forced follow-up volume after every source switch
+            // (docs/known-gotchas.md #5), continuing the same counter
+            // sequence. `--startup-volume-db` (the widget's configured
+            // startup volume) or the -40dB default; `volume_packet` clamps
+            // it to the hard limit like any other volume command.
             let post_switch_db = post_switch_volume_db(&args);
             send_twice(
                 &socket,

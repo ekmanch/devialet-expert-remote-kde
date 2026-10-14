@@ -1,11 +1,9 @@
 //! Resolve the chime file the way KDE's own Audio Devices tone does:
 //! plasma-pa's `SoundThemeConfig` reads `kdeglobals [Sounds] Theme`
 //! (default "ocean") and libcanberra then plays
-//! `/usr/share/sounds/<theme>/stereo/audio-volume-change.oga` (Phase
-//! 10.0.0 Finding 4). The first build hardcoded ocean per the brief; the
-//! owner's soak (2026-09-10) noticed it was not the same sound Audio
-//! Devices plays on this box (kdeglobals says `freedesktop`), so the
-//! default now follows the configured theme. `--file` still overrides.
+//! `/usr/share/sounds/<theme>/stereo/audio-volume-change.oga`. Following
+//! the configured theme (not a hardcoded ocean) makes the chime the same
+//! sound Audio Devices plays. `--file` overrides.
 //!
 //! Deliberately small: no `Inherits=` chain walk (neither ocean nor
 //! freedesktop declares one), no XDG data-dir search beyond

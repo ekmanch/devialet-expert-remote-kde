@@ -1,11 +1,8 @@
 //! Reads the chime's two volumes from the daemon over D-Bus, bounded in time.
 //!
-//! Used when QML passes no `--target-db`/`--confirmed-db` (it runs only
-//! `devialet-chime --tick k`, so Plasma's executable engine sees at most 16
-//! distinct command strings for the life of the shell - every never-seen
-//! name permanently grows every executable DataSource in plasmashell, see
-//! TODO.md's "Scroll stutter" entry). The daemon already holds exactly what
-//! QML used to pass:
+//! Used when no `--target-db`/`--confirmed-db` is passed. QML runs only
+//! `devialet-chime --tick k`, keeping the executable engine's command
+//! strings to a small fixed set (docs/DESIGN.md §5). The daemon holds:
 //!
 //! - `VolumeDb` - pending-masked, i.e. the latest `NotifyVolumeCommand`'s
 //!   target (the OSD's own number);
@@ -14,14 +11,13 @@
 //! - `AmpIp` - `""` when no amp is selected; `VolumeRaw` is then 0, not a
 //!   volume.
 //!
-//! All three come from ONE `GetAll` on the interface, so target and
-//! confirmed are the same snapshot (owner requirement).
+//! All three come from ONE `GetAll`, so target and confirmed are the same
+//! snapshot.
 //!
-//! Never hangs (owner requirement): the whole read - bus connect, auth and
-//! the call - runs on a helper thread and the caller waits at most
-//! `timeout`. zbus's own `method_timeout` would not cover the connect/auth
-//! handshake. On any failure the caller falls back to a default loudness
-//! (see `resolve`) and logs why; it never fails silently.
+//! Never hangs: the whole read (bus connect, auth, call) runs on a helper
+//! thread and the caller waits at most `timeout`; zbus's `method_timeout`
+//! would not cover the connect/auth handshake. On any failure the caller
+//! falls back to a default loudness (`resolve`) and logs why.
 
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -33,11 +29,10 @@ pub const SERVICE: &str = "com.ekmanch.DevialetRemote";
 pub const PATH: &str = "/com/ekmanch/DevialetRemote/Amp";
 pub const INTERFACE: &str = "com.ekmanch.DevialetRemote.Amp1";
 
-/// About 10x the measured p99, never above 50 ms (owner rule). Measured
-/// 2026-09-29 over 1,135 real chimes from the widget (whole read: thread,
-/// bus connect, GetAll): p50 0.48 ms, p99 0.60 ms, max 0.76 ms. A read that
-/// takes longer plays at the zero-delta default loudness, logged as
-/// `source=default(timeout)`, rather than delaying the chime.
+/// About 10x the measured p99, and never above 50 ms. Measured over 1,135
+/// real chimes (whole read: thread, bus connect, GetAll): p50 0.48 ms, p99
+/// 0.60 ms, max 0.76 ms. A slower read plays at the zero-delta default
+/// loudness (`source=default(timeout)`) rather than delaying the chime.
 pub const DAEMON_READ_TIMEOUT: Duration = Duration::from_millis(6);
 
 #[derive(Debug, Clone, PartialEq)]

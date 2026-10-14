@@ -1,6 +1,5 @@
 /// Minimum status packet length the amp is ever expected to send; anything
-/// shorter is treated as malformed/irrelevant and dropped, no error
-/// surfaced beyond that. Ported from `DevialetStatusListener.parseStatus()`.
+/// shorter is treated as malformed and dropped.
 pub const STATUS_MIN_LEN: usize = 566;
 
 /// Fixed number of source slots in every status broadcast, regardless of
@@ -20,10 +19,8 @@ pub struct Status {
     pub device_name: String,
     pub power_on: bool,
     pub muted: bool,
-    /// Raw 0-255 byte from the status packet - see `volume_db` for the
-    /// decoded dB value. Kept alongside the decoded value since it's useful
-    /// for debugging/manual verification (busctl etc.) independent of the
-    /// dB formula.
+    /// Raw 0-255 byte from the status packet; `volume_db` decodes it. Kept
+    /// raw for debugging (busctl etc.) independent of the dB formula.
     pub volume_raw: u8,
     pub source_index: u8,
     /// Always exactly `SOURCE_SLOTS` (30) entries, including disabled ones -
@@ -35,9 +32,9 @@ pub struct Status {
 /// Status-broadcast volume decoding. **Not the inverse of
 /// `command::volume_packet`'s `db_convert`** - two independently
 /// reverse-engineered encodings for two different packet directions, do
-/// not assume symmetry. Ported from `DevialetStatus.volumeDb`. Standalone so
-/// consumers that only hold the raw byte (the daemon's `VolumeRaw`
-/// property, read by `devialet-chime`) decode it with this one formula.
+/// not assume symmetry. Standalone so consumers that only hold the raw byte
+/// (the daemon's `VolumeRaw` property, read by `devialet-chime`) use this
+/// one formula.
 pub fn volume_db_from_raw(raw: u8) -> f64 {
     (raw as f64 - 195.0) / 2.0
 }
@@ -64,16 +61,10 @@ pub struct TooShort {
     pub len: usize,
 }
 
-/// Parses one status broadcast packet. Ported from
-/// `DevialetStatusListener.parseStatus()`. Only structural failure (packet
-/// too short) is a hard error - trimmed name fields simply become the empty
-/// string rather than erroring, and any invalid UTF-8 in a name field is
-/// lossily replaced rather than rejecting the packet, matching the original
-/// broad "catch anything, drop the packet, keep the listener running"
-/// behavior without needing a catch-all error path (every index this
-/// function reads is bounds-checked by the length check up front, so there
-/// is no possible panic path left to guard against, unlike the Kotlin
-/// version's explicit try/catch).
+/// Parses one status broadcast packet. Only a too-short packet is an
+/// error: empty name fields become `""` and invalid UTF-8 is replaced
+/// lossily. The up-front length check covers every index read here, so
+/// there is no panic path.
 pub fn parse_status(data: &[u8]) -> Result<Status, TooShort> {
     if data.len() < STATUS_MIN_LEN {
         return Err(TooShort { len: data.len() });
@@ -168,8 +159,8 @@ mod tests {
 
     #[test]
     fn volume_raw_decodes_to_documented_db_formula() {
-        // (volumeInt - 195) / 2.0 - deliberately NOT the inverse of
-        // command::db_convert, see Status::volume_db's doc comment.
+        // (raw - 195) / 2.0 - deliberately NOT the inverse of db_convert,
+        // see volume_db_from_raw's doc comment.
         let data = FixtureBuilder::new().volume_raw(195).build();
         assert_eq!(parse_status(&data).unwrap().volume_db(), 0.0);
 

@@ -1,9 +1,7 @@
 //! `devialet-chime` - single-shot, gain-compensated volume-feedback chime.
 //!
-//! Spike (branch `spike/volume-audio-feedback`, see TODO.md's spike entry
-//! and Phase 10.0.0 findings). Invoked from QML per discrete wheel tick via
-//! `Plasma5Support.DataSource`'s executable engine, exactly like
-//! `devialet-ctl`:
+//! Invoked from QML per discrete wheel tick via
+//! `Plasma5Support.DataSource`'s executable engine, like `devialet-ctl`:
 //!
 //! ```text
 //! devialet-chime [--target-db <db> --confirmed-db <db>]
@@ -16,12 +14,10 @@
 //!   - confirmed: the amp's real last-broadcast dB (decoded from the
 //!     daemon's unmasked `VolumeRaw`, never the 400 ms pending mask).
 //!
-//!   When both are absent (2026-09-29), the chime reads the same two
-//!   values from the daemon itself in one bounded D-Bus `GetAll`
-//!   (daemon.rs), falling back to a zero delta (the file at its own level)
-//!   if the daemon can't answer in time. That lets QML run only
-//!   `devialet-chime --tick k` - a fixed set of command strings, see
-//!   daemon.rs for why that matters.
+//!   When both are absent, the chime reads them from the daemon in one
+//!   bounded D-Bus `GetAll` (daemon.rs), falling back to a zero delta (the
+//!   file at its own level) if the daemon can't answer in time. This is
+//!   what QML uses, so its command strings stay a fixed set (daemon.rs).
 //! - `--headroom-db`: constant offset below unity, default 0 (gain.rs).
 //! - `--file`: chime file. Default: the `audio-volume-change` sound of the
 //!   theme kdeglobals `[Sounds] Theme` names (theme.rs) - the same file
@@ -274,7 +270,7 @@ mod tests {
 
     #[test]
     fn qml_shaped_invocation() {
-        // Exactly what maybeChime() builds.
+        // Explicit volumes plus a tick.
         let a = args(&["--target-db", "-44.0", "--confirmed-db", "-45.0", "--tick", "3"]).unwrap();
         assert_eq!(a.tick, Some(3));
         assert!(!a.dry_run);

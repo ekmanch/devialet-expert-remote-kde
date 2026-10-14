@@ -1,9 +1,8 @@
 //! The one I/O step: spawn `paplay` with the computed stream volume, wait,
-//! and propagate its exit status. `paplay` (libpulse) is the chosen player
-//! per Phase 10.0.0 Finding 2 - already a hard dependency of plasma-pa on
-//! any Plasma system with audio, so no new dependency. stderr is inherited
-//! so any paplay error lands in the same journal line stream as our own
-//! log line.
+//! and propagate its exit status. `paplay` (libpulse) is already a hard
+//! dependency of plasma-pa on any Plasma system with audio, so it adds no
+//! new dependency. stderr is inherited so paplay errors land in the same
+//! journal stream as our own log line.
 
 use std::process::{Command, ExitCode};
 

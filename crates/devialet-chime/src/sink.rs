@@ -1,8 +1,7 @@
 //! Live read of the default PipeWire/PulseAudio sink's volume and mute
 //! state via `pactl`. Logged every tick, never cached - but NOT part of the
 //! gain formula (the sink gain applies to chime and media alike, so it
-//! cancels; owner decision 2026-09-10). A failed read is a warning, never a
-//! reason to skip the chime.
+//! cancels). A failed read is a warning, never a reason to skip the chime.
 //!
 //! `pactl get-sink-volume @DEFAULT_SINK@` prints, on this machine's
 //! decimal-comma locale:

@@ -3,11 +3,11 @@
 //! Zero I/O by design - no sockets, no files, no async, no D-Bus. Pure
 //! `Command -> [u8; 142]` and `&[u8] -> Result<Status, TooShort>` functions,
 //! so this crate is unit-testable without a network or a physical amp. See
-//! docs/protocol.md (spec) and docs/known-gotchas.md (bugs already found
-//! and fixed once - don't reintroduce them) in the widget repo.
+//! docs/protocol.md (spec) and docs/known-gotchas.md (fixed bugs - don't
+//! reintroduce them).
 //!
-//! Daemon and command-CLI binaries are thin I/O shims around this crate;
-//! neither reimplements any encoding/decoding logic of their own.
+//! The daemon and command CLI are thin I/O shims around this crate and
+//! implement no encoding/decoding of their own.
 
 mod command;
 mod crc16;
@@ -25,14 +25,12 @@ pub use dbconvert::db_convert;
 pub use model_name::parse_model_name;
 pub use status::{parse_status, volume_db_from_raw, Source, Status, TooShort, SOURCE_SLOTS, STATUS_MIN_LEN};
 
-/// Amp -> app status broadcast port. Ported from
-/// `DevialetController.STATUS_PORT`.
+/// Amp -> app status broadcast port.
 pub const STATUS_PORT: u16 = 45454;
 
-/// App -> amp command port. Ported from `DevialetController.COMMAND_PORT`.
+/// App -> amp command port.
 pub const COMMAND_PORT: u16 = 45455;
 
 /// App-side-only staleness threshold: an amp not heard from for this long
-/// is treated as offline. Not a protocol feature - matches
-/// `MainActivity.ampStaleTimeoutMs`.
+/// is treated as offline. Not a protocol feature.
 pub const STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(8);
