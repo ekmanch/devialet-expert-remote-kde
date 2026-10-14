@@ -5,10 +5,9 @@
 KDE Plasma panel-pinned widget (Plasmoid) for controlling the Devialet
 Expert Pro 140 amplifier over UDP — an icon a user drags directly onto
 their panel via "Add Widgets" (like Digital Clock or Compact Pager), not a
-system tray item. See "Why panel-pinned, not a system tray plasmoid" below
-for why. Companion project to an existing Android app and an in-progress
-Flutter app for the same amplifier — same protocol, different platform.
-Rust + QML, no C++.
+system tray item. Companion project to an existing Android app and an
+in-progress Flutter app for the same amplifier — same protocol, different
+platform. Rust + QML, no C++.
 
 ## Background
 
@@ -24,236 +23,31 @@ platform (Linux desktop / KDE Plasma), not built on top of either of the
 above — but the protocol itself, and known gotchas, are shared truth across
 all three.
 
-## Reference docs (read before working on networking or protocol code)
+## Reference docs
 
+- `docs/DESIGN.md` — how the widget works and why: architecture, the D-Bus
+  surface, state and behaviour rules, the settings dialog, QML house rules,
+  the light theme, and what was decided against. **Settled — read it
+  before changing any of those areas, and don't re-derive or relitigate
+  what it records.** Add a rule there when a new decision is made.
 - `docs/protocol.md` — UDP packet structure, transport details, command
   types. Treat as the spec for the networking layer. Anything marked
   "inferred, not confirmed" should be verified against the real device
   before being relied on.
 - `docs/known-gotchas.md` — bugs already found and fixed in the Kotlin/
-  Flutter apps. Check before implementing anything networking/state
-  related so we don't reintroduce a fixed bug — in particular the
-  non-linear source-index-to-command-value lookup table and the forced
-  −40dB send after every source switch.
+  Flutter apps and this widget. Check before implementing anything
+  networking/state related so we don't reintroduce a fixed bug — in
+  particular the non-linear source-index-to-command-value lookup table
+  and the forced startup-volume send after every source switch.
 - `docs/app-overview.md` — architecture/feature overview of the original
-  app. Most of its "platform-specific behavior" section is Android/iOS-
-  specific and doesn't transfer; the KDE-specific equivalent questions
-  (daemon lifecycle, D-Bus vs. polling) are decided below, not in that doc.
-
-## Architecture (settled — do not re-derive)
-
-- **No C++, no CMake.** Rust + QML only. This is a hard project constraint,
-  not a soft preference — if a design decision seems to require C++
-  (cxx-qt or similar), stop and flag it rather than proceeding.
-- **Panel-pinned, not a system tray plasmoid (settled, do not relitigate).**
-  This widget installs as a normal panel applet — the user drags it onto
-  their panel via "Add Widgets," like Digital Clock or Compact Pager — not
-  something that lives inside the system tray's collapsed icon cluster.
-  `metadata.json` has no `X-Plasma-NotificationArea` /
-  `X-Plasma-NotificationAreaCategory` keys (removed; their presence is
-  what makes an applet tray-eligible in the first place, confirmed live by
-  their removal producing `"inTray": false` in
-  `plasmashell --replace`'s own `dumpCurrentLayoutJS` output for this
-  applet). Reason: the system tray is itself a Plasma widget
-  (`org.kde.plasma.private.systemtray`) that defines its own shared popup
-  Dialog, whose `mainItem` is the tray's own `ExpandedRepresentation.qml`
-  — every applet hosted inside the tray gets embedded inside that shared
-  wrapper, which draws a back-arrow/title header row no individual hosted
-  applet can remove or override from its own QML (confirmed via the
-  tray's own architecture:
-  https://zren.github.io/2018/11/17/exploring-plasmas-systray-widget, not
-  just observed behavior). Living in the tray would mean permanently
-  carrying that header row, with no workaround — incompatible with this
-  widget's own copper/graphite panel being the entire flyout, edge to
-  edge, matching `design/mockups/devialet_tray_flyout_mockup.html`
-  exactly. Verified end-to-end after removing the tray keys: widget added
-  to a real panel via the Plasma scripting API, clicked for real, and
-  screenshotted — clean panel, no back-arrow, no title bar, no navy frame,
-  identical with or without other windows open. The QML structure needed
-  no changes for this — `PlasmoidItem` +
-  `compactRepresentation`/`fullRepresentation` in `main.qml` is the same
-  standard popup-applet structure whether tray-hosted or panel-pinned
-  (confirmed against `com.github.tilorenz.compact_pager`, a real
-  panel-pinnable applet installed on the dev machine); only
-  `metadata.json` controlled tray eligibility.
-- **Commands** (volume/mute/power/source): single-shot Rust CLI binary,
-  invoked from QML via `Plasma5Support.DataSource`'s executable engine.
-  Each invocation builds one UDP command packet, sends it, exits. No
-  daemon involvement.
-- **Status listener**: a single long-running Rust daemon owns the UDP
-  45454 socket, parses every status broadcast, and maintains latest-known
-  state (per-amp discovery list, online flag via the 8s staleness rule).
-  Plain synchronous Rust, single thread, blocking `UdpSocket::recv_from`
-  loop — no async runtime.
-- **State delivery to QML**: push via D-Bus, using `zbus` (pure Rust, no
-  C++) on the daemon side and the `org.kde.plasma.workspace.dbus` QML
-  module (`Plasma.DBusProperties`) on the QML side — ships standard with
-  plasma-workspace, no build step. Daemon exposes properties (Volume,
-  Muted, Power, ActiveSource, DeviceName, Online) on the session bus;
-  `PropertiesChanged` signals keep QML in sync automatically. No polling,
-  no status file.
-- **Daemon lifecycle**: managed by a `systemd --user` unit
-  (`devialet-remote-daemon.service`), `Restart=on-failure`,
-  `WantedBy=plasma-workspace.target` (or `graphical-session.target`) so it
-  autostarts at login and is supervised/restarted on crash. Not XDG
-  autostart — the daemon needs crash recovery and query-ability
-  (`systemctl --user is-active`), which XDG autostart doesn't provide.
-- **Debounce**: lives in QML, not the daemon. On a locally-initiated
-  change, QML applies an optimistic update and records a per-field
-  timestamp; for 400ms after, QML ignores whatever the D-Bus property
-  push delivers for that field and keeps showing its own optimistic
-  value. Matches the Android Kotlin app's validated 400ms debounce window
-  (mirrors known-gotchas.md's debounce-race lesson) — no evidence this
-  transport needs a longer window, so start here rather than a larger,
-  unjustified value. Revisit only if real testing shows 400ms isn't
-  enough for the UDP → daemon → D-Bus → QML path specifically.
-- **Persistence**:
-  - Widget settings (blur, reduce motion, scroll step, "launch at
-    login" toggle *display*) — `Plasmoid.configuration`
-    (`contents/config/main.xml`). None of these are read by the daemon
-    or command CLI.
-  - Daemon autostart itself — systemd unit enablement
-    (`systemctl --user is-enabled/enable/disable`), *not* a
-    `Plasmoid.configuration` boolean. The QML settings toggle reflects
-    and controls this systemd state via the executable engine; it is
-    not the source of truth.
-- **Protocol logic**: isolated in a pure library crate, zero I/O (no
-  sockets, no files, no async) — `Command -> [u8; 142]` and
-  `&[u8] -> Result<Status, Error>` functions covering packet building,
-  CRC16, `dbConvert`, and the source remap table. Both the daemon and the
-  command CLI depend on this crate as thin I/O shims around it.
-- **Flyout overlay lists are `QtQuick.Controls.Popup`, not ComboBox
-  (settled in Phase 7.14.0, do not re-derive).** Both the amp picker
-  (`AmpListOverlay.qml`) and the source picker (`SourceListOverlay.qml`)
-  are plain Popups the widget owns, parented to their trigger row and
-  reparented by Qt into the flyout window's `Overlay.overlay` when open
-  (no second native window), with content in a synchronous
-  `ColumnLayout` + `Repeater` so their height is known before `open()`.
-  `FlyoutContent.qml` owns one bool per list (`ampListOpen`,
-  `sourceListOpen`), drives `open()/close()` imperatively, listens to
-  `closed`, never binds `visible`, and clears the other flag when one
-  opens (mutual exclusion is explicit, not left to press-outside
-  policies). The source list used `PlasmaComponents3.ComboBox` through
-  Phase 7.13.0 under a "required per QTBUG-66446" rule; that rule was
-  re-examined in 7.14.0 and does not hold: QTBUG-66446 is "Popup's
-  contentItem isn't mirrored if no Window exists" — an RTL
-  `LayoutMirroring` bug filed against Popup in general (it applies to
-  these Popups too and is moot for this LTR-only UI). The real Phase 3
-  failure was `QtQuick.Controls.ComboBox`'s qqc2-desktop-style popup
-  being a QStyle-drawn `Menu`, which a plain Popup never touches. Do not
-  restyle the open dropdown by overriding a ComboBox's `popup:` — its
-  ListView only gets its model once visible and its height chases
-  delegates as they land, which broke live three times before the Popup
-  rebuild.
-- **Shared cross-view state: root-anchored `QtObject`, forwarded via
-  `required property` — not a QML singleton.** When state must not
-  diverge across the compact icon, the flyout, the OSD toast, and the
-  hover tooltip (`PendingAmpState.qml`'s daemon-resolved VolumeDb/Muted;
-  `VolumeSettings.qml`'s KConfig-sourced floor/hard-limit/step/startup
-  dB), instantiate one plain `QtObject` once at `main.qml`'s root — the
-  one owner that strictly outlives both `compactRepresentation` and the
-  flyout — and forward it down as a `required property` through the
-  `CompactRepresentation → FlyoutPopup → FlyoutContent` chain. Never
-  reach into a sibling's live state directly: the historical
-  `FullRepresentation.qml` was only opportunistically preloaded by
-  Plasma's shell, so `CompactRepresentation.qml` couldn't safely assume
-  it was resident — this project's actual answer was always "anchor at
-  `main.qml`'s root instead," not "share directly between the two
-  representations." No `qmldir`/`pragma Singleton` exists anywhere in
-  this KPackage, so this forwarding chain is the mechanism, not a true
-  QML module singleton. **Contrast with `Theme.qml`**: it holds only
-  local palette/font constants with no cross-view state that could
-  diverge, so it's deliberately re-instantiated per consuming file
-  instead (`readonly property Theme theme: Theme {}`) — don't apply the
-  root-anchored pattern where nothing actually needs to stay in sync;
-  that's needless plumbing for a value that was never at risk of
-  disagreeing with itself. Phase 9.0.0 made this boundary explicit: the
-  translucency alphas that used to sit in `Theme.qml` (0.82 flyout /
-  0.94 OSD-tooltip pairs) *are* cross-view state - the owner's decision
-  is that all three surfaces paint one configured alpha - so they move
-  out of `Theme.qml` into `TransparencySettings.qml` (root-anchored and
-  forwarded exactly like `VolumeSettings.qml`, exposing `alpha` and
-  `withAlpha(color)`), while `Theme.qml` keeps only the opaque base tint
-  colours and stays per-file. **Update (Phase 17.11.0, 2026-09-27)**: the
-  colours have since moved out too - `ColorPalette.qml` (typed, `required`
-  tokens) and `DarkPalette.qml`, read through a `colors` property; `Theme.qml`
-  now holds fonts, sizes, radii and the volume icon map only. See "Light
-  theme: palettes, scheme readers, gold effects" below for the rules that
-  came out of the whole arc.
-  **Correction (Phase 17.0.0, 2026-09-26)**: only
-  the flyout was ever wired to `TransparencySettings`; `VolumeToast.qml` and
-  `VolumeHoverTooltip.qml` still paint `Theme.qml`'s hardcoded 0.94 pair and,
-  per the owner's Phase 17 decision D3, stay hardcoded (mockup values), so
-  "all three surfaces" describes the intent of 9.0.0, not the code.
-  Not a `required property` on `Theme.qml`:
-  `Theme {}` is also instantiated by `ConfigGeneral.qml`, a separate
-  ConfigDialog QML tree with no path to `main.qml`'s root objects, so a
-  required input would break that page and a defaulted one would let
-  surfaces silently diverge again.
-- **In-process alternative (cxx-qt) considered and rejected**: the listener
-  could in principle run inside plasmashell's own process via a cxx-qt QML
-  plugin instead of as a standalone daemon, eliminating the need for a
-  systemd unit entirely. Rejected because: (a) a crash in an in-process
-  plugin can take down plasmashell itself — the whole panel/tray, not just
-  this widget — versus a standalone daemon crash only losing amp
-  connectivity until systemd restarts it; (b) Rust panics unwinding across
-  the Rust↔C++ FFI boundary into Qt's call stack are undefined behavior
-  unless explicitly guarded at every entry point; (c) no QML hot-reload for
-  plugins means every code change requires reinstalling the .so and
-  restarting plasmashell, a meaningfully worse dev loop while actively
-  building this. The systemd-unit cost (one config file, written once) is
-  small relative to these risks. Do not revisit this without a new reason.
-- **Install location for the binaries: `/usr/local/bin`, by copy (Phase
-  13.0.0, settled - do not re-derive).** `devialet-ctl` and
-  `devialet-chime` are built in release profile and copied with
-  `install -Dm0755 -t /usr/local/bin`; `devialet-remote-daemon` follows
-  the same rule (Phase 13.0.2 completed this for the daemon binary and
-  its systemd unit - see "`devialet-ctl` on PATH" below and
-  `scripts/install-daemon-unit.sh`). Since Phase 13.0.3 the build+copy
-  is wrapped in `scripts/install-binaries.sh` (skips sudo entirely when
-  the installed copies are already byte-identical to the build) and the
-  whole install is `./install.sh` at the repo root, which sequences
-  `install-binaries.sh` -> `install-daemon-unit.sh` ->
-  `install-plasmoid.sh` with per-step failure attribution (exit code =
-  failing step number, no rollback - each completed step is a valid
-  state on its own). Three candidates were measured on the dev machine,
-  not assumed:
-  - `~/.local/bin` is **not** on PATH by default on Arch/CachyOS -
-    `/etc/profile` appends only `/usr/local/bin`, `/etc/login.defs` and
-    SDDM's `DefaultPath` are `/usr/local/sbin:/usr/local/bin:/usr/bin`,
-    `/etc/skel/.bashrc` has no `.local/bin`, the systemd user manager sets
-    no PATH of its own, and no `environment.d` file adds it. It reaches
-    plasmashell's PATH here only because fish's `fish_user_paths` adds it
-    and SDDM exec's the login shell; a bash-login user would get exit 127
-    on every widget command. A PKGBUILD also cannot install into a home
-    directory.
-  - `cargo install` into `~/.cargo/bin`: the directory does not exist and
-    is not on PATH (Rust via pacman, no rustup env script); it also writes
-    `~/.cargo/.crates.toml` state, and Arch's Rust package guidelines treat
-    `cargo install` as a fallback (`--no-track --root "$pkgdir/usr/"`
-    only), preferring `cargo build --frozen --release` +
-    `install -Dm0755 -t "$pkgdir/usr/bin/"`.
-  - `/usr/local/bin` is on every default PATH above, on systemd's fixed
-    `ExecStart` search path, ahead of `/usr/bin`, and is FHS's slot for
-    locally built, non-package-managed software. The same `install` line
-    serves the future AUR package with `PREFIX=/usr` + `DESTDIR=$pkgdir`
-    (confirmed against real Arch packages: `ripgrep` -> `/usr/bin/rg`,
-    `plasma-workspace` units -> `/usr/lib/systemd/user/`, a third-party
-    plasmoid -> `/usr/share/plasma/plasmoids/<id>/`). Cost: one `sudo`
-    step, the only root step in this project's setup.
-  - Consequence for the daemon unit, implemented in Phase 13.0.2:
-    `man systemd.service` - a non-absolute `ExecStart=` is resolved
-    against `/usr/local/bin/` and `/usr/bin/`, so with the daemon
-    binary placed there `systemd/devialet-remote-daemon.service` uses
-    `ExecStart=devialet-remote-daemon` directly - no `@@EXECSTART@@`
-    `sed` placeholder, no per-clone path substitution - and the same
-    unit file will serve install.sh and the AUR package unchanged.
+  Android app. Most of its "platform-specific behavior" section doesn't
+  transfer; the KDE equivalents are decided in `docs/DESIGN.md`.
+- `TODO.md` — phase status and roadmap.
 
 ## Scope
 
 Control-only: volume, mute, power, source selection. No SAM/Night
-Mode/Bass/Treble (UDP bytes not reverse-engineered) — see known-gotchas.md
-for what's confirmed out of scope.
+Mode/Bass/Treble (UDP bytes not reverse-engineered).
 
 ## Networking
 
@@ -261,42 +55,43 @@ for what's confirmed out of scope.
   reconstruct it from guesswork.
 - Cross-check any new networking/protocol code against
   `docs/known-gotchas.md`.
-- The −15dB safety ceiling (matching Kotlin's `coerceAtMost`) must be
-  enforced in the protocol/daemon layer, not just left to QML range
-  limiting.
+- The hard volume limit is enforced inside the protocol crate's volume
+  constructor, not left to QML range limiting (`docs/DESIGN.md` §3).
 
 ## Testing
 
 - Protocol crate: `cargo test`, fixed byte fixtures — packet building,
-  CRC16 poly/init, the source remap table (encode as a regression test
+  CRC16 poly/init, the source remap table (encoded as a regression test
   with hardcoded expected output bytes, guarding against reintroducing
-  known-gotchas.md bug #3 — source index treated as command value).
-- No network or hardware required for protocol crate tests.
-- QML: `scripts/test-qml.sh` runs `tests/qml/tst_*.qml` (QtTest, Qt 6's
+  known-gotchas.md bug #3 — source index treated as command value). No
+  network or hardware required.
+- QML: `scripts/test-qml.sh` runs `tests/qml/tst_*.qml` (QtTest,
   `/usr/lib/qt6/bin/qmltestrunner`) against the real plasmoid QML on a
   private session bus (`dbus-run-session`) with
-  `tools/flyout-harness/fakeamp.py` inside it as the Notify*Command
-  sink - the real daemon and amp are never touched, nothing needs
-  stopping. Tests drive daemon pushes by emitting
-  `ampProps.propertiesChanged()` one property per call in `emit_all()`
-  order, the real message shape. `tst_PendingAmpState.qml` guards the
-  post-boot hold (2026-09-20 regression: a VolumeRaw match must not
-  release the hold before a send) - it fails on the pre-fix file.
-  The runner uses `QT_QUICK_CONTROLS_STYLE=org.kde.desktop` (the style
-  plasmashell loads; the default style overlays scrollbars without
-  reserving width, which hid a real layout bug) and a private bus from
-  `tests/qml/session-bus.conf` with no service activation (otherwise the
-  desktop style auto-starts xdg-desktop-portal-kde on it, which outlives
-  the run and hangs the script). `tst_SourceListOverlay.qml` (Phase
-  17.1.1) guards the source list's selected-row visibility and row width.
-  `tests/qml/fakeportal.py` (Phase 17.15.0) stands in for the XDG settings
-  portal on that private bus (it refuses to start where the real portal's
-  name is owned); `tst_SystemScheme.qml` drives it through its control
-  interface to cover every branch of the Follow-system portal reader.
-  `tst_SourceListOverlay.qml` also guards that the real amp's six sources
-  fit without a scrollbar (Phase 17.21.1) and that a longer list is capped
-  and scrolls.
-  Geometry assertions only: offscreen renders effects blank.
+  `tools/flyout-harness/fakeamp.py` as the Notify*Command sink — the real
+  daemon and amp are never touched, nothing needs stopping.
+  - Tests drive daemon pushes by emitting `ampProps.propertiesChanged()`
+    one property per call in `emit_all()` order, the real message shape.
+  - The runner uses `QT_QUICK_CONTROLS_STYLE=org.kde.desktop` (the style
+    plasmashell loads; the default style overlays scrollbars without
+    reserving width, which hid a real layout bug) and a private bus from
+    `tests/qml/session-bus.conf` with no service activation (otherwise the
+    desktop style auto-starts xdg-desktop-portal-kde on it, which outlives
+    the run and hangs the script).
+  - `tests/qml/fakeportal.py` stands in for the XDG settings portal on
+    that bus (it refuses to start where the real portal's name is owned);
+    `tst_SystemScheme.qml` drives it to cover every branch of the
+    Follow-system reader.
+  - Notable guards: `tst_PendingAmpState.qml` (the post-boot hold must not
+    release on a VolumeRaw match before the send), `tst_SourceListOverlay.qml`
+    (selected-row visibility, row width, six sources without a scrollbar,
+    a longer list capped and scrolling).
+  - Geometry assertions only: offscreen renders effects blank
+    (`docs/DESIGN.md` §6, capture rule).
+- Flyout harness: `tools/flyout-harness/harness.py` (Wayland, `spectacle`
+  captures, a `theme` dimension, `expected-17.json` as the current
+  allowlist); see its README. The real ConfigDialog and the tooltip hover
+  remain owner checks.
 
 ## Working style
 
@@ -320,189 +115,79 @@ The plasmoid installed at
 `~/.local/share/plasma/plasmoids/com.ekmanch.devialetremote/` is a **copy**
 of `plasmoid/`, not a symlink — `kpackagetool6` copies files on install.
 Editing files under the repo's `plasmoid/` does nothing to the running
-widget by itself; the copy has to be refreshed and the shell restarted.
-Discovered the hard way after Phase 4.0: committed QML changes produced no
-visible difference in the live widget until this was done.
-
-Reload workflow after any change under `plasmoid/`:
+widget by itself. Reload workflow after any change under `plasmoid/`:
 
 ```
 kpackagetool6 --type Plasma/Applet --upgrade plasmoid/
 plasmashell --replace &
 ```
 
-`--upgrade` re-copies the package contents (bumps a version check
-internally so it doesn't no-op); `plasmashell --replace` is needed because
-Plasma caches/compiles QML per-process and won't pick up the new package
-contents in an already-running shell. `--replace` briefly kills and
-restarts the whole shell (panels, tray, desktop) — expected, not a crash.
+`--upgrade` re-copies the package contents; `plasmashell --replace` is
+needed because Plasma caches compiled QML per process — there is no hot
+reload for KPackage applets. `--replace` briefly restarts the whole shell
+(panels, tray, desktop); expected, not a crash.
 
-Re-verified identical after the panel-pinned architecture change (removing
-`X-Plasma-NotificationArea`/`X-Plasma-NotificationAreaCategory` — see
-Architecture above): this workflow doesn't change at all. The only actual
-difference is *how the widget gets added* to a panel in the first place —
-it no longer appears in the system tray's own "configure visible icons"
-list (it isn't tray-eligible any more), only in the normal Plasma widget
-list ("Add Widgets"), the same place Digital Clock or Compact Pager show
-up. Confirmed live: added via the Plasma scripting API
-(`org.kde.PlasmaShell.evaluateScript`, `panels()[i].addWidget(...)`) as a
-stand-in for a real drag-and-drop "Add Widgets" add, which produced
-`"inTray": false` in `dumpCurrentLayoutJS` and a normal panel icon — same
-outcome a manual drag would produce.
+- An icon-only change needs the same restart: after `--upgrade` alone the
+  Add Widgets picker showed "?" until the shell's per-process icon cache
+  was rebuilt by `--replace`.
+- Rust binaries are copies in `/usr/local/bin`: re-run
+  `scripts/install-binaries.sh` (or `./install.sh`) after any `cargo
+  build` that changes one; it copies only the binaries that differ.
+- A symlink from the install path to `plasmoid/` would skip the
+  `kpackagetool6` step, but it stops rehearsing the real install path (a
+  copy). Not adopted without asking first.
 
-This is a real trade-off worth revisiting deliberately, not a default to
-silently switch to:
+## `target/` can go missing out from under a running daemon — every widget command then silently no-ops
 
-- **`kpackagetool6 --upgrade` per phase (current)**: extra two-command step
-  after every change, but matches how the plasmoid will actually be
-  installed for real users (a copy, no dev-machine-specific symlink setup)
-  and gives an explicit moment where "is this actually installed" is
-  unambiguous.
-- **Symlink `~/.local/share/plasma/plasmoids/com.ekmanch.devialetremote` →
-  the repo's `plasmoid/` directory instead**: drops the `kpackagetool6`
-  step entirely — just `plasmashell --replace` after edits. Faster
-  inner loop while this widget is under active development. Downside:
-  diverges from the real install path (real users get a copy via
-  `kpackagetool6 --install` or packaging, never a symlink), so it
-  stops being a faithful rehearsal of "did the install step actually
-  work" — a bug in the copy/install step itself could go unnoticed
-  until real packaging. Not adopted without asking first.
+**Symptom:** every control (volume, mute, source, power) applies
+optimistically for well under a second, then reverts to what the amp last
+reported — uniformly across every control type. It looks exactly like a
+regression in the pending-command mask, but isn't one: the daemon's 400 ms
+mask is falling back as designed because no real command was ever sent.
 
-Either way, `plasmashell --replace` is required for QML changes to take
-effect — there is no hot-reload for KPackage-based applets short of a full
-shell restart.
+**Root cause (found once, pre-Phase 13):** `target/` was deleted outside
+any workflow step. `devialet-ctl` was then a symlink into it, so every
+executable-engine call failed with exit **127**, which QML only logs. The
+daemon kept running from its deleted binary (`/proc/<pid>/exe` shows
+`(deleted)`), so `systemctl --user status` looked healthy. Since Phase
+13.0.0 all three binaries are copies in `/usr/local/bin`, so this exact
+form cannot recur, but the diagnosis applies to any missing or unreadable
+binary.
 
-**The Add Widgets picker icon is a theme icon, and changing it also needs
-the shell restart.** `metadata.json`'s `KPlugin.Icon` is resolved by
-*name* through `QIcon::fromTheme` (the widget explorer's shell plugin
-imports exactly `KPluginMetaData::iconName` + `QIcon::fromTheme`,
-nothing from KPackage), so a file bundled under `contents/icons/` can
-never be the picker icon - that is why the panel icon (`Plasmoid.icon`
-overridden in `main.qml` to the bundled glow-dot SVG) and the picker icon
-are two different mechanisms. The picker icon lives in the repo at
-`assets/icons/hicolor/scalable/apps/com.ekmanch.devialetremote.svg` (the brand
-mark tile from the settings mockup, same copper tokens) and
-`scripts/install-plasmoid.sh` copies it into
-`~/.local/share/icons/hicolor/scalable/apps/` (every icon theme inherits
-hicolor; a PKGBUILD would use `/usr/share/icons/hicolor/`);
-`uninstall.sh` removes it. Measured live: after `--upgrade` alone the
-running shell showed a "?" for the entry - it had re-read the new icon
-*name* from metadata but its per-process icon cache did not contain the
-just-installed file (bumping the hicolor dir mtime did not help) - and
-`plasmashell --replace` fixed it. So an icon-only change follows the same
-reload rule as QML. The same theme icon also feeds the ConfigDialog's
-About page, confirmed live.
-
-## `target/` can go missing out from under a running daemon — every widget command then silently no-ops (found live, post-Phase-7.13.0 investigation)
-
-**Symptom**: every widget control (volume, mute, source, power) appears to
-apply optimistically for well under a second, then reverts to whatever the
-amp last actually reported — uniformly across every control type, not just
-one. Looks exactly like a QML/daemon logic regression (e.g. in the Phase
-5.0.0 pending-command masking or the 400ms debounce), but isn't one.
-
-**Root cause**: the whole `target/` build directory (git-ignored, so
-`git status` shows nothing unusual) was deleted from disk at some point
-outside of any command this project's own workflow runs — not by
-`cargo clean` from a documented step here, cause never fully identified.
-Consequences, both silent:
-
-- `~/.local/bin/devialet-ctl` was, at the time (pre-Phase 13.0.0; see this
-  file's own PATH section below for the current `/usr/local/bin` copy), a
-  symlink into `target/debug/devialet-ctl`. Once that target is gone, the
-  symlink dangles. Every QML `Plasma5Support.DataSource` invocation of
-  `devialet-ctl` then fails with shell exit code **127**
-  (`devialet-ctl: command not found`) — but QML's `onNewData` handler only
-  `console.log()`s the exit code/stderr, it doesn't surface this anywhere a
-  user would see it. The real UDP command is simply never sent.
-- The **daemon keeps running anyway.** Linux keeps a deleted-but-still-
-  mapped executable alive in a process that already started from it
-  (`/proc/<pid>/exe` shows `... (deleted)`), so `systemctl --user status`
-  reports `active (running)` the entire time, giving no hint anything is
-  wrong. The daemon itself doesn't need rebuilding to keep working — only
-  a fresh invocation of the *other* binary (`devialet-ctl`) is affected.
-
-With the real command never sent, the daemon's own Phase 5.0.0
-pending-command mask (`PENDING_COMMAND_TIMEOUT`, 400ms) does exactly what
-it's designed to do: show the optimistic value briefly, then fall back to
-the amp's actual (unchanged) last-reported state once no real broadcast
-confirms it in time. That fallback is what reads as "snaps back" — the
-masking logic is not the bug here, a missing binary upstream of it is.
-
-**How this was actually confirmed**, not just inferred from the symptom —
-don't skip straight to a code fix next time either:
-
-1. `systemctl --user status devialet-remote-daemon.service` looked
-   completely healthy.
-2. `journalctl --user -b | grep devialet-ctl` showed the real widget
-   invocations failing with exit 127 the whole time — the actual smoking
-   gun, found from real usage logs, not a guess.
-3. `ls target/release/ target/debug/` — directory didn't exist at all.
-   `readlink -f ~/.local/bin/devialet-ctl` pointed at a path that also
-   didn't exist. `ls -la /proc/<daemon-pid>/exe` confirmed `(deleted)`.
-
-**Fix, if this happens again**:
+**Diagnose:**
 
 ```
-./install.sh   # = scripts/install-binaries.sh (build + copy, sudo only for binaries that changed)
-               #   -> scripts/install-daemon-unit.sh (restarts the daemon only if it isn't already running this exact binary)
-               #   -> scripts/install-plasmoid.sh
-```
-
-Since Phase 13.0.0/13.0.2, `devialet-ctl`, `devialet-chime` *and*
-`devialet-remote-daemon` are all copies in `/usr/local/bin`, independent
-of `target/`, so this exact dangling-symlink/`(deleted)`-exe form cannot
-recur for any of the three - but the exit-127 diagnosis above still
-applies to any missing or unreadable binary, wherever it's installed.
-
-Verify the daemon is actually off the fresh binary afterward — status
-alone won't tell you (see point 1 above):
-
-```
+journalctl --user -b | grep devialet-ctl          # exit 127 = the binary is missing on PATH
 systemctl --user show devialet-remote-daemon.service -p MainPID --value \
-  | xargs -I{} ls -la /proc/{}/exe   # must NOT say "(deleted)", must resolve to /usr/local/bin/devialet-remote-daemon
-devialet-ctl --help                  # must print its usage text (exit 1 by design), not exit 127 "command not found"
+  | xargs -I{} ls -la /proc/{}/exe                 # must NOT say "(deleted)"
+devialet-ctl --help                                 # must print usage (exit 1), not exit 127
 ```
 
-**Before assuming a code regression when every control type reverts
-identically**: that symmetry (volume *and* mute *and* source *and* power
-all failing the same way) is itself a strong signal to check this class of
-cause first — a single shared dependency (the executable engine's command,
-or the daemon's own binary) breaking cleanly explains "everything reverts
-uniformly" far more directly than a coincidental bug independently hitting
-every control's own separate code path at once.
+**Fix:** `./install.sh`. Also make sure no leftover `~/.local/bin/<name>`
+symlink exists: `~/.local/bin` precedes `/usr/local/bin` on plasmashell's
+PATH and would silently shadow the installed copy.
 
-## Real flyout renders truncated (324×180) after a reload — the AppletPopup size-key collision (Phase 7.1.0/7.2.0; NOT cleared by 7.8.0 as first claimed — closed by Phase 7.10.0, see the last paragraph)
+**Rule:** when every control type reverts identically, check the shared
+dependency (the CLI binary, the daemon binary) before suspecting the
+logic of any one control.
 
-**Symptom**: after `plasmashell --replace`, the real, shell-managed flyout
-opens cut off after the volume block - no action row, source selector or
-footer - at exactly 324×180 logical px, the placeholder `FlyoutPopup.qml`
-mainItem's size (18×10 grid units). Nothing in the flyout's own QML is
-wrong; do not debug `FullRepresentation.qml` for this.
+## Real flyout renders truncated (324×180) after a reload — the AppletPopup size-key collision
 
-**Mechanism** (read from libplasma 6.7.4's `appletpopup.cpp`, fetched
-from invent.kde.org, and confirmed empirically): `AppletPopup::hideEvent()`
-writes `popupWidth`/`popupHeight` into
-`appletInterface->applet()->config()` **unconditionally on every close** -
-no user resize involved - and `setAppletInterface()` reads them back at
-construction (`m_sizeExplicitlySetFromConfig` → `resize`). On the
-`spike/flyout-appletpopup-rebuild` branch, `FlyoutPopup.qml` binds
-`appletInterface` to the same `PlasmoidItem` as the shell's own
-`CompactApplet.qml` popup around `FullRepresentation.qml`, so both write
-and read the **same** KConfig group
-(`[Containments][46][Applets][128][Configuration]` on the dev machine;
-find yours via the `plugin=com.ekmanch.devialetremote` line in
-`~/.config/plasma-org.kde.plasma.desktop-appletsrc`). Any single
-open/close of the spike popup - a harness run, or a manual click with
-`appletPopupSpikeEnabled` on - persists its size; the real flyout applies
-it the next time its popup is constructed, i.e. after the next
-`plasmashell --replace`. Phase 7.1.0's note blamed only resize-testing;
-Phase 7.2.0 found it is every close.
+**Symptom:** after `plasmashell --replace`, a shell-managed flyout opens
+cut off at a stale size (324×180 was the placeholder popup's size).
 
-**Cleanup, required after any manual spike-popup test** (the harness
-does this itself - `tools/flyout-harness/harness.py run` snapshots both
-keys before a run and restores/deletes them at teardown, logged in
-`run.json`):
+**Mechanism:** `AppletPopup::hideEvent()` writes `popupWidth` /
+`popupHeight` into the applet's config on **every** close, and the popup
+reads them back at construction. Two popups sharing one `appletInterface`
+share one KConfig group, so one popup's size lands on the other after the
+next restart. Closed since Phase 7.10.0: the flyout is a
+`PlasmaCore.Dialog` that leaves `appletInterface` unset, so it never writes
+or reads the keys. Relevant again only if anything hosts an `AppletPopup`
+with `appletInterface` set.
+
+**Cleanup** (find the group via the `plugin=com.ekmanch.devialetremote`
+line in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`; the harness
+snapshots and restores both keys itself):
 
 ```
 F=plasma-org.kde.plasma.desktop-appletsrc
@@ -512,877 +197,114 @@ kwriteconfig6 --file $F $G --key popupHeight --delete
 plasmashell --replace &
 ```
 
-**Verifying this needs a fresh shell.** `KConfigGroup::writeEntry` only
-marks the group dirty when the value differs from the shell's in-memory
-copy; an external `kwriteconfig6 --delete` doesn't invalidate that cache,
-so a test against a still-running shell shows no write at all and looks
-like a pass. And never verify "keys unchanged" by comparing values that
-may already be the corruption - Phase 7.2.0's first report did exactly
-that (324×180 before and after, rewritten with identical values) and
-missed it; compare against absence after a restart instead.
-
-**Did not go away at Phase 7.8.0**, contrary to this section's original
-claim ("cutover removes the shell-managed popup, so only one `AppletPopup`
-writes the group"). 7.8.0's cutover only stopped *opening* the
-shell-managed popup; `main.qml`'s `fullRepresentation:` binding and the
-shell's `CompactApplet.qml` popup around it stay instantiated until Phase
-7.13.0 deletes them, and the cut-over `FlyoutPopup.qml` was itself an
-`AppletPopup` with `appletInterface` set - so both writers survived. Phase
-7.9.0 measured the consequence directly: a plain `plasmashell --replace`
-with nothing ever opened rewrote the keys to 284×358 (the never-shown
-popup's `hideEvent()` firing at shell teardown, window minus frame
-margins). Phase 7.7.0's size pinning does not fix it either - it changes
-what gets written, not that it gets written.
-
-**Closed by Phase 7.10.0 from the other side**: the rebuilt
-`FlyoutPopup.qml` is a `PlasmaCore.Dialog` that deliberately does not set
-`appletInterface`. `Dialog::hideEvent()` only writes the keys when it is
-set, and with the size pinned (`Layout.minimum* == Layout.maximum*`)
-`Dialog` never reads them back anyway (`dialog.cpp`
-`updateSizeFromAppletInterface()` returns early when min == max), so
-setting it would have bought one KConfig write per close and nothing
-else. Verified per this section's own rule (absence after a restart, not
-value comparison): both keys deleted, then ~20 open/close cycles, a
-harness smoke run and four `plasmashell --replace` - keys still absent.
-The shell's dead popup around `FullRepresentation.qml` did not write in
-that test either; if the keys ever do reappear before 7.13.0 removes it,
-they are harmless to the pinned Dialog flyout (nothing reads them), and
-the cleanup commands above still apply.
-
-## Settings ConfigDialog (Plasma-provided default — settled, do not re-derive)
-
-`Plasmoid.internalAction("configure")` is **not** null in a real installed
-Plasma 6 applet, even before this project declares any `config.qml`/
-`main.xml` of its own. Plasma's shell auto-provides a default
-`ConfigDialog` for every installed applet — with baseline **Keyboard
-Shortcuts** and **About** pages — regardless of whether the applet ships
-custom config UI. Confirmed live (2026-08-29, real panel, Phase 4.2.1):
-wiring the gear-icon trigger's `onClicked` to
-`Plasmoid.internalAction("configure")?.trigger()` opened a real,
-functioning "Devialet Remote Settings" window with those two pages,
-before any `config.qml`/`main.xml` existed in this repo.
-
-This corrects an earlier pre-implementation claim (made before that live
-test) that the action returns a nullable `QAction*` and is genuinely null
-until a `ConfigDialog` is declared — that claim was reasoned from the
-`QAction*` API surface being nullable in principle (and from a real guard
-seen in `BasicPlasmoidHeading.qml`), not from testing an actual installed
-applet, and it doesn't hold here. The `?.` guard is harmless to keep but
-isn't load-bearing — the action already resolves to something real.
-
-Practical consequence for any future settings-page work: shipping
-`contents/config/config.qml` (+ `contents/config/main.xml`) **adds a page
-to this already-existing dialog**, it does not create the dialog or wire
-up the trigger action — both already exist and already work. No
-`metadata.json` key is involved at all — confirmed by checking three real
-shipped Plasma 6 applets (`luisbocanegra.panel.colorizer`,
-`org.kde.desktopcontainment`, `org.kde.plasma.systemmonitor`), none of
-which reference `config.qml` there; Plasma's KPackage structure
-auto-detects it purely by its fixed conventional path.
-
-Confirmed live (Phase 4.4.0, 2026-08-29, reading the shell's own
-`/usr/share/plasma/shells/org.kde.plasma.desktop/contents/configuration/
-AppletConfiguration.qml`): the custom page(s) always appear *alongside*
-Keyboard Shortcuts/About, never replacing them — the sidebar is built
-from separate `Repeater`s (own categories, then Keyboard Shortcuts, then
-About for a non-containment applet like this one), not a single merged
-model, so there is no way to suppress the default two pages even if
-wanted. Once a `config.qml` category list is non-empty, the dialog also
-defaults to opening on the applet's own first category on launch, rather
-than Keyboard Shortcuts as it does with no `config.qml` present.
-
-### `ConfigCategory.source` resolves relative to `contents/ui/`, not `contents/config/` (found the hard way — Phase 4.4.0)
-
-Not documented in any official KDE reference found, but independently
-stated in several real third-party plasmoids' own source comments and
-confirmed live here: a `ConfigCategory { source: "X.qml" }` path is
-always resolved relative to the plasmoid's **`contents/ui/`** directory
-(the main QML root), **regardless of where `config.qml` itself lives**.
-This holds for a bare string *and* for an explicit `Qt.resolvedUrl("X.qml")`
-call written inside `config.qml` — both resolve relative to
-`config.qml`'s own file (`contents/config/`), which is the wrong base
-either way, so neither form is a workaround for the other.
-
-Getting this wrong doesn't produce a clean "file not found" error. It
-manifests as a deep, misleading Kirigami `PageRow` failure instead:
-`"Could not convert argument 1 from  to QQuickItem*"` /
-`TypeError: Passing incompatible arguments to C++ functions from
-JavaScript is not allowed.` (in `initAndInsertPage@PageRow.qml`, called
-from the shell's own `AppletConfiguration.qml`), and — worse — that
-failed *first* push corrupts page navigation for the **rest of that
-dialog session**: every other category (including Plasma's own,
-definitely-fine Keyboard Shortcuts/About) then fails identically via
-`replace()`, making the bug look far more general than it is. A blank
-category page plus other categories getting stuck showing stale content
-after switching are the visible symptoms.
-
-This project's `contents/config/` (per Repository Layout below) holds
-`config.qml`, `main.xml`, *and* the actual category page QML files
-(`ConfigGeneral.qml` etc.) side by side — a layout choice that directly
-collides with this resolution rule. The fix used here: reference category
-pages from `config.qml` with an explicit `"../config/"` prefix (e.g.
-`source: "../config/ConfigGeneral.qml"`), the same "prefix to reach pages
-living elsewhere" technique real precedents use for their own
-`ui/config/` subdirectories (e.g. `com.github.tilorenz.compact_pager`'s
-`source: "config/ConfigGeneral.qml"`), just adapted for `config/` being a
-*sibling* of `ui/` here rather than nested under it. Do not "fix" a blank
-or stuck config page by suspecting the page's own QML content, imports,
-or `metadata.json` API keys first — check this path resolution rule
-first, it is the far more likely cause for this specific failure
-signature.
-
-### Every settings control must persist, not just apply its effect
-
-A settings toggle/slider "working" during a live session and a
-settings toggle/slider actually being **wired** are two different
-things — don't treat the first as proof of the second. Every control
-on the settings page must have its value stored in
-`plasmoid.configuration` (a `main.xml` kcfg entry), read back from
-there on load, and written back on change. If a control instead only
-drives its visual effect directly (e.g. a toggle that flips
-`Plasmoid.backgroundHints` straight from its own local `checked`
-state, with nothing backing it in KConfig), it will appear fully
-functional within that one dialog session and then silently reset to
-default the next time the dialog opens or the widget reloads — this
-already happened once (Phase 4.4.3/4.4.4's original wording didn't
-say "store in KConfig" explicitly, only "wire the toggle to the
-effect," which is exactly the gap that produced this).
-
-The exception is any control that deliberately reflects live external
-state rather than a stored preference — Launch at login is the one
-example so far, which must always show real `systemctl --user
-is-enabled` output, not a remembered KConfig bool (see its own TODO
-entry). Don't apply the "must persist to KConfig" rule to that kind of
-control; applying it there would be the opposite mistake.
-
-**Verification for any settings-wiring phase must include a reload,
-not just an in-session toggle check**: close and reopen the settings
-dialog, and separately reload the widget itself, and confirm the
-control still reflects the value you set — not just that toggling it
-visibly changed something in the moment.
-
-### The About page icon cannot vary by theme (Phase 17.0.0, settled)
-
-Plasma's About page (`/usr/share/plasma/shells/org.kde.plasma.desktop/contents/
-configuration/AboutPlugin.qml:112-131`) renders `Kirigami.Icon { source:
-page.metaData.iconName }` with no `isMask`/`color`; the name is
-`metadata.json`'s `Icon`, resolved through the icon theme and read once per
-plasmashell process. `AppletConfiguration.qml:110-113` `replace`s pages in its
-PageRow (only the first is `push`ed), so our General page and the About page
-never exist at the same time and nothing of ours can touch that icon at
-runtime. KIconThemes' `current-color-scheme` recolouring only substitutes
-eight flat semantic classes (`kiconcolors.h:154-161`), only under icon themes
-with `FollowsColorScheme=true` (hicolor is not one), and cannot express
-gradients. Consequence: one icon for every theme and scheme (owner decision
-D6). Do not plan a light/dark About icon again without a new Plasma API.
-
-### Non-KConfig controls ride Apply/OK through two undocumented page hooks (Phase 11.0.0)
-
-The shell's `AppletConfiguration.qml` (`/usr/share/plasma/shells/
-org.kde.plasma.desktop/contents/configuration/`) only tracks `cfg_*`
-properties for its dirty check, but it also reads two things off the
-page object itself, found by reading that file rather than any docs:
-a `bool unsavedChanges` property, OR-ed into the Apply button's enabled
-state and into the Cancel/close "Apply Settings — Apply/Discard/Cancel"
-prompt (its `unsavedChangesChanged` signal is connected when the page is
-pushed), and a `saveConfig()` function, called first from the shell's own
-`saveConfig()` on both Apply and OK, before the `cfg_*` copy-back (so it
-must not touch `cfg_*` values). `KCM.SimpleKCM` defines neither name.
-This is how Launch at login (`ConfigGeneral.qml` + `contents/ui/
-DaemonAutostart.qml`) applies `systemctl --user enable/disable` on
-Apply/OK with no KConfig entry at all. One limit to design around: OK is
-`applyAction.trigger()` then `configDialog.close()` immediately, so an
-async result (an executable-engine exit code) has nowhere to be shown on
-the OK path — log it and make the next open re-query reality; only the
-Apply path (dialog stays open) can show an inline error.
-
-`systemctl --user is-enabled` exit codes are not enough to classify its
-answer: `disabled` exits 1 and so does "user bus unreachable" (with empty
-stdout). Key off the stdout token (`enabled`/`disabled`/`not-found`/...)
-and consult the exit code and stderr only when there is no token — see
-`DaemonAutostart.qml`'s header for the measured table.
-
-## QML layout: Qt.AlignBaseline is unsafe with dynamic text (settled, do not relitigate)
-
-**The pattern**: `Qt.AlignBaseline` computes one shared row-internal
-baseline offset from the font metrics of whichever children currently
-participate in that row. If any sibling's font or content can change at
-runtime — not just its visibility — that sibling's glyph metrics
-(ascent in particular) shift the shared baseline, which silently
-repositions every other `AlignBaseline` sibling in the row, including
-ones whose own `text`/`font.*` properties never changed. This is not a
-margin or spacing bug and won't look like one; it looks like an
-unrelated label "jittering" a couple of px only when some other part of
-the row changes state.
-
-**This has now happened three separate times in this codebase**, always
-in the same shape (a row pairing a static label with a value label whose
-font/content varies by state):
-
-- `VolumeHoverTooltip.qml` (Phase 4.5.3) — took three rounds to close.
-  Round 5's actual root cause (documented in that file's own header
-  comment on `statRow`): the value Label swaps `font.family`/
-  `font.weight`/`font.pixelSize` between its numeric-dB and "Muted" word
-  forms, and the "dB" unit Label drops out of layout entirely via
-  `visible: false` when muted — both were enough to drag "Optical 1" (a
-  plain sibling whose own font never changed) along with the shifting
-  baseline, even after the row's own height had already been pinned.
-- `VolumeToast.qml` — fixed in this same style of session, but found
-  proactively during the flyout-appletpopup-rebuild spike's own
-  investigation (finding 9), *not* from a user report or a live glitch
-  anyone had seen. Same shape exactly: `ampName` (static) and
-  `valueText` (font/content swaps between numeric-dB and "Muted"/
-  "Unmuted") as direct `AlignBaseline` siblings in one `RowLayout`.
-
-Three strikes on the same exact shape — including a fresh, independent
-recurrence in a second file, found by investigation rather than by
-another live bug report — is the signal this is a house rule, not a
-one-off fix.
-
-**House rule going forward**: no `Qt.AlignBaseline` on any row that
-contains a child whose text content or font can change at runtime.
-Use `Qt.AlignVCenter` on every child in that row instead — it positions
-each child from its own height only, not a shared cross-sibling metric —
-**and** pin an explicit `Layout.preferredHeight` on the row itself to
-the tallest child's actual measured implicit height across *all* of
-that child's content states.
-
-That last clause is load-bearing, not decoration — confirmed the hard
-way while fixing `VolumeToast.qml` in this same pass. The first attempt
-pinned `Layout.preferredHeight: 18`, copied from `VolumeHoverTooltip
-.qml`'s own pinned value on the assumption a similar row needs a similar
-number. It didn't: live measurement (`onImplicitHeightChanged`/`onYChanged`
-logging via a standalone driver instantiating the real component) showed
-`valueText`'s true implicit height is `20` in its numeric-dB form vs `16`
-in its word form, and `18` — being *less* than the tallest state's real
-height — left a reproducible 1px shift on `ampName` even with
-`AlignVCenter` already applied on both children. Root cause: when a
-sibling's implicit height exceeds the row's pinned height, `RowLayout`'s
-internal cross-axis centering still keys off that overflowing sibling,
-so `AlignVCenter` alone is necessary but not sufficient — the pinned
-height must equal the tallest child's real measured height, not an
-approximation, and not a value borrowed from a different file's
-different content. Re-measure it fresh every time this pattern is
-applied; don't copy the number.
-
-**Required reading before writing any QML for the flyout-appletpopup-
-rebuild spike.** That surface has more dynamic-content rows than either
-`VolumeHoverTooltip.qml` or `VolumeToast.qml` combined, and is exactly
-where this lesson needs to actually get applied up front — not
-re-discovered a fourth time after the rebuild ships.
-
-## Executable-engine command strings must come from a fixed set (settled, do not relitigate)
-
-**The pattern**: every command run through `Plasma5Support.DataSource`'s
-executable engine is a *source* named by its exact command string, and the
-engine is shared by the whole plasmashell process. When a command finishes,
-Plasma5Support clears that source name in the `data` map of **every**
-executable DataSource in plasmashell - ours and other widgets'.
-`QQmlPropertyMap::clear()` creates the key where it is missing, and a map
-can never drop a key, so each never-seen command string adds a property to
-every such map and rebuilds its whole metaobject. The cost of a new name
-grows with every name before it and only resets when plasmashell restarts.
-
-**How it showed up (2026-09-29)**: the volume chime passed an
-ever-increasing `--tick N` (and the dB values) in its command line, so every
-chime was a new name. Scrolling got more stuttery the longer the owner
-scrolled, and stayed bad between spins; plasmashell's UI thread sat at
-~95 % CPU. eu-stack samples: 69 of 77 busy samples in
-`DataContainer::becameUnused -> DataEngine::removeSource ->
-QQmlPropertyMap::clear -> QMetaObjectBuilder::toMetaObject`. Reproduced
-standalone with 10 DataSources: unique names -> UI thread blocked 8.9 s per
-10 s after a minute; 16 repeating names -> zero. It looked like a render,
-compositor or mouse problem first; none of those were it (TODO.md "Scroll
-stutter" and "Chime: fixed command names" entries).
-
-**House rule**: a command string passed to `connectSource()` must come from
-a small, fixed set for the life of the shell. Never put counters,
-timestamps, measured values or other ever-changing data in it.
-
-- Need concurrent runs of the same command (the engine collapses identical
-  running commands into one)? Use a counter that wraps at a bound derived
-  from measured overlap - the chime uses `--tick k`, k < 16
-  (`VolumeSettings.chimeArguments()`).
-- Need per-call data? Have the program fetch it itself (the chime reads
-  its volumes from the daemon over D-Bus, `crates/devialet-chime/src/
-  daemon.rs`), or keep the value space small and bounded (e.g.
-  `devialet-ctl ... volume <dB>` - one string per volume step in range).
-- When adding a `connectSource()` call, count the distinct strings it can
-  produce over a long session and say so in a comment.
-
-## Light theme: palettes, scheme readers, gold effects (Phase 17, settled)
-
-The widget has a Dark / Light / Follow system setting (kcfg `theme`,
-default `system`). Full record: TODO.md's Phase 17 entries and
-`docs/context-on-light-theme-arc-phase-17.md`. What to know before
-touching colours or effects:
-
-- **`Theme.qml` holds no colours** - fonts, sizes, radii and the volume
-  icon map only, re-instantiated per file. Every painted colour is a typed,
-  `required` token in `ColorPalette.qml`; `DarkPalette.qml` and
-  `LightPalette.qml` only assign values. Consumers declare
-  `required property ColorPalette colors` and read `colors.<token>`. A new
-  colour is a new token in all three files, with the dark value equal to
-  what dark painted before. Branch on `colors.isLight` only where the two
-  themes need a different mechanism (a gradient or an effect vs a flat
-  fill), never to pick between two colour values.
-- **Who picks the palette.**
-  - Flyout, OSD toast, hover tooltip: `ThemeSettings.qml`, root-anchored
-    in `main.qml` and forwarded like `TransparencySettings.qml`. It
-    exposes `flyoutPalette` and `osdPalette` separately (both follow the
-    one setting today), and `harnessOverride` for the harness.
-  - Settings page: follows the **desktop's** scheme, not the widget's
-    setting (it cannot reach `main.qml`'s root): `ConfigGeneral.qml`'s
-    `colors` is `pageScheme.dark ? darkColors : lightColors`. In light it
-    paints its own white background; Plasma's header strip, button bar,
-    the other two tabs and the About icon are not ours and stay in the
-    scheme's colours (owner decision 2026-10-03, see "The About page icon"
-    above).
-  - Sidebar icon (`config.qml`): white or dark-ink SVG from
-    `SystemPalette.window`'s lightness - it must be right synchronously,
-    and a `ConfigModel` is not an Item.
-- **`SystemScheme.qml` contract** (the Follow-system reader): one `ReadOne`
-  of the XDG portal's `org.freedesktop.appearance color-scheme` plus a
-  `SettingChanged` watcher; `1` = dark, `2` = light; anything else, an
-  error, or no reply within 2 s falls back to the brightness of
-  `Kirigami.Theme.backgroundColor`. `dark` starts `true`. Covered by
-  `tst_SystemScheme.qml` against `tests/qml/fakeportal.py`.
-- **One shared `LightPalette` for all four surfaces.** The OSD, tooltip
-  and ConfigDialog mockups still list lighter dim/faint text; the owner
-  kept the flyout's darker pair (`#3f3a33` / `#524c45`) everywhere.
-- **Transparency in light:** the flyout's panel follows the setting; the
-  toast and tooltip are opaque white (dark keeps the hardcoded 0.94
-  pair). Controls use the fixed-k model in both themes
-  (`ColorPalette.controlColor()`, `controlAlphaK`).
-
-### Gold effects: `GradientMask`, `GradientText`, `GoldSphere`, `CardShadow`
-
-Light-only gold text, glyphs and dots are painted with
-`QtQuick.Effects.MultiEffect`. Four rules, each found the hard way:
-
-1. **Build effect items in a `Loader { active: colors.isLight }`**, with
-   their layers on from creation. Toggling `layer.enabled` at runtime
-   stopped masking after a dark -> light flip (17.19.0, `CardShadow.qml`).
-   Keep the plain Label/Shape in the layout with transparent text and
-   paint the gold over it, so geometry is identical in both themes.
-2. **Mask edges:** MultiEffect's default mask (threshold 0, spread 0) is a
-   hard cut - strokes come out about a device pixel fatter per side and
-   jagged. `GradientMask.qml` sets `maskThresholdMin` 0.5 /
-   `maskSpreadAtMin` 1.0. Item layers are already at device pixels; do
-   not force `layer.textureSize` (it made things worse).
-3. **A MultiEffect with a shadow keeps its creation-time geometry.** When
-   the item is resized later (the readout's "—" placeholder becoming
-   "-25.0"), the shadow stage paints the old texture stretched.
-   `GradientMask.qml` switches its shadow off and on after every size
-   change. Any new effect item whose size can change must be tested
-   through a resize after creation.
-4. **Mask + shadow needs two stages** (mask first, then shadow the
-   result); one MultiEffect doing both misaligns the mask (17.0.2).
-
-**Capture rule for anything painted by an effect:** `QT_QPA_PLATFORM=
-offscreen` uses the software scenegraph and renders effects blank, so a
-blank gold item "passes" a naive compare. Pixel captures run on Wayland;
-`grabToImage` output is composited on a solid backdrop before judging.
-`scripts/test-qml.sh` runs offscreen and must stay geometry-only. And
-open every capture of a run: the garbled readout was sitting in a harness
-run that had only been measured for something else.
-
-**Verification tooling:** the flyout harness has a `theme` dimension
-(`--vary theme,...`; pinned per state through
-`FlyoutContent.themeOverride`, cleared on teardown) and
-`expected-17.json` is the current allowlist. `fakeamp.py --ui
-themeOverride=light --notify volume=<dB>|mute=<bool>` shows the real
-toast for a spectacle capture. The toast, tooltip and settings page
-render standalone under `/usr/lib/qt6/bin/qml` on Wayland (reparent a
-Dialog's `mainItem` into a plain Window; for the page set
-`page.pageScheme.dark` after the portal reply and pin window colours
-with a scratch `XDG_CONFIG_HOME/kdeglobals`). The real ConfigDialog and
-the tooltip hover remain owner checks.
+**Verify with a fresh shell, and against absence.** `KConfigGroup` only
+writes a value that differs from the shell's in-memory copy, and an
+external `kwriteconfig6 --delete` doesn't invalidate that cache, so a test
+against a running shell shows no write and looks like a pass. Compare
+"keys absent after a restart", never "values unchanged" (the values may
+already be the corruption).
 
 ## Environment
 
-- OS: CachyOS (Arch-based); Desktop: KDE Plasma.
-- Editors: Kate, terminal.
-- Rust: `rustup`-free, installed via `pacman -S rust` (Arch/CachyOS repo
-  package, not rustup) — 1.97.1 at scaffold time. Workspace edition 2021,
-  `rust-version = "1.75"` (MSRV floor is arbitrary/conservative, not tied
-  to a specific feature requirement yet — raise it if a later phase needs
-  something newer).
-- Cargo workspace layout (`Cargo.toml` at repo root, `resolver = "2"`):
-  - `crates/protocol` (`devialet-protocol`) — zero-I/O packet
-    encode/decode library. No dependencies.
-  - `crates/devialet-remote-daemon` (`devialet-remote-daemon`) — status listener binary.
-    Depends on `protocol`, `zbus`, `socket2`, `async-io`.
-  - `crates/devialet-ctl` (`devialet-ctl`) — single-shot command CLI
-    binary. Depends on `protocol` only.
-- Pinned/notable dependency versions (latest stable as of the scaffold
-  pass — re-check before bumping, don't blindly `cargo update` without
-  reading changelogs given how load-bearing zbus's blocking API is here):
-  - `zbus = "5"` (5.15.0 at scaffold time). Default features already
-    include `blocking-api` (the sync `zbus::blocking::*` API used
-    throughout the daemon) and `async-io` (its executor backend) — no
-    extra feature flags needed in `Cargo.toml`.
-  - `socket2 = "0.6"` — only used for `SO_REUSEADDR` before bind
-    (`std::net::UdpSocket` doesn't expose this directly).
-  - `async-io = "2"` — depended on directly (not just transitively via
-    zbus) because emitting a D-Bus `PropertiesChanged` signal from zbus's
-    generated `<property>_changed()` methods is an `async fn` even when
-    using the "blocking" API; the daemon drives each one to completion
-    with a bare `async_io::block_on(...)` call at the point it needs to
-    emit, not a project-wide async runtime. The daemon's own loop (main.rs)
-    stays plain synchronous Rust — no `#[tokio::main]`, no `.await`
-    scattered through business logic, no spawned tasks. This is an
-    implementation detail fully internal to how zbus's blocking wrapper is
-    built, not a violation of "no async runtime" — but worth knowing about
-    since CLAUDE.md's original architecture note didn't anticipate it.
-  - No JSON/serde — nothing here needs it (properties go straight to
-    zbus/zvariant types).
-- D-Bus service (daemon): bus name `com.ekmanch.DevialetRemote`, object
-  path `/com/ekmanch/DevialetRemote/Amp`, interface
-  `com.ekmanch.DevialetRemote.Amp1`, session bus. Primary-amp properties
-  (unchanged since Phase 3, existing QML bindings): `DeviceName`, `AmpIp`,
-  `Online`, `Power`, `Muted`, `VolumeRaw`, `VolumeDb`, `ActiveSourceIndex`,
-  `ActiveSourceName`, `Sources` (array of `(name, index, enabled, selected)`
-  tuples, 30 entries when an amp is selected/auto-selected, **empty** when
-  none is — see below).
-  - **Phase 3.5 multi-amp surface**, added alongside the above (no QML
-    consumes it yet — that's Phase 4): `KnownAmps` (array of
-    `(ip, device_name, online, model_name)` tuples — `model_name` added in
-    Phase 3.7, see below — one per amp ever heard broadcasting, not just
-    the primary one; never pruned — a gone-quiet amp just flips to
-    `online = false` rather than disappearing, `online` using the same 8s
-    `STALE_AFTER` rule as the `Online` property). `SelectedAmpIp` (string,
-    `""` = no amp *explicitly* selected — mirrors the Kotlin app's
-    `SharedPreferences amp_ip` sentinel in `MainActivity.kt`). `SelectAmp(ip:
-    String)` method selects by IP (`""` explicitly clears selection, the
-    "None" option in the Kotlin app's amp sheet; an IP never heard from yet
-    is also accepted, mirroring its manual-IP-entry fallback).
-  - Interaction between the two: the primary properties above reflect
-    whichever amp `SelectedAmpIp` names. If `SelectedAmpIp` is `""` (nothing
-    explicit) **and** exactly one amp is currently known, that amp is
-    auto-selected for the primary properties (preserves Phase 3's
-    single-amp UX with no picker yet to call `SelectAmp`). With `""` and
-    zero or 2+ known amps, the primary properties show the empty/
-    not-connected state (`DeviceName`/`AmpIp` `""`, `Online` `false`,
-    `Sources` empty, etc.) rather than guessing which one to show.
-    Selection is **not** persisted across daemon restarts (in-memory
-    only) — deferred to Phase 4, where the picker UI actually drives it.
-  - `devialet-ctl` has no knowledge of any of this — it takes `--ip`
-    explicitly per invocation and never talks to the daemon or D-Bus (see
-    its module doc). This surface is informational only until Phase 4's
-    QML reads `AmpIp`/`SelectedAmpIp`/`KnownAmps` and passes the chosen IP
-    to `devialet-ctl --ip` itself.
-  - **Phase 3.7 mDNS model name resolution**: each known amp's real
-    make/model (e.g. "Devialet Expert 140 Pro") is resolved in the
-    background over mDNS (`_spotify-connect._tcp`, via the `mdns-sd`
-    crate — pure Rust, no async runtime dependency, matching this
-    daemon's synchronous loop) and matched against known amps by IP
-    (that service type isn't Devialet-specific, so an unmatched IP is
-    discarded, never trusted). `KnownAmps`' `device_name` field always
-    stays the raw UDP name; a separate `model_name` field (`""` until
-    resolved) carries the resolved value. The primary `DeviceName`
-    property does `model_name ?: raw_udp_name` — ported exactly from
-    `MainActivity.updateDeviceCard()`'s `modelName ?: udpName`/
-    `AmpModelNameResolver.parseModelName` (a general letter/digit-boundary
-    regex transform, **not** a per-model lookup table — ported to
-    `devialet_protocol::parse_model_name` as a hand-rolled char scan, no
-    new dependency on the zero-deps protocol crate). Once resolved, never
-    re-attempted or cleared.
-  - **PC-originated-command signals (2026-09-15)**: the interface's only
-    custom signals, `VolumeCommandNotified(s ip, d db)` and
-    `MuteCommandNotified(s ip, b muted)`, emitted by `NotifyVolumeCommand`/
-    `NotifyMuteCommand` for every accepted call (unconditionally, after the
-    method's own `PropertiesChanged` burst) so a command from outside the
-    widget - the MPV scroll-to-volume script, any future tool that calls
-    those methods - shows the widget's OSD toast. Changes the daemon only
-    observes from the amp (physical remote) never take this path, which is
-    why it is a signal from those two methods and not a QML watcher on
-    `VolumeDb`/`Muted`. QML side: `org.kde.plasma.workspace.dbus`'s
-    `SignalWatcher` in `PendingAmpState.qml` (handler = a JS function named
-    `dbus` + signal member, plasma-workspace's own convention), which also
-    filters out the widget's own echoes with an in-flight queue - every
-    widget-originated Notify* call funnels through that file's
-    `notifyVolume()`/`notifyMute()`, so the flyout and settings clamp stay
-    OSD-less and the panel wheel/middle-click never double-show. See
-    TODO.md's entry for the full decision record.
-- **`devialet-ctl` on PATH** (needed by every QML button that shells out to
-  it, not just the volume one — mute/power/source in Phase 3 all need this
-  too, so it's documented once here rather than per-button):
-  - QML invokes it via `Plasma5Support.DataSource`'s executable engine as
-    a bare command name (`"devialet-ctl --ip " + ip + " ..."`), **not** an
-    absolute path. This is reliable, confirmed empirically rather than
-    assumed: the executable engine runs every command through
-    `/bin/sh -c "<command>"` (proven by a deliberately-missing command's
-    stderr literally reading `/bin/sh: line 1: ...: command not found` —
-    that's shell output, not a raw-exec error), so ordinary shell PATH
-    resolution applies, using plasmashell's own inherited `PATH`
-    (`/home/christian/.local/bin:/usr/local/bin:/usr/bin:/bin:...` at
-    scaffold time — confirmed via `/proc/<plasmashell-pid>/environ`, not
-    assumed). Failure mode confirmed graceful too: with the binary
-    unreachable on PATH, the engine returns exit code 127 and a normal
-    shell stderr message, no crash.
-  - For this to work, `devialet-ctl` must actually be reachable on that
-    PATH. **Placement (Phase 13.0.0, settled - see the "Install location"
-    Architecture bullet)**: a release-profile copy in `/usr/local/bin`,
-    for both binaries the QML invokes by bare name (`devialet-chime`, a
-    workspace member on `main`, is invoked the same way for the volume
-    chime):
-
-    ```
-    cargo build --release --locked -p devialet-ctl -p devialet-chime
-    sudo install -Dm0755 -t /usr/local/bin \
-        target/release/devialet-ctl target/release/devialet-chime
-    ```
-
-    (wrapped, together with the daemon binary, in
-    `scripts/install-binaries.sh` since Phase 13.0.3 - run that, or
-    `./install.sh`, rather than typing the lines above.) Copies, not
-    symlinks: they survive `cargo clean`, but a rebuild does not update
-    them - re-run `scripts/install-binaries.sh` after any `cargo build`
-    that changes a binary; it copies only the ones that differ. Before
-    13.0.0 the dev setup was a `~/.local/bin/<name>` symlink into
-    `target/debug/`; those symlinks
-    are gone from this machine and must stay gone: `~/.local/bin`
-    precedes `/usr/local/bin` on plasmashell's PATH, so a leftover
-    symlink there silently shadows the installed copy (and dangles the
-    moment `target/` disappears - the failure documented above). The
-    earlier claim here that `~/.local/bin` is on PATH "by default
-    (standard XDG convention)" was wrong for this distro: it is on
-    plasmashell's PATH only because fish's `fish_user_paths` adds it -
-    see the Architecture bullet for the measured list of what does and
-    does not add it.
+- OS: CachyOS (Arch-based); Desktop: KDE Plasma (Wayland). Editors: Kate,
+  terminal.
+- Rust: installed via `pacman -S rust` (no rustup) — 1.97.1 at scaffold
+  time. Workspace edition 2021, `rust-version = "1.75"` (an arbitrary
+  conservative floor; raise it if a phase needs something newer).
+- Cargo workspace (`Cargo.toml` at the root, `resolver = "2"`):
+  `crates/protocol` (`devialet-protocol`, no dependencies),
+  `crates/devialet-remote-daemon` (`protocol`, `zbus`, `socket2`,
+  `async-io`, `mdns-sd`), `crates/devialet-ctl` (`protocol` only),
+  `crates/devialet-chime`.
+- Notable dependencies — re-check changelogs before bumping, don't blindly
+  `cargo update`:
+  - `zbus = "5"`: default features already include `blocking-api` (used
+    throughout the daemon) and `async-io`; no extra flags.
+  - `socket2 = "0.6"`: only for `SO_REUSEADDR` before bind.
+  - `async-io = "2"`: a direct dependency because zbus's generated
+    `<property>_changed()` emitters are `async fn` even under the blocking
+    API; the daemon drives each with `async_io::block_on(...)` at the
+    point of emission. The daemon loop itself stays synchronous.
+  - No serde/JSON.
+- Qt6 dev tooling and a C++ compiler are installed on this machine but
+  unused by this repo.
+- **`devialet-ctl` / `devialet-chime` on PATH:** QML invokes them by bare
+  name through the executable engine, which runs every command via
+  `/bin/sh -c`, so plasmashell's inherited `PATH` applies (check it in
+  `/proc/<plasmashell-pid>/environ`). A missing binary returns exit 127
+  and a shell stderr line, no crash. Installed copies live in
+  `/usr/local/bin` (`docs/DESIGN.md` §1).
 - **`spectacle -b -f` from a non-interactive shell needs
-  `QT_QPA_PLATFORM=wayland`** (found in Phase 7.2.0): launched from a tool/
-  script shell in this Wayland session it otherwise picks the xcb backend,
-  and an XWayland grab of a Wayland session is a fully transparent
-  3840×2160 PNG with exit code 0 - no error, just empty pixels. Interactive
-  terminals don't hit this. `tools/flyout-harness/harness.py` forces the
-  variable and fails hard on an all-transparent capture; do the same in any
-  other screenshot-driven check rather than trusting a zero exit code.
-- **D-Bus `a{ss}` (and any array-of-struct, e.g. `Sources`/`KnownAmps`)
-  reaches QML's `Plasma.DBusProperties` as an opaque `QDBusArgument`** with
-  no visible keys/length - re-confirmed in Phase 7.2.0 for a dict, not just
-  the array case `test-scaffold/watch.qml` documents. Scalars round-trip
-  fine; for structured control data prefer a JSON string (`s`) property
-  (what the harness's `UiState` does) over a dict type.
-- Package manager / tooling: `pacman` (system Rust, Qt6, zbus/socket2/
-  async-io via Cargo from crates.io). Qt6 dev tooling (`qmake6`,
-  `qt6-base`, `qt6-declarative`) and a C++ compiler are present on this
-  machine already (checked during the cxx-qt vs. daemon architecture
-  discussion) but are **not** used by anything in this repo — no C++ is
-  compiled here; their presence was only relevant to a rejected
-  alternative (see "In-process alternative (cxx-qt) considered and
-  rejected" above).
-- Repo: `devialet-expert-remote-kde` (https://github.com/ekmanch/devialet-expert-remote-kde; renamed from `devialet-expert-remote-widget` - the old name survives only in historical TODO/CLAUDE notes).
+  `QT_QPA_PLATFORM=wayland`:** otherwise it picks xcb and an XWayland grab
+  of this Wayland session is a fully transparent PNG with exit code 0.
+  Fail hard on an all-transparent capture in any screenshot-driven check,
+  as `tools/flyout-harness/harness.py` does.
+- Standalone QML drivers: the toast, tooltip and settings page render under
+  `/usr/lib/qt6/bin/qml` on Wayland (reparent a Dialog's `mainItem` into a
+  plain Window; for the page, set `page.pageScheme.dark` after the portal
+  reply and pin window colours with a scratch `XDG_CONFIG_HOME/kdeglobals`).
+  `fakeamp.py --ui themeOverride=light --notify volume=<dB>|mute=<bool>`
+  shows the real toast for a capture.
+- Repo: `devialet-expert-remote-kde`
+  (https://github.com/ekmanch/devialet-expert-remote-kde; renamed from
+  `devialet-expert-remote-widget`, which survives only in history).
 
 ## Repository Layout
 
+```
 devialet-expert-remote-kde/
 ├── Cargo.toml                      # workspace root
-├── CLAUDE.md
-├── README.md
+├── CLAUDE.md, README.md, TODO.md
+├── install.sh, uninstall.sh        # sequence the scripts/ steps
 ├── crates/
-│   ├── protocol/                   # dependency-free library crate: packet
-│   │                                #   encode/decode, CRC16, dbConvert,
-│   │                                #   source remap table. No sockets, no async.
-│   ├── devialet-remote-daemon/     # long-running UDP status listener; pushes
-│   │                                #   live state to QML via D-Bus (zbus),
-│   │                                #   properties + PropertiesChanged, no polling
-│   └── devialet-ctl/               # single-shot command CLI (volume/mute/power/
-│                                    #   source), invoked from QML via
-│                                    #   Plasma5Support.DataSource's executable engine
-├── plasmoid/                       # KPackage root. Passed directly to
-│   │                                #   `kpackagetool6 -t Plasma/Applet -i plasmoid/`
-│   │                                #   — do not nest further (no plasmoid/package/).
-│   │                                #   This shape is dictated by KPackage, not
-│   │                                #   arbitrary; don't "clean it up."
+│   ├── protocol/                   # zero-I/O packet encode/decode, CRC16,
+│   │                               #   dbConvert, source remap table
+│   ├── devialet-remote-daemon/     # UDP listener, D-Bus service (zbus)
+│   ├── devialet-ctl/               # single-shot command CLI
+│   └── devialet-chime/             # volume chime player
+├── plasmoid/                       # KPackage root, passed directly to
+│   │                               #   kpackagetool6 — shape dictated by
+│   │                               #   KPackage, don't nest or "clean up"
 │   ├── metadata.json
 │   └── contents/
-│       ├── ui/                     # main.qml, FullRepresentation.qml, etc.
-│       └── config/                 # config.qml + main.xml + the "General"
-│                                    #   ConfigDialog page (Phase 4.4.0) — see
-│                                    #   "Settings ConfigDialog" above for the
-│                                    #   ConfigCategory.source path-resolution
-│                                    #   gotcha this layout runs into (fixed
-│                                    #   with a "../config/" source prefix).
-├── assets/                         # source-only artwork and fonts, outside the
-│   │                                #   KPackage payload (the plasmoid bundles its
-│   │                                #   own copies under plasmoid/contents/)
-│   ├── fonts/                      # jetBrains-mono/, space-grotesk/ (each with
-│   │                                #   its OFL.txt; PKGBUILD ships both)
-│   └── icons/
-│       ├── glow-dot/               # panel icon artwork (main.qml's Plasmoid.icon)
-│       ├── audio-volume-icons/     # flyout/OSD volume glyphs
-│       ├── configDialog-general-tab/   # the General page's sidebar icon
-│       └── hicolor/scalable/apps/  # the Add Widgets picker icon, installed into
-│           └── com.ekmanch.devialetremote.svg   #   the user's hicolor theme by
-│                                    #   scripts/install-plasmoid.sh (KPlugin.Icon
-│                                    #   is a theme name; see "Reloading changes")
-├── design/
-│   └── mockups/                    # HTML mockups: configDialog/, flyout/, OSD/,
-│                                    #   tooltip/ - the reference the UI is built to
-├── systemd/
-│   └── devialet-remote-daemon.service   # user unit (Restart=on-failure) for
-│                                    #   `systemctl --user enable`, per the settled
-│                                    #   decision to use systemd over XDG autostart
-├── packaging/
-│   └── aur/                        # PKGBUILD + .SRCINFO + .install for the AUR
-│                                    #   (Phase 14.0.0). Installs under /usr on its
-│                                    #   own - never calls install.sh or the
-│                                    #   scripts/ helpers, never enables the unit.
+│       ├── ui/                     # main.qml and every QML component
+│       └── config/                 # config.qml, main.xml and the General
+│                                   #   page (referenced as "../config/…",
+│                                   #   docs/DESIGN.md §4)
+├── assets/                         # source-only fonts and icons, outside the
+│                                   #   KPackage payload (the plasmoid bundles
+│                                   #   its own copies); hicolor/ holds the
+│                                   #   Add Widgets picker icon
+├── design/mockups/                 # HTML mockups: configDialog/, flyout/,
+│                                   #   OSD/, tooltip/
+├── scripts/                        # install-binaries.sh, install-daemon-unit.sh,
+│                                   #   install-plasmoid.sh, test-qml.sh
+├── systemd/devialet-remote-daemon.service
+├── packaging/aur/                  # PKGBUILD, .SRCINFO, .install
+├── tests/qml/                      # QtTest suites, fake portal, bus config
+├── tools/flyout-harness/           # capture harness and fakeamp.py
 └── docs/
+    ├── DESIGN.md
     ├── protocol.md
     ├── known-gotchas.md
     ├── app-overview.md
-    └── devialet_source_mapping.md
+    ├── devialet_source_mapping.md
+    └── context-on-*.md             # investigation records (Phase 7, Phase 17)
+```
 
-Notes:
-- The `crates/` vs `plasmoid/` split mirrors the Rust-does-logic /
-  QML-does-UI boundary — if you're touching protocol or D-Bus logic, you're
-  in `crates/`; if you're touching layout, theming, or the flyout, you're in
-  `plasmoid/`.
-- `plasmoid/` and `systemd/` are shaped by their respective tools
-  (`kpackagetool6`, `systemctl --user`), not by project convention — resist
-  restructuring them without checking what each tool expects first.
-- `packaging/aur/` is the Arch package, a separate install path from
-  `install.sh` (Phase 14.0.0, settled after reading real Plasma 6 applet
-  PKGBUILDs): `package()` copies the plasmoid to
-  `/usr/share/plasma/plasmoids/<KPlugin.Id>/` itself (no `kpackagetool6`),
-  the picker icon to `/usr/share/icons/hicolor/scalable/apps/`, the three
-  binaries to `/usr/bin` (`cargo build --frozen --release` +
-  `install -Dm0755`, per the Arch Rust guidelines - `cargo install` is
-  their documented fallback only) and the unit to
-  `/usr/lib/systemd/user/`. The `.install` hook only prints the
-  `systemctl --user enable --now` line - it never enables the unit, the
-  convention for application-level packages (the one AUR plasmoid shipping
-  a unit, plasma6-applets-plasmavantage, does the same; `plasma-desktop`/
-  `plasma-workspace` ship user units with no hook at all). `source=` is the
-  git tag (`git+$url.git#tag=v$pkgver`) with a real `makepkg -g` checksum
-  of `git archive <tag>`, not the GitHub tarball URL - GitHub has
-  regenerated those archives before, silently breaking pinned checksums.
-  Consequence: a tag-pinned source only ships what the tag contains, so
-  anything `package()` references must be committed before the tag is cut.
-  Testing the package on the dev machine requires `./uninstall.sh` first:
-  the `~/.local`/`~/.config`/`/usr/local/bin` copies all precede the
+- `crates/` vs `plasmoid/` mirrors the Rust-does-logic / QML-does-UI
+  boundary: protocol or D-Bus logic is in `crates/`; layout, theming or
+  the flyout is in `plasmoid/`.
+- `plasmoid/` and `systemd/` are shaped by their tools (`kpackagetool6`,
+  `systemctl --user`), not by project convention — check what each tool
+  expects before restructuring them.
+- Testing the AUR package on the dev machine requires `./uninstall.sh`
+  first: the `~/.local`, `~/.config` and `/usr/local/bin` copies precede the
   packaged paths and would silently shadow them.
 
 ## Related repos
 
-- Android (Kotlin, source of truth for protocol): 
+- Android (Kotlin, source of truth for protocol):
   https://github.com/ekmanch/devialet-expert-remote
 - Flutter port (Android/iOS, in progress, independent port of the same
   protocol): https://github.com/ekmanch/devialet-expert-remote-app
-  
-## Known issues
-
-***  sub-pixel corner seam under Darkly theme (accepted, not a bug to re-investigate) ***
-
-**Superseded (Phase 7.14.0 follow-up, 2026-09-05)**: the flyout's outer
-corner is now the mockup's own 16px (`theme.radiusLg` in
-`FlyoutContent.qml`), not `Kirigami.Units.cornerRadius`. The paragraphs
-below explain why the Kirigami value was chosen while a Darkly frame SVG
-still sat underneath the flyout; the Phase 7.12.0 update at the end
-records that the frame is gone (`NoBackground`), which is also why
-nothing constrains the radius any more. `AmpHeader.qml`'s hover fill
-rounds its top corners to the same value so it can't paint square
-corners over the flyout's. Overlay cards use their own 13px
-(`theme.radiusOverlay`). The v2 light-theme mockups (2026-09-26) draw the
-flyout at 12px; the owner kept 16 (Phase 17 decision D4: 7.14.0 precedent,
-Better Blur DX `CornerRadius=16`, Darkly).
-
-The flyout's corner radius used `Kirigami.Units.cornerRadius` (matches
-Darkly's real Dialog/window corner size, e.g. 5 on this system) rather
-than a hardcoded value — this fixed the original "box within a box"
-and gross corner-artifact bugs (see Phase 4.0/4.1 history).
-
-A very faint residual seam can still be seen at the corners against a
-solid dark background, if you look for it. Root cause, confirmed by
-reading Darkly's actual SVG path data
-(`/usr/share/plasma/desktoptheme/darkly/dialogs/background.svg`,
-`topleft` group): Darkly's corner is a **custom cubic Bezier curve**
-(`M 0,6 H 6 V 0 C 2,0 0,2 0,6`, kappa ≈ 0.667), not a true circular
-arc (kappa ≈ 0.5523). Qt Quick's `Rectangle.radius` always renders a
-mathematically true circular arc. Matching the *radius value* (done)
-gets the two curves to agree at their shared endpoints, but the curve
-*shapes* diverge slightly in between — at 1:1-ish unit scale on this
-system that divergence lands at sub-device-pixel scale, which shows as
-an antialiasing-level seam only visible against high-contrast (solid
-dark) backgrounds, not against light backgrounds or blurred wallpaper.
-
-Deliberately NOT fixed further: the only way to fully close this is to
-hand-replicate Darkly's exact Bezier curve via `QtQuick.Shapes`
-instead of `Rectangle.radius`. That would hardcode the widget to one
-specific theme's corner math and silently render incorrectly (same
-seam or worse) under any other Plasma theme with a different corner
-curve — a worse failure mode than a near-invisible seam under Darkly
-specifically. If this is ever revisited, do so only alongside testing
-against multiple Plasma themes, not just Darkly.
-
-Do not re-open this as a fresh bug investigation without reading this
-note first — it's been root-caused and the remaining artifact is an
-accepted trade-off, not an unexplained regression.
-
-**Update (Phase 7.12.0, 2026-09-05, closed)**: the paragraphs above
-describe the pre-Dialog (`AppletPopup`-hosted) flyout, where Darkly's
-own frame SVG was still drawn underneath our tint Rectangle — the seam
-was two different corner curves layered on top of each other (our
-`Rectangle.radius`'s true circular arc vs Darkly's real frame SVG's
-cubic-Bezier corner). Phase 7.10.0's rebuild onto `PlasmaCore.Dialog`
-with `backgroundHints: NoBackground` removes that second curve
-entirely — `NoBackground` clears Darkly's frame SVG's own image path
-(`dialogBackground->setImagePath(QString())`, confirmed in
-`dialog.cpp`), so there is nothing left underneath for our own corner
-radius to seam against. Phase 7.12.0 verified this live rather than
-assuming it from the header change alone: the project owner opened the
-real flyout against a solid dark background (the same high-contrast
-condition this section originally named as where the seam was
-visible) and reported no corner artifacts; independently re-verified
-by locating the flyout's exact pixel bounds via a raw pixel scan (the
-panel tint and that particular dark background were close enough in
-value that the edge wasn't obvious by eye) and inspecting all four
-corners at 12x zoom — each shows one single smooth anti-aliased curve,
-no double-border, no box-within-box artifact. No code change was made
-or needed; the setting/toggle investigation this trade-off's own
-"if this is ever revisited" clause anticipated is now moot, since
-there's no seam left to bypass. This closes the seam as a live issue
-on the current `Dialog`-based flyout — the mechanism/history above
-stays accurate as an explanation of the old `AppletPopup`-era
-behavior, and would still apply if the flyout were ever hosted in a
-popup class with a real background frame again.
-
-***  real transparency was investigated and found infeasible from applet code (settled, do not re-attempt without new evidence) ***
-
-Investigated on the now-deleted `experiment/real-transparency` branch.
-Initial theory: this widget's popup uses Plasma's default background
-frame, which (for Darkly specifically) is hardcoded fully opaque -
-confirmed by reading Darkly's `dialogs/background.svg` and its active
-color scheme's alpha-less RGB values directly. The fix was assumed to
-be `Plasmoid.backgroundHints = NoBackground`.
-
-That assumption turned out to be built on the wrong class entirely.
-Runtime diagnostics (walking `root.Window.window` and logging the
-actual class) showed this widget's popup is a `PlasmaWindow`
-(`PlasmaQuick::AppletPopup` → `PopupPlasmaWindow` → `PlasmaWindow`, a
-newer, 2023-era class), not `PlasmaQuick::Dialog` as originally
-assumed - all of the initial investigation's C++ source reading was
-of the wrong header. `PlasmaWindow`'s real `BackgroundHints` enum
-(confirmed in its actual header) has only `StandardBackground` and
-`SolidBackground` - **no `NoBackground` value exists at all** for this
-window class, on this Plasma version. There is no applet-level API to
-remove the frame image entirely.
-
-Separately confirmed: visible transparency/blur seen under other
-Plasma themes (e.g. Ant-Dark) on other widgets (Kickoff, Digital
-Clock, weather widgets) is not those widgets doing anything special in
-code - it's the *theme's own* `dialogs/background.svg` frame asset
-having genuine partial opacity baked in by the theme author. Every
-applet using the default background picks this up automatically, with
-zero code, purely because the shared system frame image itself is
-translucent under that theme. An individual applet has no ability to
-choose or override which theme's frame asset the user has selected,
-and no ability to make a theme's opaque frame asset translucent from
-the outside.
-
-Conclusion: genuine, controllable desktop transparency is not
-achievable from applet-level QML on this Plasma version, regardless of
-theme. It is a property of the user's chosen Plasma theme's own frame
-asset, entirely outside this widget's control. Feature dropped
-entirely (see TODO.md). Do not re-attempt without first confirming a
-fundamentally different Plasma API is available (e.g. a future
-`PlasmaWindow::BackgroundHints` value, or migration back to a window
-class that does expose `NoBackground`).
-
-**Update (Phase 7.9.0+, follow-up correction)**: the conclusion above is
-still accurate for what it actually tested - the *shell-managed* popup
-(`CompactApplet.qml`'s own `AppletPopup`), which has no `NoBackground`
-option. It was never a conclusion that a *hand-built* popup couldn't do
-better - escaping exactly that limitation was the stated reason Phase 7.x's
-flyout rebuild exists at all, and this section's own last sentence already
-named the escape hatch ("migration back to a window class that does expose
-`NoBackground`"). Phase 7.0.0-7.8.0 then built a hand-rolled popup, but
-chose `PlasmaCore.AppletPopup` for it - the same `PlasmaWindow`-family class
-already confirmed above to have no `NoBackground` value, reproducing the
-identical limitation this section describes. That choice was made on
-dismiss/focus/positioning-risk grounds without re-checking it against the
-transparency goal; see TODO.md's Phase 7.0.0 entry for the correction and
-Phase 7.9.0+ for the fix in progress (`PlasmaCore.Dialog`, which - unlike
-`PlasmaWindow` - has a real, code-enforced `NoBackground` value, confirmed
-directly in `dialog.cpp`, and is what `VolumeHoverTooltip.qml`/
-`VolumeToast.qml` already use successfully).
-Phase 7.10.0 (2026-09-05) then shipped that rebuild — `FlyoutPopup.qml`
-on `PlasmaCore.Dialog` with `NoBackground` — and measured real
-transparency on the real flyout for the first time (same-patch
-closed-vs-open capture: blend error 0.35 at α 0.82 vs 7.08 for opaque
-paint; wallpaper visible through the panel). So the "infeasible" verdict
-above stands only for the shell-managed popup class; this widget's own
-flyout window is no longer in that class.
-***  compositor force-blur gives the flyout an acrylic look (user-side setting, not a widget feature) ***
-
-Settings-only finding from the Better Blur DX investigation (2026-09-25),
-no code changed. Adding window class `org.kde.plasmashell` to Better Blur
-DX's force-blur list gives the flyout a real frosted-glass look at zero
-cost to this repo - no code, no C++ shim. Confirmed live on the owner's
-desktop (screenshot on file).
-
-Why only the flyout: per Better Blur DX's source/docs, force-blur applies
-only to windows that (a) don't self-report a blur region and (b) are
-actually rendered transparent. The flyout's `NoBackground` Dialog
-qualifies (`NoBackground` calls `enableBlurBehind(false)`). The OSD toast
-and hover tooltip were unaffected in the live test - consistent with,
-not confirmed as, them self-reporting blur via the themed Dialog
-background, which Better Blur DX's docs say makes force-blur ignored.
-
-This is a per-user compositor setting the widget neither ships, controls,
-nor can guarantee (needs Better Blur DX or stock KWin blur, configured
-for that class). Treat it as a bonus, not a feature: the ConfigDialog's
-Transparency setting is the only thing we control, so no "Blur" toggle
-implying the widget manages blur - at most a short note pointing at this
-compositor option. A self-reported blur region would need
-`KWindowEffects::enableBlurBehind`, which has no QML binding (C++ only).
-
-**Corners (measured 2026-09-25)**: force-blur covers the whole window
-rectangle, not a self-reported region, so it does show past the flyout's
-rounded (16px) corners - the ~55 logical px per corner between the arc and
-the square corner, at most ~6.6px deep along the diagonal. Measured by
-aligning the owner's screenshot against the wallpaper file itself (mean
-error 0.1-17 on plain wallpaper outside the flyout). In the bottom
-corners, where the wallpaper has detail, the corner pixels are far off the
-sharp wallpaper (error 72 bottom-left, 21 bottom-right) and closer to a
-blurred copy of it (48, 9). At 6x zoom a blurred square shows there
-plainly (pinkish-brown over the yellow window, smeared flowers). Over flat
-sky (top corners) blurred and sharp look nearly identical, so those
-numbers can't tell them apart, but a faint square edge still shows at 6x.
-That's why it's hard to see by eye. Can't be fixed from QML: a rounded blur region
-needs `enableBlurBehind` (C++, see above). Better Blur DX's own
-General -> "Corner Radius" (logical px, default 0) is the user-side fix. It
-rounds all four corners of a force-blurred window that has no decoration
-and reports no radius of its own (`window.cpp` `getEffectiveBorderRadius()`),
-which is the flyout's case. It's one global value, though, shared with every
-other force-blurred window that reports no radius (Darkly windows are 8px,
-the flyout is 16px), so matching one exactly means a mismatch on the other.
-Owner's choice is **16** (flyout-exact). Measured on 2026-09-25: the flyout's
-corner pixels then match the sharp wallpaper (bottom-left error 72 -> 0.7).
-On System Settings the blur arc falls just inside Darkly's smaller corner,
-leaving a thin unblurred sliver visible only at 10x with contrast boosted.
-12 would bring back ~45% of the flyout's leak to shrink that sliver.
-
-***  automatic text colour from the wallpaper was prototyped and dropped (owner decision 2026-10-01, do not re-propose) ***
-
-A spike on 2026-09-30 made the light theme's text flip between dark ink and
-light text by sampling the wallpaper behind the flyout and scoring both text
-sets with APCA at the current opacity. It worked end to end, but needed
-open-ended calibration, and the owner judged it out of scope for a widget
-that sends a few UDP commands. Nothing from it was kept: no code, no tests,
-no tooling, and its branch was deleted without a commit. The widget instead
-ships fixed text colours per theme, chosen to read at full opacity and with
-transparency and blur when the theme matches the wallpaper (light theme on a
-light wallpaper, dark on dark).
-
-Findings worth keeping if anything like it comes up again: plasmashell 6.7+
-can render the desktop containment to a PNG
-(`org.kde.PlasmaShell.grabContainmentImage`), but the call stalls the whole
-shell for its duration (about one frame at a 240 px request, a full second at
-1920) and cannot be made from the widget's own QML ("local-loop message
-cannot have delayed replies"), so it needs an external process. Plasma emits
-no signal when the wallpaper is changed from its settings dialog or by a
-slideshow.
