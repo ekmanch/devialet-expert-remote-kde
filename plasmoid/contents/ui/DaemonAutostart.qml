@@ -72,15 +72,20 @@ QtObject {
     // shared executable engine keys running jobs by command string, so a
     // second identical is-enabled while the first is in flight would
     // collapse into it. The exact strings are also the dispatch keys in
-    // onNewData below. The tick is not wrapped (cf. docs/DESIGN.md §5);
-    // it restarts with each dialog open.
+    // onNewData below. The tick wraps at tickSlots so the command strings
+    // come from a fixed set (docs/DESIGN.md §5): 16 ticks x 3 commands
+    // (is-enabled, enable, disable) = 48 strings for the life of the
+    // shell. At most one query and one write are pending at a time, so a
+    // tick is reused only after 15 newer commands; a superseded query
+    // still running by then would have to outlive all of them.
+    readonly property int tickSlots: 16
     property int tick: 0
     property string pendingQuery: ""
     property string pendingWrite: ""
 
     function nextPrefix() {
         const p = "DEVIALET_SYSTEMD_TICK=" + root.tick + " ";
-        root.tick += 1;
+        root.tick = (root.tick + 1) % root.tickSlots;
         return p;
     }
 
