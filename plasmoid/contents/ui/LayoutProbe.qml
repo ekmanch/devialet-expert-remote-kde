@@ -178,7 +178,7 @@ Item {
 
             // UiState arrives as a JSON string (an a{ss} dict would reach
             // QML as an opaque QDBusArgument with no visible keys - the
-            // same marshalling gap test-scaffold/watch.qml documents for
+            // same marshalling gap docs/DESIGN.md §2 records for
             // the daemon's `Sources` array).
             function applyUiState(raw) {
                 let ui;

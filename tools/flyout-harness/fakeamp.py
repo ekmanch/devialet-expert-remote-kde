@@ -76,7 +76,7 @@ AMP_SIGNALS = [
 # already be applied when it lands.
 # UiState is a JSON object serialised into a plain string: an `a{ss}` dict
 # reaches QML as an opaque QDBusArgument (no keys visible - the same
-# marshalling gap test-scaffold/watch.qml documents for `Sources`), a
+# marshalling gap docs/DESIGN.md §2 records for `Sources`), a
 # string round-trips exactly.
 CTL_PROPS = [("PopupOpen", "b"), ("SettleMs", "u"), ("UiState", "s"), ("StateId", "s"), ("Seq", "u")]
 

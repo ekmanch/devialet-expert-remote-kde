@@ -289,6 +289,7 @@ devialet-expert-remote-kde/
     ├── known-gotchas.md
     ├── app-overview.md
     ├── devialet_source_mapping.md
+    ├── captures/                   # raw UDP captures (devialet_udp_log.pcap)
     └── context-on-*.md             # investigation records (Phase 7, Phase 17)
 ```
 
