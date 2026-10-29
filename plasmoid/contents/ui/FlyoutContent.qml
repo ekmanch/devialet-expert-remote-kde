@@ -16,7 +16,8 @@
 //   payload is not trustworthy on repeat updates, so a change triggers an
 //   explicit Get instead (fetchSourcesFresh()/fetchKnownAmpsFresh()).
 // - The configured startup volume is sent with every source switch
-//   (selectSource()) and after a widget-initiated power-on (documented at
+//   (selectSource()) and after every boot, widget-initiated or observed
+//   through the daemon's BootObserved signal (documented at
 //   `pendingStartupVolumeIp`).
 
 pragma ComponentBehavior: Bound
@@ -323,14 +324,25 @@ Item {
         root.runCtl("power " + (newPower ? "on" : "off"));
     }
 
-    // ---- startup volume after a widget-initiated power-on ----
-    // Widget-initiated power-on only; an external power-on (remote, front
-    // panel) is not covered. The daemon's PowerState is the boot
-    // confirmation, observed here because this file owns the only
-    // PowerState mirror and the only `power on` call site. Power-on and
-    // the volume cannot share one devialet-ctl invocation (the CLI cannot
-    // wait out a 15-19 s boot), so the volume is a separate send once "On"
-    // is observed.
+    // ---- startup volume after a boot ----
+    // Two ways in, one path out. A widget-initiated power-on arms this at
+    // click time (togglePower()). A boot started elsewhere - a phone app,
+    // the IR remote, the front panel - is reported by the daemon's
+    // BootObserved(ip) signal, the off -> on edge in that amp's own status
+    // stream (interface.rs ingest_status), and arms it in
+    // noteObservedBoot() below. The daemon emits the signal before the
+    // packet's PropertiesChanged round, so the arm lands before the
+    // PowerState "On" push that then fires onPowerStateChanged; both arrive
+    // on plasmashell's one bus connection, in order. Without this the amp's
+    // misreported post-boot volume (gotcha #8) showed for every boot the
+    // widget did not start, and nothing ever re-synced the broadcast. The
+    // daemon's PowerState is the boot confirmation, observed here because
+    // this file owns the only PowerState mirror and the only `power on`
+    // call site. Power-on and the volume cannot share one devialet-ctl
+    // invocation (the CLI cannot wait out a 15-19 s boot), so the volume is
+    // a separate send once "On" is observed. A phone app that sends its
+    // own startup volume a moment later is harmless: same value, no change;
+    // a different value lands as a normal push once the hold has released.
     //
     // Why 500 ms after "On" and not 0: a volume command that reaches the
     // amp before its own post-boot startup-volume application is dropped
@@ -339,7 +351,7 @@ Item {
     // above the latest observed, passed every trial, and is imperceptible
     // after a 15 s boot.
     //
-    // State: the IP captured at click time ("" = not armed), so a switch
+    // State: the IP captured at arm time ("" = not armed), so a switch
     // to another amp mid-boot cannot fire at the wrong amp. It lives here
     // because FlyoutPopup is a plain Dialog child of CompactRepresentation
     // with no Loader, so this item stays resident while the flyout is
@@ -410,6 +422,31 @@ Item {
     // selectSource() for why both ends are applied here.
     function startupVolumeTarget() {
         return root.volumeSettings.clamp(root.volumeSettings.startupVolumeDb);
+    }
+
+    // The daemon saw `ip` go off -> on. Arms the startup volume exactly as
+    // a power click does, so the "On" push that follows this signal takes
+    // the widget-initiated path above. Ignored for another amp, and when
+    // already armed (our own power-on: the daemon reports that edge too).
+    // Nothing else is done here - the hold and the timer start on the "On"
+    // push, which the daemon sends right after this signal.
+    function noteObservedBoot(ip) {
+        if (ip === "" || ip !== root.ampIp) return;
+        if (root.pendingStartupVolumeIp !== "") return;
+        root.pendingStartupVolumeIp = ip;
+        console.log("[FlyoutContent] boot observed for", ip, "- startup volume armed");
+    }
+
+    // The D-Bus subscription lives in PendingAmpState.qml (one
+    // SignalWatcher per interface, see its header); it forwards the
+    // daemon's BootObserved as this QML signal, synchronously inside the
+    // D-Bus handler, so the ordering ahead of the "On" push holds. An
+    // older daemon without the signal simply never emits it.
+    Connections {
+        target: root.pendingAmpState
+        function onBootObserved(ip) {
+            root.noteObservedBoot(ip);
+        }
     }
 
     function sendStartupVolume() {

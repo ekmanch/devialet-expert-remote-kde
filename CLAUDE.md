@@ -130,6 +130,15 @@ reload for KPackage applets. `--replace` briefly restarts the whole shell
 - An icon-only change needs the same restart: after `--upgrade` alone the
   Add Widgets picker showed "?" until the shell's per-process icon cache
   was rebuilt by `--replace`.
+- `./uninstall.sh` + `./install.sh` without a shell restart garbles any
+  text the widget re-lays out afterwards (seen 2026-10-29: the amp name
+  became `j /!'{'/; k?„/,; QTP v,,`, same length as the real name, while
+  unchanged labels stayed fine). The package directory is deleted and
+  recreated, so the running shell keeps the old bundled `.ttf` inodes
+  mapped (`grep '(deleted)' /proc/$(pgrep -x plasmashell)/maps`) while new
+  text is shaped against the new files; the glyph indices no longer line
+  up. Not a daemon or data problem; `systemctl --user restart
+  plasma-plasmashell.service` clears it.
 - Rust binaries are copies in `/usr/local/bin`: re-run
   `scripts/install-binaries.sh` (or `./install.sh`) after any `cargo
   build` that changes one; it copies only the binaries that differ.

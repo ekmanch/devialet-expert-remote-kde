@@ -8,7 +8,12 @@
 // VolumeDb, Muted and VolumeRaw are processed here. VolumeRaw is the
 // amp's unmasked status byte, used for the post-boot hold's
 // confirmation and exposed as `confirmedVolumeDb` for the chime. Keep
-// other properties out of this file.
+// other properties out of this file. The signal watcher below is the
+// one subscription to the interface's custom signals (Plasma's
+// SignalWatcher has no member filter and warns for every signal it has
+// no handler for, so a second watcher would log on each command): the
+// two command signals are handled here, BootObserved is forwarded
+// untouched as `bootObserved` for FlyoutContent to act on.
 //
 // Post-boot volume hold (`beginBootHold`/`endBootHold`, `bootHold*`).
 // After a boot the amp's broadcast first carries the pre-shutdown byte,
@@ -83,6 +88,10 @@ QtObject {
     // minus our own echoes. CompactRepresentation shows the OSD on these.
     signal externalVolumeCommand(real db)
     signal externalMuteCommand(bool muted)
+    // The daemon's BootObserved(ip), forwarded as-is (see the header):
+    // the amp at `ip` went off -> on in its own status stream. FlyoutContent
+    // arms the startup volume on it; nothing here acts on it.
+    signal bootObserved(string ip)
 
     // Calls this widget itself has made to Notify*Command and not yet
     // seen echoed back as a signal. Plain JS array of {id, kind, value}
@@ -413,9 +422,9 @@ QtObject {
         }
     }
 
-    // Subscription to the daemon's two custom signals (see the header).
+    // Subscription to the daemon's three custom signals (see the header).
     // Plasma's SignalWatcher dispatches each signal of `iface` to a JS
-    // function named "dbus" + <member>, arguments positionally, so the two
+    // function named "dbus" + <member>, arguments positionally, so the
     // function names below are fixed by the D-Bus signal names. A named
     // property for the same reason as ampProps above.
     readonly property Dbus.SignalWatcher commandSignals: Dbus.SignalWatcher {
@@ -430,6 +439,10 @@ QtObject {
 
         function dbusMuteCommandNotified(ip, muted) {
             root.handleCommandSignal("mute", root.unwrap(ip, ""), root.unwrap(muted, undefined));
+        }
+
+        function dbusBootObserved(ip) {
+            root.bootObserved(root.unwrap(ip, ""));
         }
     }
 

@@ -171,17 +171,28 @@ against the amp); #8–#10 were found in this widget.
   in the UDP → daemon → D-Bus path is dropping or lagging anything — the
   broadcast itself is wrong. It does not self-correct: only a volume
   command (any value) makes the broadcast track the real level again.
-- **Fix:** none possible client-side for an externally-triggered
-  power-on. The KDE widget's Phase 8.0.1 sends its configured startup
-  volume ~500 ms after a *widget-initiated* boot confirms, which
-  incidentally re-syncs the broadcast for that path only; a power-on
-  from the physical remote or front panel stays exposed. See #9 for the
-  timing constraint that send has to respect.
+- **Fix:** only a volume command re-syncs the broadcast, so the client
+  has to send one after every boot, including boots it did not start.
+  The KDE widget's Phase 8.0.1 sends its configured startup volume
+  ~500 ms after a *widget-initiated* boot confirms; Phase 18 extends
+  that to every boot the daemon sees in the amp's own status stream
+  (`power_on` false → true from the same IP, reported as the
+  `BootObserved` D-Bus signal), so a power-on from a phone app, the
+  physical remote or the front panel is covered too. Verified
+  2026-10-29 with a CLI power cycle the widget did not initiate: hold
+  armed on the first On packet, send at +500 ms, released on the
+  confirmed byte ~100 ms later. A mains cycle still is not covered: the
+  amp goes silent while reporting on, so there is no edge. See #9 for
+  the timing constraint that send has to respect.
 - **Watch out for this in Flutter:** do not "fix" a post-boot volume
   mismatch by re-reading status harder — the status *is* the wrong
   value. If the app needs a trustworthy post-boot volume, it has to set
   one (and see #9 for when that set is honored). Don't conflate this
-  with #9: same amp-side event, two distinct consequences.
+  with #9: same amp-side event, two distinct consequences. The portable
+  detector for a boot the app did not start is the off → on edge in the
+  status stream from one IP; the first packet after an app start is not
+  a boot (nothing to compare against), so an app launched while the amp
+  is on must not send.
 - **Watch out #2 (KDE widget bug, found and fixed 2026-09-20):** if the
   client masks the post-boot value until its own set is confirmed, do
   not treat "status now equals the value I intend to set" as that

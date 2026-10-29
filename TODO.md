@@ -192,6 +192,13 @@ A Dark / Light / Follow system setting across the flyout, OSD, tooltip and setti
 - [x] 17.28.0 Wrap-up
 - [x] 17.29.0 Rust tests re-run on `main`
 
+## Phase 18: Observed boots
+
+The post-boot volume hold and startup-volume send for boots the widget did not start (phone app, IR remote, front panel). Owner report 2026-10-29: a phone-initiated boot showed the amp's misreported -42 dB until the phone's own startup send landed. The daemon reports the off → on edge of an amp's status stream as `BootObserved`; the widget arms the Phase 8.0.1 path on it. A side channel to the phone apps was considered and dropped (`docs/DESIGN.md` §7).
+
+- [x] 18.0.0 Daemon `BootObserved(ip)` signal on the off → on edge, emitted before the packet's `PropertiesChanged`
+- [x] 18.1.0 Widget arms the startup volume and the post-boot hold on `BootObserved`; verified on the real amp with a CLI power cycle
+
 ## Later
 
 - [ ] The verification harness can leave the real daemon down: restart it from its enabled state and assert it owns the bus name after every run

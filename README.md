@@ -13,7 +13,7 @@ Control your Devialet Expert Pro amplifier from your Plasma panel — volume, so
 ## Features
 
 - **Live volume and mute** — scroll over the panel icon, middle-click it to mute, or use the flyout slider; the amplifier's own status broadcasts drive what you see, so the widget always shows the real level, including changes made from the remote or the front panel.
-- **Source switching** — pick any of the amplifier's inputs from the flyout; the configured startup volume is applied after every switch and after a widget-initiated power-on.
+- **Source switching** — pick any of the amplifier's inputs from the flyout; the configured startup volume is applied after every switch and after every power-on the widget sees, whether started from the widget, a phone app, the remote or the front panel.
 - **Power on and off** from the flyout, with the amplifier's real state reflected as it boots.
 - **Volume feedback chime** — an optional short tone on every scroll tick, taken from your desktop's sound theme, a theme of your choice, or a custom file.
 - **Panel tooltip and volume OSD** — hover the icon for the current amp, source and level; adjustments show a brief on-screen confirmation.
