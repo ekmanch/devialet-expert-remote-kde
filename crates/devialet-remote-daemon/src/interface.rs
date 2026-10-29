@@ -331,7 +331,8 @@ impl AmpState {
     }
 
     /// `VolumeCommandNotified(s ip, d db)`: emitted by `NotifyVolumeCommand`
-    /// for every accepted call. The only custom signals on this interface;
+    /// for every accepted call. With `MuteCommandNotified` and
+    /// `BootObserved` below, the only custom signals on this interface;
     /// everything else is `PropertiesChanged`. Bodiless per zbus 5's
     /// `#[zbus(signal)]` form; the macro generates the body.
     #[zbus(signal, name = "VolumeCommandNotified")]
@@ -349,13 +350,35 @@ impl AmpState {
         ip: &str,
         muted: bool,
     ) -> zbus::Result<()>;
+
+    /// `BootObserved(s ip)`: the status stream from `ip` went from
+    /// `power_on = false` to `power_on = true` (see `ingest_status`). Fires
+    /// for every such edge whoever started the boot - the widget, a phone
+    /// app, the IR remote, the front panel - because the daemon cannot tell
+    /// them apart and the widget already knows which boots are its own.
+    /// Emitted by main.rs before the packet's `PropertiesChanged` round, so a
+    /// listener can arm itself before the `PowerState = "On"` push that
+    /// follows on the same connection (docs/DESIGN.md §3, post-boot hold).
+    #[zbus(signal, name = "BootObserved")]
+    pub async fn boot_observed(emitter: &zbus::object_server::SignalEmitter<'_>, ip: &str) -> zbus::Result<()>;
 }
 
 impl AmpState {
     /// Records a freshly-received, already-parsed status broadcast from
     /// `ip` and re-derives every exposed field. Called once per real UDP
     /// packet from the daemon's receive loop.
-    pub fn ingest_status(&mut self, ip: String, status: proto::Status) {
+    ///
+    /// Returns `true` when this packet is the first `power_on = true` after
+    /// a tracked `power_on = false` from the same `ip`: a boot the daemon
+    /// observed in the amp's own stream, which main.rs reports as
+    /// `BootObserved`. The last-known status is kept however old it is, so
+    /// an amp that went silent while off (mains cut) still counts when it
+    /// comes back on; a first-ever packet does not (nothing to compare
+    /// against - after a daemon restart an amp that is simply on is not a
+    /// boot), nor does on -> on or off -> off. Whether a `boot_deadline`
+    /// was pending makes no difference (see `boot_observed`).
+    pub fn ingest_status(&mut self, ip: String, status: proto::Status) -> bool {
+        let boot_observed = self.amps.get(&ip).is_some_and(|amp| !amp.status.power_on) && status.power_on;
         // Carry the per-amp extras forward (see `TrackedAmp`): a naive
         // overwrite would wipe them on the next broadcast (up to ~5 Hz).
         let model_name = self.amps.get(&ip).and_then(|amp| amp.model_name.clone());
@@ -372,6 +395,7 @@ impl AmpState {
             TrackedAmp { status, last_seen: Instant::now(), model_name, boot_deadline, pending_volume_db, pending_muted },
         );
         self.recompute();
+        boot_observed
     }
 
     /// Applies an mDNS-resolved model name to a known amp (one already heard
@@ -982,6 +1006,70 @@ mod tests {
             state.amps.get("192.168.1.50").unwrap().boot_deadline.is_none(),
             "an expired deadline must be cleared, not left pending forever"
         );
+    }
+
+    // ---- BootObserved: the off -> on edge in one amp's status stream ----
+
+    #[test]
+    fn an_off_then_on_broadcast_from_the_same_amp_is_an_observed_boot() {
+        let mut state = AmpState::default();
+        assert!(!state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp")));
+        assert!(state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+        assert_eq!(state.power_state, "On");
+    }
+
+    #[test]
+    fn the_first_ever_broadcast_is_not_a_boot_even_when_it_reports_on() {
+        // A daemon restart while the amp is on: nothing to compare against,
+        // so the widget must not be told to send its startup volume.
+        let mut state = AmpState::default();
+        assert!(!state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+        assert!(!state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+    }
+
+    #[test]
+    fn repeated_off_broadcasts_and_a_power_off_are_not_boots() {
+        let mut state = AmpState::default();
+        state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp"));
+        assert!(!state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp")), "on -> off");
+        assert!(!state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp")), "off -> off");
+    }
+
+    #[test]
+    fn a_boot_is_observed_per_amp_not_across_amps() {
+        let mut state = AmpState::default();
+        state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp"));
+        assert!(
+            !state.ingest_status("192.168.1.51".to_string(), parsed_status("Bedroom Amp")),
+            "another amp's first packet must not inherit .50's off"
+        );
+        assert!(state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+    }
+
+    #[test]
+    fn a_stale_off_still_counts_when_the_amp_comes_back_on() {
+        // Mains cut while in standby: the last-known status stays off
+        // however long the silence lasts, and the first packet after the
+        // mains return is a boot.
+        let mut state = AmpState::default();
+        state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp"));
+        state.amps.get_mut("192.168.1.50").unwrap().last_seen = Instant::now() - Duration::from_secs(3600);
+        state.recompute_staleness();
+        assert!(!state.online);
+        assert!(state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+    }
+
+    #[test]
+    fn a_widget_initiated_boot_is_also_reported_as_observed() {
+        // The daemon reports the edge regardless of a pending deadline; the
+        // widget ignores it when it armed the boot itself.
+        let mut state = AmpState::default();
+        state.ingest_status("192.168.1.50".to_string(), parsed_status_off("Living Room Amp"));
+        state.amps.get_mut("192.168.1.50").unwrap().boot_deadline = Some(Instant::now() + Duration::from_secs(15));
+        state.recompute();
+        assert_eq!(state.power_state, "Booting");
+        assert!(state.ingest_status("192.168.1.50".to_string(), parsed_status("Living Room Amp")));
+        assert_eq!(state.power_state, "On");
     }
 
     #[test]

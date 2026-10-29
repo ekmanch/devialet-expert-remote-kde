@@ -63,14 +63,19 @@ AMP_METHODS = [
     ("NotifyVolumeCommand", [("ip", "s"), ("volume_db", "d")]),
     ("NotifyMuteCommand", [("ip", "s"), ("muted", "b")]),
 ]
-# The daemon's two custom signals (busctl introspect, 2026-09-27: `sb` and
+# The daemon's custom signals (busctl introspect, 2026-09-27: `sb` and
 # `sd`), emitted by NotifyMuteCommand/NotifyVolumeCommand for every accepted
-# call (Phase 16.0.0). Declared so the fake's introspection matches the real
-# daemon; emitted on demand by notify_command() / `--notify` (Phase 17.2.0)
-# so the OSD toast can be captured without a real pointer.
+# call (Phase 16.0.0), and BootObserved (`s`, Phase 18.0.0), emitted on the
+# off -> on edge of an amp's status stream. Declared so the fake's
+# introspection matches the real daemon; the first two are emitted on
+# demand by notify_command() / `--notify` (Phase 17.2.0) so the OSD toast
+# can be captured without a real pointer. BootObserved is not driven by
+# the fake: the widget's response to it is a devialet-ctl send, which the
+# real daemon and amp verify (TODO.md Phase 18.1.0).
 AMP_SIGNALS = [
     ("MuteCommandNotified", [("ip", "s"), ("muted", "b")]),
     ("VolumeCommandNotified", [("ip", "s"), ("db", "d")]),
+    ("BootObserved", [("ip", "s")]),
 ]
 # Seq deliberately last: it is the probe's trigger, everything else must
 # already be applied when it lands.

@@ -245,6 +245,12 @@ fn main() -> std::io::Result<()> {
 /// Records a freshly parsed status broadcast and emits `PropertiesChanged`
 /// only if an exposed property actually changed; otherwise every packet
 /// from a non-primary amp would cause a no-op emit.
+///
+/// A boot the packet reveals (`ingest_status` returning `true`) goes out as
+/// `BootObserved(ip)` first, for any amp, selected or not: the widget keys
+/// on it to arm its post-boot hold before the `PowerState = "On"` push in
+/// the round that follows, and D-Bus delivers both in this order on one
+/// connection (docs/DESIGN.md §3).
 fn ingest_and_maybe_emit(
     iface_ref: &zbus::blocking::object_server::InterfaceRef<AmpState>,
     ip: String,
@@ -252,7 +258,10 @@ fn ingest_and_maybe_emit(
 ) -> zbus::Result<()> {
     let mut iface = iface_ref.get_mut();
     let before = iface.clone();
-    iface.ingest_status(ip, status);
+    let boot_observed = iface.ingest_status(ip.clone(), status);
+    if boot_observed {
+        async_io::block_on(AmpState::boot_observed(iface_ref.signal_emitter(), &ip))?;
+    }
     emit_if_changed(iface_ref, &iface, &before)
 }
 
