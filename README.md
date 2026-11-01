@@ -27,6 +27,8 @@ Control your Devialet Expert Pro amplifier from your Plasma panel — volume, so
 
 The widget is a normal panel applet: drag it onto any panel via **Add Widgets**, click it for the flyout, hover it for the tooltip, scroll it for volume.
 
+The flyout screenshots have the slider under **Transparency** (widget settings → General → Appearance) set to 30%. The slider sets the flyout's opacity, so lower values are more see-through. Blur comes from [Better Blur DX](https://github.com/xarblu/kwin-effects-better-blur-dx), a third-party KWin effect that's separate from this widget and not required by it. By default the slider is at 90%, matching the tooltip and volume OSD (whose appearance isn't configurable), and setting it to 100% makes the flyout fully solid. The frosted-glass look is just my personal preference.
+
 ### The flyout
 
 <img src="docs/media/screenshots/flyout1.png" alt="Flyout open over a sunset wallpaper" width="100%">
@@ -40,6 +42,10 @@ The widget is a normal panel applet: drag it onto any panel via **Add Widgets**,
 <img src="docs/media/screenshots/flyout3.png" alt="Flyout open over a night alley wallpaper" width="100%">
 
 *Every value shown comes from the amplifier's own status broadcasts, so the flyout stays right even when the volume is changed from the physical remote.*
+
+<img src="docs/media/screenshots/flyout4.png" alt="Flyout at default settings over a mountain lake sunset wallpaper" width="100%">
+
+*The default look, out of the box: 90% opacity and no blur effect. Close to solid, and matching the tooltip and volume OSD.*
 
 ### Settings
 
