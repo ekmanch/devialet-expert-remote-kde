@@ -15,7 +15,7 @@ jobs:
       - name: Install tools
         run: pacman -Syu --noconfirm git pacman-contrib
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
 
