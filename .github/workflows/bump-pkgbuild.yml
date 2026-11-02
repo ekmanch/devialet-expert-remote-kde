@@ -36,5 +36,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
-          git commit -m "Bump PKGBUILD to ${GITHUB_REF_NAME}" || exit 0
+          git commit -m "chore(packaging): repoint AUR PKGBUILD at ${GITHUB_REF_NAME}" || exit 0
           git push origin HEAD:main
