@@ -1,0 +1,40 @@
+name: Bump PKGBUILD
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm git pacman-contrib
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update PKGBUILD and .SRCINFO
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          grep -q "\"Version\": \"$ver\"" plasmoid/metadata.json || { echo "metadata.json version != $ver"; exit 1; }
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          cd packaging/aur
+          sed -i "s/^pkgver=.*/pkgver=$ver/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sudo -u builder updpkgsums
+          sudo -u builder makepkg --printsrcinfo > .SRCINFO
+
+      - name: Commit to main
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packaging/aur/PKGBUILD packaging/aur/.SRCINFO
+          git commit -m "Bump PKGBUILD to ${GITHUB_REF_NAME}" || exit 0
+          git push origin HEAD:main
