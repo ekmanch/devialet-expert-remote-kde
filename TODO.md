@@ -213,6 +213,7 @@ The copper dot replaced by a monochrome glyph in the panel's text colour, in two
 - [x] 19.7.0 Settings page: the Theme description says "the widget when it's open" instead of "popup"
 - [x] 19.8.0 `CLAUDE.md`: the `docs/DESIGN.md` description names §8 "Panel icon"
 - [x] 19.9.0 Removed the unused `devialet_icon_glow_dot.svg`
+- [x] 19.10.0 No number while the volume is not known (amp off, booting, no amp): the panel icon collapses to the glyph alone, no dash
 
 ## Later
 

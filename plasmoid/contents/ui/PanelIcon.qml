@@ -1,6 +1,6 @@
 // The panel icon: PanelGlyph plus, on a horizontal panel with the setting
-// on, the volume number (docs/DESIGN.md §8; tray icon mockup v7 widget()
-// :339-345). Derives the glyph's state from the amp's, and sizes the gap
+// on and the volume known, the volume number (docs/DESIGN.md §8; tray icon
+// mockup v8 widget() :342-350). Derives the glyph's state from the amp's, and sizes the gap
 // and the number from the glyph (the mockup's 20 px glyph, 6 px gap, 14 px
 // number). No Plasmoid or Kirigami import: CompactRepresentation.qml binds
 // everything in, so tests/qml/tst_PanelIcon.qml can drive it directly.
@@ -44,7 +44,9 @@ Item {
     // The level and the number show only while the volume is known.
     readonly property bool volumeKnown: (root.glyphState === "normal" || root.glyphState === "muted")
         && typeof root.volumeDb === "number"
-    readonly property bool numberShown: root.showNumber && !root.vertical
+    // Without a known volume there is no number and no reserved width: the
+    // icon is the glyph alone (mockup v8, widget() :346-347).
+    readonly property bool numberShown: root.showNumber && !root.vertical && root.volumeKnown
 
     readonly property int gap: Math.round(root.glyphSize * 0.3)
     // The wider of the two range ends, as the number prints them.
@@ -74,7 +76,6 @@ Item {
         anchors.leftMargin: root.gap
         anchors.verticalCenter: parent.verticalCenter
         visible: root.numberShown
-        known: root.volumeKnown
         volumeDb: root.volumeKnown ? root.volumeDb : 0
         muted: root.glyphState === "muted"
         color: root.color

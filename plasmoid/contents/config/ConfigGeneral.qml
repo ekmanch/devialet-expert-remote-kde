@@ -639,7 +639,6 @@ KCM.SimpleKCM {
                     objectName: "previewNumber"
                     Layout.alignment: Qt.AlignVCenter
                     visible: root.cfg_panelIconShowVolume
-                    known: true
                     volumeDb: root.previewVolumeDb
                     fontPixelSize: 14
                     color: root.colors.text

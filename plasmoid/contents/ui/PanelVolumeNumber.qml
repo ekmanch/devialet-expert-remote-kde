@@ -1,10 +1,11 @@
 // The volume number beside the panel glyph (docs/DESIGN.md §8; tray icon
-// mockup v7 `.dv-num` :102-104 and widget() :339-345): whole dB in the mono
-// font with a small "dB" at 0.7 em and 60 %, or a dash while the volume is
-// not known. Also the settings page's Preview number.
+// mockup v8 `.dv-num` :102-104 and widget() :342-350): whole dB in the mono
+// font with a small "dB" at 0.7 em and 60 %. Only ever a number: while the
+// volume is not known PanelIcon hides it. Also the settings page's Preview
+// number.
 //
 // `reserveChars` > 0 fixes the width at that many digits plus the unit
-// (the mockup's RESERVE, :337), so nothing beside the number moves when
+// (the mockup's RESERVE, :340), so nothing beside the number moves when
 // its length changes; the text is left-aligned inside it. 0 sizes to the
 // text (the Preview, which is right-aligned by its row instead).
 
@@ -15,8 +16,6 @@ import QtQuick
 Item {
     id: root
 
-    // False: shows the dash (amp off, booting, or none).
-    property bool known: false
     property real volumeDb: 0
     // Mockup `.dv-num.faded`.
     property bool muted: false
@@ -27,7 +26,7 @@ Item {
     readonly property Theme theme: Theme {}
 
     // "−22" for -22.4: U+2212 and the rounded magnitude (mockup fmt(),
-    // :336). The sign comes from the rounded value, so -0.4 is "0".
+    // :339). The sign comes from the rounded value, so -0.4 is "0".
     function format(db) {
         const rounded = Math.round(db);
         return (rounded < 0 ? "−" : "") + Math.abs(rounded);
@@ -36,7 +35,7 @@ Item {
     // `.u{margin-left:1px}`.
     readonly property int unitGap: 1
     readonly property real reservedWidth: Math.ceil(root.reserveChars * digit.advanceWidth + root.unitGap + unit.implicitWidth)
-    readonly property real naturalWidth: number.implicitWidth + (root.known ? root.unitGap + unit.implicitWidth : 0)
+    readonly property real naturalWidth: number.implicitWidth + root.unitGap + unit.implicitWidth
 
     implicitWidth: root.reserveChars > 0 ? root.reservedWidth : Math.ceil(root.naturalWidth)
     implicitHeight: number.implicitHeight
@@ -55,7 +54,7 @@ Item {
         objectName: "number"
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        text: root.known ? root.format(root.volumeDb) : "—"
+        text: root.format(root.volumeDb)
         textFormat: Text.PlainText
         font.family: root.theme.fontMono
         font.pixelSize: root.fontPixelSize
@@ -71,7 +70,6 @@ Item {
         anchors.left: number.right
         anchors.leftMargin: root.unitGap
         anchors.baseline: number.baseline
-        visible: root.known
         text: "dB"
         textFormat: Text.PlainText
         font.family: root.theme.fontMono

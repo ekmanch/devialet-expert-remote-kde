@@ -1,7 +1,8 @@
 // QtTest for the panel icon (Phase 19, docs/DESIGN.md §8), run by
 // scripts/test-qml.sh. Geometry and state only (offscreen paints Shapes
 // and effects blank): the five states, which parts each state shows, the
-// number's fixed reserved width, and the vertical-panel rule.
+// number's fixed reserved width, the glyph alone while the volume is not
+// known, and the vertical-panel rule.
 
 import QtQuick
 import QtTest
@@ -75,19 +76,23 @@ Item {
             icon.hasAmp = data.hasAmp;
             icon.powerState = data.power;
             compare(icon.volumeKnown, data.known);
-            compare(part("number").text, data.known ? "−22" : "—");
-            compare(part("unit").visible, data.known);
+            compare(icon.numberShown, data.known);
+            compare(part("volumeNumber").visible, data.known);
+            if (data.known)
+                compare(part("number").text, "−22");
             icon.style = "dial";
             compare(part("dialLevel").visible, data.known);
             icon.style = "level";
             compare(part("levelFillPartial").visible, data.known);
         }
 
-        function test_on_without_a_volume_yet_shows_the_dash() {
+        function test_on_without_a_volume_yet_is_the_glyph_alone() {
             icon.volumeDb = undefined;
             compare(icon.glyphState, "normal");
             verify(!icon.volumeKnown);
-            compare(part("number").text, "—");
+            verify(!icon.numberShown);
+            verify(!part("volumeNumber").visible);
+            compare(icon.implicitWidth, icon.glyphSize);
         }
 
         function test_dial_parts() {
@@ -152,9 +157,9 @@ Item {
             icon.animate = true;
         }
 
-        // The reserved width: nothing beside the icon moves when the volume
-        // or the state changes.
-        function test_width_is_fixed_across_volumes_and_states() {
+        // The reserved width: nothing beside the icon moves while a number
+        // is shown (normal, muted), whatever the volume or the style.
+        function test_width_is_fixed_while_a_number_is_shown() {
             const width = icon.implicitWidth;
             verify(width > icon.glyphSize);
             for (const db of [-45, -22.5, -10, -9, 0]) {
@@ -163,14 +168,39 @@ Item {
             }
             icon.muted = true;
             compare(icon.implicitWidth, width);
-            icon.powerState = "Off";
-            compare(icon.implicitWidth, width);
-            icon.powerState = "Booting";
-            compare(icon.implicitWidth, width);
-            icon.hasAmp = false;
-            compare(icon.implicitWidth, width);
             icon.style = "level";
             compare(icon.implicitWidth, width);
+            icon.muted = false;
+            compare(icon.implicitWidth, width);
+        }
+
+        // No known volume: the number is removed and the icon collapses to
+        // the glyph alone, in both styles.
+        function test_collapses_to_the_glyph_without_a_known_volume_data() {
+            return [
+                { tag: "off", hasAmp: true, power: "Off" },
+                { tag: "booting", hasAmp: true, power: "Booting" },
+                { tag: "no amp", hasAmp: false, power: "Off" }
+            ];
+        }
+        function test_collapses_to_the_glyph_without_a_known_volume(data) {
+            const numbered = icon.implicitWidth;
+            for (const style of ["dial", "level"]) {
+                icon.style = style;
+                icon.hasAmp = true;
+                icon.powerState = "On";
+                compare(icon.implicitWidth, numbered);
+                icon.hasAmp = data.hasAmp;
+                icon.powerState = data.power;
+                verify(!icon.numberShown);
+                verify(!part("volumeNumber").visible);
+                compare(icon.implicitWidth, icon.glyphSize);
+            }
+            // The reserved width is back, unchanged, with the number.
+            icon.hasAmp = true;
+            icon.powerState = "On";
+            verify(icon.numberShown);
+            compare(icon.implicitWidth, numbered);
         }
 
         function test_reserve_fits_the_wider_range_end() {

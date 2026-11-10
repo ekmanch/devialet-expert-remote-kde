@@ -1,4 +1,4 @@
-// The panel icon's glyph (docs/DESIGN.md §8; tray icon mockup v7,
+// The panel icon's glyph (docs/DESIGN.md §8; tray icon mockup v8,
 // "Geometry" :232-260 and the dial()/level()/dashed()/slash() builders
 // :285-332). Two styles on a 24-unit grid, five states, every stroke and
 // fill in the one `color` it is handed: Kirigami.Theme.textColor on the
