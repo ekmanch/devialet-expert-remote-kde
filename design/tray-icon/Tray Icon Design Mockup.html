@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Devialet Panel Icon — Mockup v7</title>
+<title>Tray Icon Design Mockup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -156,7 +156,7 @@
 </head>
 <body>
 
-<div class="mockup-tag">MOCKUP · PANEL ICON — V7 (DIAL + LEVEL, ALL STATES)</div>
+<div class="mockup-tag">MOCKUP · PANEL ICON — V8 (DIAL + LEVEL, ALL STATES)</div>
 
 <div class="page">
 
@@ -214,9 +214,9 @@
     <div class="grid-corner"></div>
     <div><div class="grid-head">Normal</div><div class="grid-desc">Level shows volume between floor and ceiling</div></div>
     <div><div class="grid-head">Muted</div><div class="grid-desc">Level and number fade, slash across</div></div>
-    <div><div class="grid-head">Amp off</div><div class="grid-desc">Empty outline at 35%, dash</div></div>
-    <div><div class="grid-head">Booting</div><div class="grid-desc">Empty outline pulses, dash</div></div>
-    <div><div class="grid-head">No amp</div><div class="grid-desc">Dashed ring (shared), dash</div></div>
+    <div><div class="grid-head">Amp off</div><div class="grid-desc">Empty outline at 35%, no number</div></div>
+    <div><div class="grid-head">Booting</div><div class="grid-desc">Empty outline pulses, no number</div></div>
+    <div><div class="grid-head">No amp</div><div class="grid-desc">Dashed ring (shared), no number</div></div>
   </div>
 
   <h2>Vertical panels</h2>
@@ -260,6 +260,9 @@
   </div>
 
   <div class="legend">
+    <b>v8: no dash.</b> When the volume isn't known (off, booting, no amp) the number is removed and the widget collapses to the glyph alone;
+    the glyph already says which state it is. Neighbouring icons shift once on those state changes, which is rare; the reserved width that
+    keeps them still while you scroll applies unchanged whenever a number is shown (normal, muted).<br>
     <b>State rule changed from v1–v4</b>: earlier mockups kept showing the volume arc while the amp was off or booting, even though the number
     had already become a dash. Now both agree: the level and the number only show when the volume is known (normal, muted). Off and booting
     show the empty outline, dimmed or pulsing. No amp is the same dashed ring for both styles.<br>
@@ -340,7 +343,9 @@
     const glyph = `<span class="p-icon">${GLYPH[variant](s, frac())}</span>`;
     if (orient === 'v' || !showNum) return `<span class="dv" tabindex="0">${glyph}</span>`;
     const known = s === 'normal' || s === 'muted';
-    const text = known ? `${fmt(vol)}<span class="u">dB</span>` : '—';
+    // v8: no known volume (off, booting, no amp) → glyph only, widget collapses
+    if (!known) return `<span class="dv" tabindex="0">${glyph}</span>`;
+    const text = `${fmt(vol)}<span class="u">dB</span>`;
     return `<span class="dv" tabindex="0">${glyph}<span class="dv-num${s === 'muted' ? ' faded' : ''}" style="width:${RESERVE}">${text}</span></span>`;
   }
 
