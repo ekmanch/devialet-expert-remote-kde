@@ -32,6 +32,17 @@
       <default>90</default>
     </entry>
 
+    <!-- Panel icon (docs/DESIGN.md §8). panelIconStyle: "dial" or
+         "level". panelIconShowVolume: the dB number beside the glyph,
+         always hidden on a vertical panel whatever this says. Both are
+         read directly by CompactRepresentation.qml. -->
+    <entry name="panelIconStyle" type="String">
+      <default>dial</default>
+    </entry>
+    <entry name="panelIconShowVolume" type="Bool">
+      <default>true</default>
+    </entry>
+
     <!-- Volume step for the flyout's +/- buttons, slider stepSize and
          scroll steps (VolumeSettings.qml). -->
     <entry name="volumeStepDb" type="Double">
