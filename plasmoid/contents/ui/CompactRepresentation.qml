@@ -1,5 +1,6 @@
 // Panel icon: click toggles the flyout, middle-click toggles mute, the
-// wheel steps the volume, and hovering shows the volume tooltip. Keeps its
+// wheel steps the volume, and hovering shows the volume tooltip. The icon
+// itself is PanelIcon.qml (docs/DESIGN.md §8). Keeps its
 // own small D-Bus mirror (AmpIp, DeviceName, ActiveSourceName) and its own
 // devialet-ctl DataSource. Cross-view state (volume/mute, volume range,
 // transparency, theme, power) comes from main.qml's root-anchored objects,
@@ -9,7 +10,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.plasma.workspace.dbus as Dbus
 import org.kde.plasma.plasma5support as P5Support
@@ -91,7 +94,6 @@ MouseArea {
     // Exposed for hoverTooltip's bindings below.
     readonly property string ampDisplayName: root.deviceName !== "" ? root.deviceName : "Devialet"
     readonly property string tooltipAmpName: root.ampIp === "" ? "No Amplifier" : root.ampDisplayName
-    readonly property string iconSource: Plasmoid.icon
 
     // 0..1 position of the shared volume for the tooltip/toast progress
     // bars. VolumeSettings.fractionFor() is the same math the flyout
@@ -262,15 +264,43 @@ MouseArea {
         }
     }
 
-    Kirigami.Icon {
-        anchors.fill: parent
-        source: Plasmoid.icon
-        // The panel SVG uses hardcoded copper fill/stroke, so isMask is
-        // off: its own colours and the outer ring's opacity (the "glow")
-        // render as designed instead of a flat text-colour mask. Trade-off:
-        // it does not adapt to a light panel theme like a symbolic icon
-        // would - not yet verified against a light Plasma theme.
-        isMask: false
+    // ---- The icon (docs/DESIGN.md §8) ----
+    // The glyph takes the size a Kirigami.Icon filling this cell would
+    // paint at, so it matches the neighbouring applets' icons.
+    readonly property int glyphSize: Kirigami.Units.iconSizes.roundedIconSize(Math.min(root.width, root.height))
+
+    // With the number shown the cell must be wider than the square the
+    // panel gives an applet that states no size. The glyph keeps the
+    // square cell's own padding ((height - glyphSize) / 2) on its left and
+    // the number gets the same on its right, so the width is the square
+    // plus the gap and the number: `height`, never `width`, feeds it. With
+    // the number hidden the hints stay unset (-1) and the cell is the
+    // panel's default square.
+    readonly property real numberedWidth: root.height + panelIcon.implicitWidth - root.glyphSize
+    Layout.minimumWidth: panelIcon.numberShown ? root.numberedWidth : -1
+    Layout.preferredWidth: panelIcon.numberShown ? root.numberedWidth : -1
+    Layout.maximumWidth: panelIcon.numberShown ? root.numberedWidth : -1
+
+    PanelIcon {
+        id: panelIcon
+        anchors.centerIn: parent
+        glyphSize: root.glyphSize
+        // Never a hardcoded colour: the panel's own text colour, like a
+        // symbolic icon.
+        color: Kirigami.Theme.textColor
+        style: Plasmoid.configuration.panelIconStyle
+        showNumber: Plasmoid.configuration.panelIconShowVolume
+        vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
+        hasAmp: root.ampIp !== ""
+        powerState: root.powerState
+        muted: root.pendingAmpState.muted
+        volumeDb: root.pendingAmpState.volumeDb
+        fraction: root.volumeFraction
+        floorDb: root.volumeSettings.floorDb
+        ceilingDb: root.volumeSettings.hardLimitDb
+        // Reduced motion: no booting pulse when the desktop's animations
+        // are off (durations are 0 then).
+        animate: Kirigami.Units.longDuration > 0
     }
 
     VolumeToast {

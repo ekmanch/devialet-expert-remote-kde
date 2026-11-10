@@ -12,12 +12,9 @@ import org.kde.plasma.workspace.dbus as Dbus
 PlasmoidItem {
     id: root
 
-    // Panel icon, a bundled SVG (Plasmoid.icon accepts a resolvable path,
-    // not just a theme name). metadata.json's KPlugin.Icon is a separate,
-    // theme-only mechanism (docs/DESIGN.md §4). The artwork uses hardcoded
-    // copper, not currentColor; see CompactRepresentation.qml for why
-    // isMask is off.
-    Plasmoid.icon: Qt.resolvedUrl("../icons/devialet_icon_glow_dot.svg")
+    // Plasmoid.icon is left at its default (metadata.json's KPlugin.Icon):
+    // the panel icon is drawn by CompactRepresentation.qml's PanelIcon,
+    // not loaded from an icon file (docs/DESIGN.md §8).
 
     // Duplicated from CompactRepresentation/FlyoutContent because
     // applyImmediateClamp() must work whichever representation is resident.
