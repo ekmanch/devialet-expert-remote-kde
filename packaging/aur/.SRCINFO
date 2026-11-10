@@ -1,6 +1,6 @@
 pkgbase = devialet-expert-remote-kde
 	pkgdesc = KDE Plasma 6 panel widget, status daemon and CLI for a Devialet Expert Pro amplifier
-	pkgver = 1.1.1
+	pkgver = 1.2.0
 	pkgrel = 1
 	url = https://github.com/ekmanch/devialet-expert-remote-kde
 	install = devialet-expert-remote-kde.install
@@ -23,7 +23,7 @@ pkgbase = devialet-expert-remote-kde
 	depends = hicolor-icon-theme
 	depends = libpulse
 	optdepends = ocean-sound-theme: default volume-change chime sound
-	source = devialet-expert-remote-kde::git+https://github.com/ekmanch/devialet-expert-remote-kde.git#tag=v1.1.1
-	sha256sums = 5b77aea43a54675fbe0d64876a975f8d1fc36150c7f35ed045745615b117f3b0
+	source = devialet-expert-remote-kde::git+https://github.com/ekmanch/devialet-expert-remote-kde.git#tag=v1.2.0
+	sha256sums = d37d0f8df74c715b846bb7489c6b7b9793427809b57d5370d915cb155336d267
 
 pkgname = devialet-expert-remote-kde
