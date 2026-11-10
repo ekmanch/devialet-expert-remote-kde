@@ -20,9 +20,9 @@
 //
 // Layout follows the OSD mockup (devialet_volume_osd_mockup_v3 and later):
 // icon + name + value + progress bar + source line, with a distinct muted
-// treatment. Shared with VolumeHoverTooltip.qml: the icon thresholds and
-// paths in Theme.qml (plasma-pa's AudioIcon::forVolume breakpoints) and
-// the palette's osdGradientTop/Bottom card gradient.
+// treatment. The icon thresholds and paths are in Theme.qml (plasma-pa's
+// AudioIcon::forVolume breakpoints); the card gradient is the palette's
+// osdGradientTop/Bottom.
 
 pragma ComponentBehavior: Bound
 
@@ -37,7 +37,7 @@ PlasmaCore.Dialog {
     id: toast
 
     readonly property Theme theme: Theme {}
-    // `colors` is ThemeSettings' OSD/tooltip palette, kept separate from
+    // `colors` is ThemeSettings' OSD palette, kept separate from
     // the flyout's (docs/DESIGN.md §6).
     required property ThemeSettings themeSettings
     readonly property ColorPalette colors: toast.themeSettings.osdPalette
@@ -61,8 +61,8 @@ PlasmaCore.Dialog {
         toast.ampName = ampName;
         toast.sourceName = sourceName;
         toast.muted = muted;
-        // While muted, show "Muted" rather than the dB value (the tooltip's
-        // rule). The value label reads isWordValue/valueText, not muted.
+        // While muted, show "Muted" rather than the dB value. The value
+        // label reads isWordValue/valueText, not muted.
         toast.isWordValue = muted;
         toast.valueText = muted ? "Muted" : volumeDb.toFixed(1);
         toast.fraction = fraction;

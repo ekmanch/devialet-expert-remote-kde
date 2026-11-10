@@ -199,7 +199,24 @@ The post-boot volume hold and startup-volume send for boots the widget did not s
 - [x] 18.0.0 Daemon `BootObserved(ip)` signal on the off → on edge, emitted before the packet's `PropertiesChanged`
 - [x] 18.1.0 Widget arms the startup volume and the post-boot hold on `BootObserved`; verified on the real amp with a CLI power cycle
 
+## Phase 19: Panel icon redesign
+
+The copper dot replaced by a monochrome glyph in the panel's text colour, in two styles (Dial, Level) and five states, with an optional volume number beside it and a Panel Icon section on the settings page. Spec: `design/tray-icon/Tray Icon Design Mockup.html` and `design/configDialog/ConfigDialog Design Mockup.html`; rules in `docs/DESIGN.md` §8.
+
+- [x] 19.0.0 `PanelGlyph.qml`: the Dial and Level glyphs in all five states
+- [x] 19.1.0 `PanelVolumeNumber.qml` and `PanelIcon.qml`: the volume number with a fixed reserved width, hidden on vertical panels
+- [x] 19.2.0 kcfg keys `panelIconStyle` and `panelIconShowVolume` (defaults Dial, on)
+- [x] 19.3.0 Cutover: the panel shows `PanelIcon` instead of the copper dot; scroll and middle-click unchanged
+- [x] 19.4.0 Settings page: Panel Icon section (Icon style, Show volume next to icon, Preview)
+- [x] 19.5.0 Settings page: "Opacity" slider label and the new Transparency description
+- [x] 19.6.0 Settings page: Title Case for the "Icon Style" and "Show Volume Next to Icon" rows
+- [x] 19.7.0 Settings page: the Theme description says "the widget when it's open" instead of "popup"
+- [x] 19.8.0 `CLAUDE.md`: the `docs/DESIGN.md` description names §8 "Panel icon"
+- [x] 19.9.0 Removed the unused `devialet_icon_glow_dot.svg`
+- [x] 19.10.0 No number while the volume is not known (amp off, booting, no amp): the panel icon collapses to the glyph alone, no dash
+- [x] 19.11.0 Hover tooltip removed (`VolumeHoverTooltip.qml` and its mockup): the icon and the OSD already show everything it did
+
 ## Later
 
 - [ ] The verification harness can leave the real daemon down: restart it from its enabled state and assert it owns the bus name after every run
-- [ ] Option for the OSD and tooltip to follow the desktop's appearance instead of the widget's theme (owner idea, not decided)
+- [ ] Option for the OSD to follow the desktop's appearance instead of the widget's theme (owner idea, not decided)

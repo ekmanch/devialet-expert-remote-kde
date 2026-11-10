@@ -27,9 +27,10 @@ all three.
 
 - `docs/DESIGN.md` — how the widget works and why: architecture, the D-Bus
   surface, state and behaviour rules, the settings dialog, QML house rules,
-  the light theme, and what was decided against. **Settled — read it
-  before changing any of those areas, and don't re-derive or relitigate
-  what it records.** Add a rule there when a new decision is made.
+  the light theme, what was decided against, and the panel icon.
+  **Settled — read it before changing any of those areas, and don't
+  re-derive or relitigate what it records.** Add a rule there when a new
+  decision is made.
 - `docs/protocol.md` — UDP packet structure, transport details, command
   types. Treat as the spec for the networking layer. Anything marked
   "inferred, not confirmed" should be verified against the real device
@@ -90,8 +91,8 @@ Mode/Bass/Treble (UDP bytes not reverse-engineered).
     (`docs/DESIGN.md` §6, capture rule).
 - Flyout harness: `tools/flyout-harness/harness.py` (Wayland, `spectacle`
   captures, a `theme` dimension, `expected-17.json` as the current
-  allowlist); see its README. The real ConfigDialog and the tooltip hover
-  remain owner checks.
+  allowlist); see its README. The real ConfigDialog remains an owner
+  check.
 
 ## Working style
 
@@ -248,7 +249,7 @@ already be the corruption).
   of this Wayland session is a fully transparent PNG with exit code 0.
   Fail hard on an all-transparent capture in any screenshot-driven check,
   as `tools/flyout-harness/harness.py` does.
-- Standalone QML drivers: the toast, tooltip and settings page render under
+- Standalone QML drivers: the toast and settings page render under
   `/usr/lib/qt6/bin/qml` on Wayland (reparent a Dialog's `mainItem` into a
   plain Window; for the page, set `page.pageScheme.dark` after the portal
   reply and pin window colours with a scratch `XDG_CONFIG_HOME/kdeglobals`).
@@ -285,7 +286,7 @@ devialet-expert-remote-kde/
 │                                   #   its own copies); hicolor/ holds the
 │                                   #   Add Widgets picker icon
 ├── design/                         # HTML mockups: configDialog/, flyout/,
-│                                   #   OSD/, tooltip/
+│                                   #   OSD/, tray-icon/
 ├── scripts/                        # install-binaries.sh, install-daemon-unit.sh,
 │                                   #   install-plasmoid.sh, test-qml.sh
 ├── systemd/devialet-remote-daemon.service

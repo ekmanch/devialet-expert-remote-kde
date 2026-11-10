@@ -12,12 +12,9 @@ import org.kde.plasma.workspace.dbus as Dbus
 PlasmoidItem {
     id: root
 
-    // Panel icon, a bundled SVG (Plasmoid.icon accepts a resolvable path,
-    // not just a theme name). metadata.json's KPlugin.Icon is a separate,
-    // theme-only mechanism (docs/DESIGN.md §4). The artwork uses hardcoded
-    // copper, not currentColor; see CompactRepresentation.qml for why
-    // isMask is off.
-    Plasmoid.icon: Qt.resolvedUrl("../icons/devialet_icon_glow_dot.svg")
+    // Plasmoid.icon is left at its default (metadata.json's KPlugin.Icon):
+    // the panel icon is drawn by CompactRepresentation.qml's PanelIcon,
+    // not loaded from an icon file (docs/DESIGN.md §8).
 
     // Duplicated from CompactRepresentation/FlyoutContent because
     // applyImmediateClamp() must work whichever representation is resident.
@@ -200,11 +197,11 @@ PlasmoidItem {
     // on the icon) can still show the shell's popup with this empty
     // placeholder. Left unhandled: no shortcut is bound by default, the
     // box dismisses on Escape or any outside click, and the real flyout
-    // and tooltip follow flyoutPopup.visible, not `expanded`.
+    // follows flyoutPopup.visible, not `expanded`.
 
-    // CompactRepresentation draws its own hover tooltip
-    // (VolumeHoverTooltip.qml), so the shell's must stay silent. Leaving
-    // these unset is not enough: PlasmoidItem falls back to metadata.json's
+    // The panel icon has no hover tooltip: the icon and the OSD already
+    // show everything one would (docs/DESIGN.md §7), so the shell's must
+    // stay silent. Leaving these unset is not enough: PlasmoidItem falls back to metadata.json's
     // Name/Comment while the string is null. Assigning "" makes it empty
     // and non-null, so ToolTipArea::isValid() is false.
     toolTipMainText: ""

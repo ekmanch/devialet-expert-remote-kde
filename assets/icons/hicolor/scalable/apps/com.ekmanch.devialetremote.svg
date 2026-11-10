@@ -10,8 +10,8 @@
   Design: the settings mockup's .brand-mark (design/mockups/settings_window/
   devialet_config_dialog_mockup_v25_single_tab.html) - a rounded graphite
   tile (surface #1a1a1d, 1px copper-dim #8a5c39 border) carrying the copper
-  glow dot used everywhere else (contents/icons/devialet_icon_glow_dot.svg:
-  copper-bright #e3a06a dot + 35% ring). Same tokens as all four mockups.
+  glow dot (copper-bright #e3a06a dot + 35% ring). Same tokens as all four
+  mockups.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>

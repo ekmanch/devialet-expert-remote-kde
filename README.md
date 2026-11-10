@@ -16,18 +16,18 @@ Control your Devialet Expert Pro amplifier from your Plasma panel — volume, so
 - **Source switching** — pick any of the amplifier's inputs from the flyout; the configured startup volume is applied after every switch and after every power-on the widget sees, whether started from the widget, a phone app, the remote or the front panel.
 - **Power on and off** from the flyout, with the amplifier's real state reflected as it boots.
 - **Volume feedback chime** — an optional short tone on every scroll tick, taken from your desktop's sound theme, a theme of your choice, or a custom file.
-- **Panel tooltip and volume OSD** — hover the icon for the current amp, source and level; adjustments show a brief on-screen confirmation.
+- **Volume OSD** — adjustments from the panel icon show a brief on-screen confirmation with the amp, source and level.
 - **Configurable limits** — a slider floor, an absolute volume ceiling the amplifier is never sent past, a scroll step of 0.5, 1 or 2 dB, and a startup volume.
-- **Dark and light themes** — pick Dark or Light for the flyout, tooltip and OSD, or let them follow your desktop's color scheme. The settings page follows the desktop scheme by itself.
+- **Dark and light themes** — pick Dark or Light for the flyout and OSD, or let them follow your desktop's color scheme. The settings page follows the desktop scheme by itself.
 - **Adjustable transparency** for the flyout.
 - **Multi-amp aware** — every Expert Pro broadcasting on your network is discovered automatically; pick the one to control from the flyout header.
 - **Launch at login** — the background daemon runs as a `systemd --user` service, toggled straight from the settings page.
 
 ## Screenshots
 
-The widget is a normal panel applet: drag it onto any panel via **Add Widgets**, click it for the flyout, hover it for the tooltip, scroll it for volume.
+The widget is a normal panel applet: drag it onto any panel via **Add Widgets**, click it for the flyout, scroll it for volume.
 
-The flyout screenshots have the slider under **Transparency** (widget settings → General → Appearance) set to 30%. The slider sets the flyout's opacity, so lower values are more see-through. Blur comes from [Better Blur DX](https://github.com/xarblu/kwin-effects-better-blur-dx), a third-party KWin effect that's separate from this widget and not required by it. By default the slider is at 90%, matching the tooltip and volume OSD (whose appearance isn't configurable), and setting it to 100% makes the flyout fully solid. The frosted-glass look is just my personal preference.
+The flyout screenshots have the slider under **Transparency** (widget settings → General → Appearance) set to 30%. The slider sets the flyout's opacity, so lower values are more see-through. Blur comes from [Better Blur DX](https://github.com/xarblu/kwin-effects-better-blur-dx), a third-party KWin effect that's separate from this widget and not required by it. By default the slider is at 90%, matching the volume OSD (whose appearance isn't configurable), and setting it to 100% makes the flyout fully solid. The frosted-glass look is just my personal preference.
 
 ### The flyout
 
@@ -45,7 +45,7 @@ The flyout screenshots have the slider under **Transparency** (widget settings �
 
 <img src="docs/media/screenshots/flyout4.png" alt="Flyout at default settings over a mountain lake sunset wallpaper" width="100%">
 
-*The default look, out of the box: 90% opacity and no blur effect. Close to solid, and matching the tooltip and volume OSD.*
+*The default look, out of the box: 90% opacity and no blur effect. Close to solid, and matching the volume OSD.*
 
 ### Settings
 
@@ -55,15 +55,11 @@ The flyout screenshots have the slider under **Transparency** (widget settings �
 
 *Every setting lives on one page: theme, transparency, scroll step, startup and limit volumes, chime sound, and launch at login. Open it from the gear in the flyout.*
 
-### Panel tooltip & volume OSD
+### Volume OSD
 
-<img src="docs/media/screenshots/tooltip_osd1.png" alt="Volume OSD and panel tooltip over a mountain wallpaper" width="100%">
+<img src="docs/media/screenshots/tooltip_osd1.png" alt="Volume OSD over a mountain wallpaper" width="100%">
 
-*Hover the icon for live status; scroll to adjust and the OSD in the middle of the screen confirms the new level.*
-
-<img src="docs/media/screenshots/tooltip1.png" alt="Panel tooltip over an abstract wallpaper" width="100%">
-
-*The hover tooltip: amplifier name, active source and current volume, plus the two shortcuts — scroll to adjust, middle-click to mute.*
+*Scroll over the panel icon to adjust and the OSD in the middle of the screen confirms the new level.*
 
 ## Requirements
 
@@ -99,13 +95,13 @@ Two things are deliberately left in place, and named when the script finishes: t
 
 ## Try before installing
 
-Design mockups for every UI surface live under [`design/`](design/) as standalone HTML files — the [flyout](design/flyout/), the [settings window](design/configDialog/), the [panel tooltip](design/tooltip/) and the [volume OSD](design/OSD/). Open any of them directly in a browser to click through the interactions before installing anything. They are the reference the widget is built to match.
+Design mockups for every UI surface live under [`design/`](design/) as standalone HTML files — the [flyout](design/flyout/), the [settings window](design/configDialog/), the [panel icon](design/tray-icon/) and the [volume OSD](design/OSD/). Open any of them directly in a browser to click through the interactions before installing anything. They are the reference the widget is built to match.
 
 ## Architecture
 
 Three small parts, Rust and QML only, no C++:
 
-- **The plasmoid** (`plasmoid/`) — QML for the panel icon, flyout, tooltip, OSD and settings page.
+- **The plasmoid** (`plasmoid/`) — QML for the panel icon, flyout, OSD and settings page.
 - **`devialet-remote-daemon`** — a small Rust service, run by `systemd --user`, that listens for the amplifier's UDP status broadcasts and publishes the current state over D-Bus. The plasmoid reads that state via property change notifications, so nothing polls.
 - **`devialet-ctl`** — a single-shot Rust command the plasmoid runs for each action (volume, mute, power, source), sending one UDP command packet to the amplifier. `devialet-chime` plays the volume feedback tone the same way.
 

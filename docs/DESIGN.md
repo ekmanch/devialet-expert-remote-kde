@@ -41,7 +41,7 @@ Bus name `com.ekmanch.DevialetRemote`, object `/com/ekmanch/DevialetRemote/Amp`,
 
 ## 3. State and behaviour
 
-**The daemon owns pending command state.** After `NotifyVolumeCommand` / `NotifyMuteCommand`, `VolumeDb` / `Muted` show the commanded value until a broadcast confirms it or 400 ms pass (`PENDING_COMMAND_TIMEOUT`), then fall back to the amp. One owner means every surface (panel icon, flyout, OSD, tooltip) shows the same value; per-view copies diverged before Phase 5.
+**The daemon owns pending command state.** After `NotifyVolumeCommand` / `NotifyMuteCommand`, `VolumeDb` / `Muted` show the commanded value until a broadcast confirms it or 400 ms pass (`PENDING_COMMAND_TIMEOUT`), then fall back to the amp. One owner means every surface (panel icon, flyout, OSD) shows the same value; per-view copies diverged before Phase 5.
 
 **Shared cross-view state is a root-anchored `QtObject`, forwarded as a `required property`.** `PendingAmpState`, `VolumeSettings`, `TransparencySettings` and `ThemeSettings` are instantiated once at `main.qml`'s root (the one owner that outlives both representations) and passed down `CompactRepresentation → FlyoutPopup → FlyoutContent`. Never reach into a sibling's state; there is no QML singleton in this KPackage. `required` makes a missed hand-off fail at load instead of silently diverging. Per-file constants with nothing to keep in sync (`Theme.qml`) are re-instantiated per file instead.
 
@@ -69,11 +69,11 @@ Bus name `com.ekmanch.DevialetRemote`, object `/com/ekmanch/DevialetRemote/Amp`,
 
 **One About page icon for every theme.** Plasma renders `metadata.json`'s icon name through the icon theme, once per shell process, and our page never coexists with the About page, so nothing of ours can change it. Do not plan a light/dark About icon without a new Plasma API.
 
-**The Add Widgets picker icon is a theme icon, not a bundled file.** `KPlugin.Icon` is resolved by name through `QIcon::fromTheme`, so the icon is installed into hicolor (`~/.local/share/icons/` by `install-plasmoid.sh`, `/usr/share/icons/` by the PKGBUILD). The panel icon is a separate mechanism (`Plasmoid.icon` set to the bundled SVG in `main.qml`).
+**The Add Widgets picker icon is a theme icon, not a bundled file.** `KPlugin.Icon` is resolved by name through `QIcon::fromTheme`, so the icon is installed into hicolor (`~/.local/share/icons/` by `install-plasmoid.sh`, `/usr/share/icons/` by the PKGBUILD). The panel icon is a separate mechanism again: drawn in QML, not an icon file (section 8).
 
 ## 5. QML rules
 
-**No `Qt.AlignBaseline` in a row with a child whose text or font can change at runtime.** The shared baseline moves with that child's metrics and drags its static siblings by a pixel or two; it happened three times (tooltip, toast). Use `Qt.AlignVCenter` on every child and pin the row's `Layout.preferredHeight` to the tallest child's measured implicit height across all its states. Measure it each time; a borrowed number left a 1 px shift.
+**No `Qt.AlignBaseline` in a row with a child whose text or font can change at runtime.** The shared baseline moves with that child's metrics and drags its static siblings by a pixel or two; it happened three times (the since-removed hover tooltip, toast). Use `Qt.AlignVCenter` on every child and pin the row's `Layout.preferredHeight` to the tallest child's measured implicit height across all its states. Measure it each time; a borrowed number left a 1 px shift.
 
 **Size elements that change content to their worst case.** Buttons whose label or icon changes, and readouts that swap between a number and a word, get a fixed size so nothing beside them moves.
 
@@ -86,13 +86,13 @@ A Dark / Light / Follow system setting (kcfg `theme`, default `system`). Design 
 **Palettes.** `Theme.qml` holds no colours: fonts, sizes, radii and the volume icon map only. Every colour is a typed `required` token in `ColorPalette.qml`; `DarkPalette.qml` and `LightPalette.qml` only assign values; consumers declare `required property ColorPalette colors`. A new colour is a new token in all three files, with the dark value equal to what dark painted before. Branch on `colors.isLight` only where the themes need a different mechanism (a gradient or effect against a flat fill), never to choose between two colours.
 
 **Who picks the palette.**
-- Flyout, OSD toast and tooltip: `ThemeSettings.qml` (root-anchored), which exposes `flyoutPalette` and `osdPalette` separately so a per-surface split later is one key and one binding.
+- Flyout and OSD toast: `ThemeSettings.qml` (root-anchored), which exposes `flyoutPalette` and `osdPalette` separately so a per-surface split later is one key and one binding.
 - Settings page: the **desktop's** scheme, since it cannot reach `main.qml`'s root. Plasma's own header, button bar, other tabs and About icon stay in the scheme's colours.
 - Sidebar icon: picked from `SystemPalette.window`'s lightness, because it must be right synchronously.
 
 **Follow system** reads the XDG portal's `org.freedesktop.appearance color-scheme` once plus a change watcher (`SystemScheme.qml`): `1` dark, `2` light; anything else, an error or no reply in 2 s falls back to `Kirigami.Theme.backgroundColor`'s brightness. Starts dark.
 
-**One `LightPalette` for all four surfaces;** the owner kept the flyout's darker dim/faint text everywhere. In light the flyout follows the transparency setting, the toast and tooltip are opaque white; dark keeps their hardcoded 0.94 gradient. Controls use the fixed-k opacity model in both themes (`ColorPalette.controlColor()`).
+**One `LightPalette` for all three surfaces;** the owner kept the flyout's darker dim/faint text everywhere. In light the flyout follows the transparency setting, the toast is opaque white; dark keeps its hardcoded 0.94 gradient. Controls use the fixed-k opacity model in both themes (`ColorPalette.controlColor()`).
 
 **Gold effects** (`GradientMask`, `GradientText`, `GoldSphere`, `CardShadow`, all `MultiEffect`):
 1. Build effect items in a `Loader { active: colors.isLight }` with layers on from creation; toggling `layer.enabled` later stopped masking after a theme flip. Keep the plain item in the layout with transparent text and paint over it, so geometry is identical in both themes.
@@ -114,4 +114,22 @@ A Dark / Light / Follow system setting (kcfg `theme`, default `system`). Design 
 
 **No boot coordination with the companion phone apps.** Considered on 2026-10-29 for the phone-initiated boot that showed the misreported -42 dB: a side channel telling the widget that a boot is coming and which startup volume the phone will set. Dropped for observing the amp's own off → on edge instead, which covers every controller (IR remote and front panel included), needs no new transport (phone-side broadcast or mDNS from a backgrounded app is unreliable, and the observed-edge path would have to exist as the fallback anyway) and leaves the Kotlin and Flutter apps untouched. Users who want the two startup volumes to agree set the same value in both apps.
 
+**No hover tooltip on the panel icon.** Removed by the owner on 2026-11-10 (Phase 19.11.0): since the Phase 19 icon shows the state and the volume itself and the OSD confirms every change, the tooltip repeated both and only covered the desktop on hover. `main.qml` keeps `toolTipMainText` / `toolTipSubText` at `""` so the shell's default tooltip (metadata Name/Comment) stays silent too.
+
 **Not planned:** "Forget remembered amps" (known amps are never persisted, and the active one could never be forgotten); SAM, Night Mode, Bass and Treble (no known wire commands).
+
+## 8. Panel icon
+
+Spec: `design/tray-icon/Tray Icon Design Mockup.html`.
+
+**The panel icon is drawn in QML, in one colour.** `PanelGlyph.qml` paints with `Shape` on a 24-unit grid, every stroke and fill in the `color` it is handed: `Kirigami.Theme.textColor` on the panel, so it follows any Plasma theme the way a symbolic icon does. No colour is hardcoded and no palette is involved; the widget's Theme setting does not reach the panel. The glyph is sized like its neighbours' icons (`Kirigami.Units.iconSizes.roundedIconSize` of the applet's cell), and the number and gap scale with it (the mockup's 20 px glyph, 14 px number, 6 px gap). `Plasmoid.icon` is left at its default, the `metadata.json` icon.
+
+**Two styles, five states.** Dial is a 270° arc with a hub, Level a ring that fills from the bottom. `PanelIcon.qml` derives the state: no amp (`AmpIp` empty) is the same dashed ring for both styles; Off is the empty outline at 35 %; Booting is the empty outline pulsing, the only animation, steady at 60 % when the desktop's animations are off (`Kirigami.Units.longDuration` is 0); On shows the level, faded to 28 % with a slash when muted.
+
+**The level and the number show only while the volume is known** (the amp is On). Off, booting and no amp show the empty outline, or the dashed ring, and no number at all: the icon collapses to the glyph alone, which already says which state it is. No dash stands in for the number.
+
+**The mute slash is cut out of the glyph, not haloed in the panel's colour.** The mockup draws a panel-coloured halo under the slash; the real panel's colour cannot be known from QML (translucent, blurred or recoloured panels), so the halo stroke is an inverted `MultiEffect` mask instead: the same picture on an opaque panel, and correct on every other. Built by the section 6 effect rules (in a `Loader`, layers on from creation, mask threshold 0.5 / spread 1.0).
+
+**The number has a fixed reserved width whenever it is shown** (normal, muted): the wider of the floor and the ceiling as whole dB, plus the unit, so the panel's other items never move when the volume changes. They shift once when the number appears or goes, which is rare. Whole dB (`Math.round`) with a small "dB", left-aligned, faded to 40 % when muted. On a vertical panel it is always hidden, whatever the setting.
+
+**Settings:** `panelIconStyle` (`dial` / `level`, default `dial`) and `panelIconShowVolume` (default on), read directly by `CompactRepresentation.qml`, their only consumer. The settings page's segment glyphs and Preview instantiate the same `PanelGlyph` and `PanelVolumeNumber` the panel uses, so the two cannot drift; the Preview shows a fixed −22 dB, since the page makes no D-Bus calls.

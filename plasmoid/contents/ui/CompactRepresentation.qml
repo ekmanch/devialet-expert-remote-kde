@@ -1,5 +1,6 @@
-// Panel icon: click toggles the flyout, middle-click toggles mute, the
-// wheel steps the volume, and hovering shows the volume tooltip. Keeps its
+// Panel icon: click toggles the flyout, middle-click toggles mute, and the
+// wheel steps the volume. No hover tooltip (docs/DESIGN.md §7). The icon
+// itself is PanelIcon.qml (docs/DESIGN.md §8). Keeps its
 // own small D-Bus mirror (AmpIp, DeviceName, ActiveSourceName) and its own
 // devialet-ctl DataSource. Cross-view state (volume/mute, volume range,
 // transparency, theme, power) comes from main.qml's root-anchored objects,
@@ -9,7 +10,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.plasma.workspace.dbus as Dbus
 import org.kde.plasma.plasma5support as P5Support
@@ -21,7 +24,7 @@ MouseArea {
     required property PendingAmpState pendingAmpState
     required property VolumeSettings volumeSettings
     required property TransparencySettings transparencySettings
-    // Forwarded to the flyout, the toast and the tooltip.
+    // Forwarded to the flyout and the toast.
     required property ThemeSettings themeSettings
     // The amp's PowerState, from main.qml's root mirror. Gates the wheel
     // and middle-click: off or booting, the amp drops volume commands, so
@@ -33,7 +36,7 @@ MouseArea {
     // string scalars, so no unwrap ambiguity and no debounce. ----
     property string ampIp: ""
     property string deviceName: ""
-    // Source name for the tooltip/toast source rows.
+    // Source name for the toast's source row.
     property string activeSourceName: ""
 
     readonly property string devialetCtlCommand: "devialet-ctl"
@@ -88,13 +91,12 @@ MouseArea {
         root.chimePool[slot].connectSource(cmd);
     }
 
-    // Exposed for hoverTooltip's bindings below.
+    // The amp name the toast shows.
     readonly property string ampDisplayName: root.deviceName !== "" ? root.deviceName : "Devialet"
-    readonly property string tooltipAmpName: root.ampIp === "" ? "No Amplifier" : root.ampDisplayName
-    readonly property string iconSource: Plasmoid.icon
+    readonly property string toastAmpName: root.ampIp === "" ? "No Amplifier" : root.ampDisplayName
 
-    // 0..1 position of the shared volume for the tooltip/toast progress
-    // bars. VolumeSettings.fractionFor() is the same math the flyout
+    // 0..1 position of the shared volume for the toast's progress bar
+    // and the panel icon. VolumeSettings.fractionFor() is the same math the flyout
     // slider uses, so the two can never disagree about the range.
     readonly property real volumeFraction: root.volumeSettings.fractionFor(root.pendingAmpState.volumeDb)
 
@@ -127,7 +129,7 @@ MouseArea {
         root.pendingAmpState.notifyVolume(clamped);
         // muted is already false here (notifyMute() writes synchronously),
         // so one showVolume() covers both the unmute and the new volume.
-        volumeToast.showVolume(root.tooltipAmpName, root.activeSourceName, clamped, root.volumeFraction, root.pendingAmpState.muted);
+        volumeToast.showVolume(root.toastAmpName, root.activeSourceName, clamped, root.volumeFraction, root.pendingAmpState.muted);
         // One chime per paced step, no debounce (like plasma-pa's own
         // tone). Middle-click mute (toggleMute) deliberately does not chime.
         root.maybeChime(clamped);
@@ -141,10 +143,9 @@ MouseArea {
         const newMuted = !root.pendingAmpState.muted;
         exec.connectSource(root.devialetCtlCommand + " --ip " + root.ampIp + " mute " + (newMuted ? "on" : "off"));
         root.pendingAmpState.notifyMute(newMuted);
-        volumeToast.showMute(root.tooltipAmpName, root.activeSourceName, newMuted, root.volumeFraction);
+        volumeToast.showMute(root.toastAmpName, root.activeSourceName, newMuted, root.volumeFraction);
     }
 
-    hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
     onClicked: mouse => {
         if (mouse.button === Qt.LeftButton) {
@@ -157,47 +158,8 @@ MouseArea {
         }
     }
 
-    // Hover show/hide timing follows libplasma's ToolTipArea/ToolTipDialog:
-    // a show delay on enter, a 200 ms hide delay on leave. Their "already
-    // visible -> show at once" branch has no equivalent with a single
-    // hover target; re-entering just cancels the hide timer.
-    //
-    // The tooltip never shows while the flyout is open: the guard sits on
-    // the trigger itself (here and in hoverShowTimer), so re-entering the
-    // icon with the flyout open cannot bring it back.
-    onEntered: {
-        hoverHideTimer.stop();
-        if (!hoverTooltip.visible && !flyoutPopup.visible) {
-            hoverShowTimer.restart();
-        }
-    }
-    onExited: {
-        hoverShowTimer.stop();
-        if (hoverTooltip.visible) {
-            hoverHideTimer.restart();
-        }
-    }
-
-    Timer {
-        id: hoverShowTimer
-        // Kirigami.Units.toolTipDelay: the standard QML path to the global
-        // "PlasmaToolTips/Delay" setting ToolTipArea reads (default 700).
-        interval: Kirigami.Units.toolTipDelay
-        // Re-checked here: the flyout may have opened while the timer ran.
-        onTriggered: {
-            if (!flyoutPopup.visible) {
-                hoverTooltip.visible = true;
-            }
-        }
-    }
-    Timer {
-        id: hoverHideTimer
-        interval: 200
-        onTriggered: hoverTooltip.visible = false
-    }
-
     // The flyout (see FlyoutPopup.qml). Always instantiated and usually
-    // hidden, like hoverTooltip and volumeToast below.
+    // hidden, like volumeToast below.
     FlyoutPopup {
         id: flyoutPopup
         flyoutVisualParent: root
@@ -207,28 +169,6 @@ MouseArea {
         volumeSettings: root.volumeSettings
         transparencySettings: root.transparencySettings
         themeSettings: root.themeSettings
-
-        // Hide the hover tooltip whenever the flyout opens.
-        onVisibleChanged: {
-            if (flyoutPopup.visible) {
-                hoverShowTimer.stop();
-                hoverHideTimer.stop();
-                hoverTooltip.visible = false;
-            }
-        }
-    }
-
-    VolumeHoverTooltip {
-        id: hoverTooltip
-        themeSettings: root.themeSettings
-        visualParent: root
-        ampName: root.tooltipAmpName
-        sourceName: root.activeSourceName
-        volumeDb: root.pendingAmpState.volumeDb
-        volumeFraction: root.volumeFraction
-        hasAmp: root.ampIp !== ""
-        // Needed so the tooltip shows "Muted" instead of the last dB.
-        muted: root.pendingAmpState.muted
     }
 
     property int wheelDelta: 0
@@ -262,15 +202,43 @@ MouseArea {
         }
     }
 
-    Kirigami.Icon {
-        anchors.fill: parent
-        source: Plasmoid.icon
-        // The panel SVG uses hardcoded copper fill/stroke, so isMask is
-        // off: its own colours and the outer ring's opacity (the "glow")
-        // render as designed instead of a flat text-colour mask. Trade-off:
-        // it does not adapt to a light panel theme like a symbolic icon
-        // would - not yet verified against a light Plasma theme.
-        isMask: false
+    // ---- The icon (docs/DESIGN.md §8) ----
+    // The glyph takes the size a Kirigami.Icon filling this cell would
+    // paint at, so it matches the neighbouring applets' icons.
+    readonly property int glyphSize: Kirigami.Units.iconSizes.roundedIconSize(Math.min(root.width, root.height))
+
+    // With the number shown the cell must be wider than the square the
+    // panel gives an applet that states no size. The glyph keeps the
+    // square cell's own padding ((height - glyphSize) / 2) on its left and
+    // the number gets the same on its right, so the width is the square
+    // plus the gap and the number: `height`, never `width`, feeds it. With
+    // the number hidden the hints stay unset (-1) and the cell is the
+    // panel's default square.
+    readonly property real numberedWidth: root.height + panelIcon.implicitWidth - root.glyphSize
+    Layout.minimumWidth: panelIcon.numberShown ? root.numberedWidth : -1
+    Layout.preferredWidth: panelIcon.numberShown ? root.numberedWidth : -1
+    Layout.maximumWidth: panelIcon.numberShown ? root.numberedWidth : -1
+
+    PanelIcon {
+        id: panelIcon
+        anchors.centerIn: parent
+        glyphSize: root.glyphSize
+        // Never a hardcoded colour: the panel's own text colour, like a
+        // symbolic icon.
+        color: Kirigami.Theme.textColor
+        style: Plasmoid.configuration.panelIconStyle
+        showNumber: Plasmoid.configuration.panelIconShowVolume
+        vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
+        hasAmp: root.ampIp !== ""
+        powerState: root.powerState
+        muted: root.pendingAmpState.muted
+        volumeDb: root.pendingAmpState.volumeDb
+        fraction: root.volumeFraction
+        floorDb: root.volumeSettings.floorDb
+        ceilingDb: root.volumeSettings.hardLimitDb
+        // Reduced motion: no booting pulse when the desktop's animations
+        // are off (durations are 0 then).
+        animate: Kirigami.Units.longDuration > 0
     }
 
     VolumeToast {
@@ -288,11 +256,11 @@ MouseArea {
     Connections {
         target: root.pendingAmpState
         function onExternalVolumeCommand(db) {
-            volumeToast.showVolume(root.tooltipAmpName, root.activeSourceName, db,
+            volumeToast.showVolume(root.toastAmpName, root.activeSourceName, db,
                 root.volumeSettings.fractionFor(db), root.pendingAmpState.muted);
         }
         function onExternalMuteCommand(muted) {
-            volumeToast.showMute(root.tooltipAmpName, root.activeSourceName, muted, root.volumeFraction);
+            volumeToast.showMute(root.toastAmpName, root.activeSourceName, muted, root.volumeFraction);
         }
     }
 

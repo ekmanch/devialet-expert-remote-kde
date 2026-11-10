@@ -32,9 +32,8 @@ from inside QML — the same statement the click handler runs.
    as a note in case you're reading this against a pre-cutover checkout.)
 2. Python 3 with PyGObject (`gi`), Pillow and numpy — all present on the
    dev machine via pacman; `spectacle` on PATH.
-3. Keep hands off mouse and keyboard while a run is in progress: a hover
-   on the panel icon shows the tooltip, a click elsewhere dismisses the
-   popup (`hideOnWindowDeactivate`).
+3. Keep hands off mouse and keyboard while a run is in progress: a click
+   elsewhere dismisses the popup (`hideOnWindowDeactivate`).
 4. The real daemon may be running — `run` stops
    `devialet-remote-daemon.service` itself if it is active and restarts it
    on exit (including Ctrl-C). A *manually started* foreground daemon must

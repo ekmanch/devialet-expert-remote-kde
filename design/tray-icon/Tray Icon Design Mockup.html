@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tray Icon Design Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0e10;
+    --surface:#1a1a1d;
+    --surface-3:#2a2a2e;
+    --copper:#c17f4e;
+    --copper-bright:#e3a06a;
+    --copper-dim:#8a5c39;
+    --text:#f2f0ec;
+    --text-dim:#9a9a9f;
+    --text-faint:#5c5c60;
+    --divider:rgba(255,255,255,0.08);
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+    --font-body:'Inter',sans-serif;
+
+    /* Plasma's panel colours, not ours. The widget only ever draws in
+       currentColor (Kirigami.Theme.textColor in the real thing). */
+    --dark-panel:#000000;
+    --dark-fg:#fcfcfc;
+    --light-panel:#eff0f1;
+    --light-fg:#232629;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font-body); color:var(--text);
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(193,127,78,0.06), transparent 60%),
+      repeating-linear-gradient(90deg, #0a0a0c 0 40px, #0b0b0d 40px 80px),
+      #0a0a0c;
+    min-height:100vh; padding:56px 24px 48px;
+  }
+  .page{ max-width:920px; margin:0 auto; }
+
+  .mockup-tag{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:60;
+    font-family:var(--font-mono); font-size:10px; letter-spacing:0.06em;
+    color:var(--text-faint); background:rgba(0,0,0,0.5); padding:3px 7px; border-radius:6px;
+    border:1px solid var(--divider); pointer-events:none; white-space:nowrap;
+  }
+
+  h2{ font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text); margin:38px 0 4px; }
+  h2.first{ margin-top:0; }
+  .section-sub{ font-size:12px; color:var(--text-faint); margin:0 0 16px; line-height:1.5; max-width:72ch; }
+
+  /* ---------- controls ---------- */
+  .controls{
+    display:grid; grid-template-columns:auto 1fr; gap:12px 18px; align-items:center;
+    background:var(--surface); border:1px solid var(--divider); border-radius:12px;
+    padding:16px 18px; margin-bottom:22px;
+  }
+  .ctl-label{ font-size:12px; color:var(--text-dim); white-space:nowrap; }
+  .ctl-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .ctl-note{ font-family:var(--font-mono); font-size:10px; color:var(--text-faint); }
+  .seg{ display:inline-flex; background:var(--bg); border:1px solid var(--divider); border-radius:8px; padding:3px; gap:2px; flex-wrap:wrap; }
+  .seg button{ all:unset; padding:5px 11px; font-family:var(--font-mono); font-size:11px; color:var(--text-dim); border-radius:6px; cursor:pointer; }
+  .seg button:hover{ color:var(--copper-bright); }
+  .seg button.active{ background:var(--surface-3); color:var(--copper-bright); }
+  .seg button:focus-visible{ outline:2px solid var(--copper-dim); outline-offset:1px; }
+  input[type="range"].vol{
+    -webkit-appearance:none; appearance:none; width:220px; height:4px; border-radius:999px;
+    background:linear-gradient(90deg, var(--copper) 0%, var(--copper) var(--fill,50%), var(--surface-3) var(--fill,50%), var(--surface-3) 100%);
+    outline:none; margin:0; cursor:pointer;
+  }
+  input[type="range"].vol::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%;
+    background:var(--copper-bright); box-shadow:0 0 0 3px rgba(227,160,106,0.18), 0 1px 3px rgba(0,0,0,0.5);
+  }
+  input[type="range"].vol::-moz-range-thumb{ width:15px; height:15px; border:none; border-radius:50%; background:var(--copper-bright); }
+  .vol-readout{ font-family:var(--font-mono); font-size:12px; color:var(--copper-bright); font-variant-numeric:tabular-nums; min-width:62px; }
+
+  .dark{ --panel-bg:var(--dark-panel); color:var(--dark-fg); }
+  .light{ --panel-bg:var(--light-panel); color:var(--light-fg); }
+
+  /* ---------- horizontal panels ---------- */
+  .panel-stage{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .panel-frame{ border-radius:10px; overflow:hidden; border:1px solid var(--divider); }
+  .panel{ height:36px; background:var(--panel-bg); display:flex; align-items:center; justify-content:flex-end; gap:16px; padding:0 14px; }
+  .panel-frame.light .panel{ border-bottom:1px solid rgba(0,0,0,0.12); }
+  .wall{ height:30px; padding:7px 12px; font-family:var(--font-mono); font-size:10px; }
+  .panel-frame.dark .wall{ background:linear-gradient(180deg,#0f2a33 0%, #153440 100%); color:rgba(255,255,255,0.5); }
+  .panel-frame.light .wall{ background:linear-gradient(180deg,#c9d6df 0%, #dbe4ea 100%); color:rgba(0,0,0,0.5); }
+
+  .p-icon{ width:20px; height:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .p-icon svg{ width:100%; height:100%; display:block; }
+  .p-icon.small{ width:12px; height:12px; }
+  .p-temp{ font-family:var(--font-mono); font-size:14px; line-height:1; white-space:nowrap; }
+
+  /* ---------- the widget ---------- */
+  .dv{ display:flex; align-items:center; gap:6px; cursor:pointer; border-radius:6px; padding:3px 4px; margin:0 -4px; outline-offset:2px; }
+  .dv:hover{ background:rgba(127,127,127,0.18); }
+  .dv:focus-visible{ outline:2px solid var(--copper-dim); }
+  .dv-num{ font-family:var(--font-mono); font-size:14px; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .dv-num.faded{ opacity:0.4; }
+  .dv-num .u{ font-size:0.7em; opacity:0.6; margin-left:1px; }
+
+  /* ---------- vertical panels ---------- */
+  .v-stage{ display:flex; gap:14px; flex-wrap:wrap; }
+  .v-frame{ display:flex; border-radius:10px; overflow:hidden; border:1px solid var(--divider); height:230px; }
+  .v-panel{ width:38px; background:var(--panel-bg); display:flex; flex-direction:column; align-items:center; gap:16px; padding:14px 0; }
+  .v-frame.light .v-panel{ border-right:1px solid rgba(0,0,0,0.12); }
+  .v-wall{ width:150px; padding:10px 12px; font-family:var(--font-mono); font-size:10px; line-height:1.5; }
+  .v-frame.dark .v-wall{ background:linear-gradient(90deg,#0f2a33 0%, #153440 100%); color:rgba(255,255,255,0.55); }
+  .v-frame.light .v-wall{ background:linear-gradient(90deg,#c9d6df 0%, #dbe4ea 100%); color:rgba(0,0,0,0.55); }
+
+  /* ---------- glyph animation ---------- */
+  .glyph .lvl{ transition:stroke-dasharray .12s linear; }
+  .glyph .pulse{ animation:pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:0.9;} 50%{opacity:0.25;} }
+  @media (prefers-reduced-motion: reduce){
+    .glyph .pulse{ animation:none; opacity:0.6; }
+    .glyph .lvl{ transition:none; }
+  }
+
+  /* ---------- magnified grid ---------- */
+  .grid{ display:grid; grid-template-columns:96px repeat(5, 1fr); gap:8px; }
+  .grid-head{ font-family:var(--font-display); font-size:12px; font-weight:600; color:var(--text); padding:0 2px 2px; }
+  .grid-desc{ font-size:11px; color:var(--text-faint); line-height:1.45; padding:0 2px 8px; }
+  .grid-rowlabel{ font-family:var(--font-mono); font-size:10px; color:var(--text-faint); align-self:center; line-height:1.5; }
+  .grid-rowlabel b{ color:var(--text-dim); font-weight:600; }
+  .cell{ aspect-ratio:16/10; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--divider); background:var(--panel-bg); }
+  .cell .dv{ gap:9px; cursor:default; padding:0; margin:0; }
+  .cell .dv:hover{ background:none; }
+  .cell .p-icon{ width:34px; height:34px; }
+  .cell .dv-num{ font-size:21px; }
+
+  /* ---------- spec ---------- */
+  .spec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .spec-card{ background:var(--surface); border:1px solid var(--divider); border-radius:12px; padding:18px; display:flex; gap:18px; align-items:flex-start; }
+  .spec-art{ width:110px; height:110px; flex-shrink:0; border-radius:10px; background:var(--dark-panel); color:var(--dark-fg); --panel-bg:var(--dark-panel); display:flex; align-items:center; justify-content:center; }
+  .spec-art svg{ width:84%; height:84%; }
+  .spec-card h3{ font-family:var(--font-display); font-size:13px; font-weight:600; margin:0 0 8px; }
+  .spec{ font-size:12px; color:var(--text-dim); line-height:1.65; margin:0; padding-left:16px; }
+  .spec b{ color:var(--text); font-weight:600; }
+  .spec code{ font-family:var(--font-mono); font-size:10.5px; color:var(--copper-bright); }
+
+  .legend{ margin-top:30px; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); line-height:1.7; }
+  .legend b{ color:var(--copper-bright); font-weight:600; }
+
+  @media (max-width:720px){
+    .controls, .panel-stage, .spec-grid{ grid-template-columns:1fr; }
+    .grid{ grid-template-columns:repeat(5, 1fr); }
+    .grid-rowlabel, .grid-corner{ grid-column:1 / -1; }
+    .spec-card{ flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-tag">MOCKUP · PANEL ICON — V8 (DIAL + LEVEL, ALL STATES)</div>
+
+<div class="page">
+
+  <h2 class="first">In the panel</h2>
+  <p class="section-sub">The two icon styles the config dialog offers: Dial (A) and Level (D, bottom-up). Scroll over a widget to change volume, middle-click it to toggle mute.</p>
+
+  <div class="controls">
+    <span class="ctl-label">Amp state</span>
+    <div class="ctl-row">
+      <div class="seg" id="stateSeg">
+        <button data-v="normal" class="active">Normal</button>
+        <button data-v="muted">Muted</button>
+        <button data-v="off">Amp off</button>
+        <button data-v="booting">Booting</button>
+        <button data-v="none">No amp</button>
+      </div>
+    </div>
+
+    <span class="ctl-label">Volume</span>
+    <div class="ctl-row">
+      <input type="range" class="vol" id="volSlider" min="-45" max="-10" step="1" value="-22" aria-label="Volume">
+      <span class="vol-readout" id="volReadout"></span>
+      <span class="ctl-note">floor −45, ceiling −10</span>
+    </div>
+
+    <span class="ctl-label">Show volume</span>
+    <div class="ctl-row">
+      <div class="seg" id="numSeg">
+        <button data-v="on" class="active">On</button>
+        <button data-v="off">Off</button>
+      </div>
+      <span class="ctl-note">"Show volume next to icon" setting</span>
+    </div>
+
+    <span class="ctl-label">Zoom</span>
+    <div class="ctl-row">
+      <div class="seg" id="zoomSeg">
+        <button data-v="1" class="active">1×</button>
+        <button data-v="2">2×</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-stage" id="hStage">
+    <div class="panel-frame dark"><div class="panel" data-h="A"></div><div class="wall">Dial</div></div>
+    <div class="panel-frame dark"><div class="panel" data-h="D"></div><div class="wall">Level</div></div>
+    <div class="panel-frame light"><div class="panel" data-h="A"></div><div class="wall">Dial</div></div>
+    <div class="panel-frame light"><div class="panel" data-h="D"></div><div class="wall">Level</div></div>
+  </div>
+
+  <h2>Every state, magnified</h2>
+  <p class="section-sub">Both styles in all five states at about 1.7×. The level (arc or fill) and the number only appear when the volume is actually known: normal and muted.</p>
+
+  <div class="grid" id="grid">
+    <div class="grid-corner"></div>
+    <div><div class="grid-head">Normal</div><div class="grid-desc">Level shows volume between floor and ceiling</div></div>
+    <div><div class="grid-head">Muted</div><div class="grid-desc">Level and number fade, slash across</div></div>
+    <div><div class="grid-head">Amp off</div><div class="grid-desc">Empty outline at 35%, no number</div></div>
+    <div><div class="grid-head">Booting</div><div class="grid-desc">Empty outline pulses, no number</div></div>
+    <div><div class="grid-head">No amp</div><div class="grid-desc">Dashed ring (shared), no number</div></div>
+  </div>
+
+  <h2>Vertical panels</h2>
+  <p class="section-sub">The number is dropped automatically, so the glyph carries everything. Both styles still show the level.</p>
+
+  <div class="v-stage" id="vStage">
+    <div class="v-frame dark"><div class="v-panel" data-v="A"></div><div class="v-wall">Dial</div></div>
+    <div class="v-frame dark"><div class="v-panel" data-v="D"></div><div class="v-wall">Level</div></div>
+    <div class="v-frame light"><div class="v-panel" data-v="A"></div><div class="v-wall">Dial</div></div>
+    <div class="v-frame light"><div class="v-panel" data-v="D"></div><div class="v-wall">Level</div></div>
+  </div>
+
+  <h2>Geometry</h2>
+  <p class="section-sub">Both in a 24 × 24 box, what Claude Code implements against. Colour is never hardcoded: <code style="font-family:var(--font-mono);color:var(--copper-bright);font-size:11px">Kirigami.Theme.textColor</code> for every stroke and fill.</p>
+
+  <div class="spec-grid">
+    <div class="spec-card">
+      <div class="spec-art" id="specA"></div>
+      <div>
+        <h3>Dial</h3>
+        <ul class="spec">
+          <li><b>Track</b>: 270° arc, r 8.5, stroke 2.2, round caps, 28% opacity, gap at the bottom.</li>
+          <li><b>Level</b>: same arc at 100%, from 135° clockwise, length = <code>(vol − floor) / (ceiling − floor)</code>.</li>
+          <li><b>Hub</b>: r 1.7, full opacity.</li>
+          <li><b>QML</b>: <code>Shape</code> + <code>PathAngleArc</code>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="spec-card">
+      <div class="spec-art" id="specD"></div>
+      <div>
+        <h3>Level</h3>
+        <ul class="spec">
+          <li><b>Ring</b>: full circle, r 8.5, stroke 1.8, 100%.</li>
+          <li><b>Fill</b>: disc r 6.6 cut by a horizontal chord at height <code>2·r·fraction</code> from the bottom. 1 px clear gap to the ring.</li>
+          <li><b>No hub</b>: it would vanish into the fill.</li>
+          <li><b>QML</b>: <code>Shape</code> with a <code>PathArc</code> segment closed by the chord.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>v8: no dash.</b> When the volume isn't known (off, booting, no amp) the number is removed and the widget collapses to the glyph alone;
+    the glyph already says which state it is. Neighbouring icons shift once on those state changes, which is rare; the reserved width that
+    keeps them still while you scroll applies unchanged whenever a number is shown (normal, muted).<br>
+    <b>State rule changed from v1–v4</b>: earlier mockups kept showing the volume arc while the amp was off or booting, even though the number
+    had already become a dash. Now both agree: the level and the number only show when the volume is known (normal, muted). Off and booting
+    show the empty outline, dimmed or pulsing. No amp is the same dashed ring for both styles.<br>
+    <b>Level at the floor</b> is an empty solid ring. It stays distinguishable from off (35% opacity) and no amp (dashed), and the number says
+    the rest.<br>
+    <b>Muted</b> uses the same treatment for both: level or fill fades to 28%, slash with a panel-coloured halo so it cuts cleanly through
+    the ring, number fades to 40%. The unit is small dB (v4), counted in the number's reserved width; with "Show volume" off the glyph stands
+    alone. The number is hidden automatically on vertical panels regardless of the setting.<br>
+    Booting is the only animated state, and it respects reduced-motion (steady 60% instead of a pulse).
+  </div>
+
+</div>
+
+<script>
+  const FLOOR = -45, CEIL = -10;
+  let vol = -22, state = 'normal', showNum = true;
+
+  const ARC = 'M5.99 18.01 A8.5 8.5 0 1 1 18.01 18.01';
+  const FILL_R = 6.6;
+
+  function frac(){ return (vol - FLOOR) / (CEIL - FLOOR); }
+
+  function slash(){
+    return `<path d="M5.2 5.2 18.8 18.8" stroke="var(--panel-bg)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M5.2 5.2 18.8 18.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  function dashed(){
+    return `<svg viewBox="0 0 24 24" class="glyph" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" pathLength="48" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round" opacity="0.75"/></svg>`;
+  }
+
+  // ---- Dial ----
+  function dial(s, f){
+    if (s === 'none') return dashed();
+    if (s === 'off' || s === 'booting'){
+      const cls = s === 'booting' ? ' class="pulse"' : '';
+      const op = s === 'off' ? 0.35 : 1;
+      return `<svg viewBox="0 0 24 24" class="glyph" aria-hidden="true"><g opacity="${op}"><g${cls}>
+        <path d="${ARC}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="1.7" fill="currentColor"/></g></g></svg>`;
+    }
+    const o = s === 'muted' ? 0.28 : 1;
+    return `<svg viewBox="0 0 24 24" class="glyph" aria-hidden="true">
+      <path d="${ARC}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity="0.28"/>
+      <path class="lvl" d="${ARC}" pathLength="100" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+            stroke-dasharray="${(Math.max(0, Math.min(1, f)) * 100).toFixed(2)} 100" opacity="${o}"/>
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" opacity="${o}"/>
+      ${s === 'muted' ? slash() : ''}</svg>`;
+  }
+
+  // ---- Level (bottom-up) ----
+  function fillPath(f){
+    if (f <= 0.001) return '';
+    if (f >= 0.999) return `<circle cx="12" cy="12" r="${FILL_R}"/>`;
+    const r = FILL_R, y = 12 + r - 2 * r * f;
+    const w = Math.sqrt(Math.max(0, r * r - (y - 12) ** 2));
+    return `<path d="M${(12 - w).toFixed(3)} ${y.toFixed(3)} A${r} ${r} 0 ${f > 0.5 ? 1 : 0} 0 ${(12 + w).toFixed(3)} ${y.toFixed(3)} Z"/>`;
+  }
+  function level(s, f){
+    if (s === 'none') return dashed();
+    const ring = `<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>`;
+    if (s === 'off' || s === 'booting'){
+      const cls = s === 'booting' ? ' class="pulse"' : '';
+      return `<svg viewBox="0 0 24 24" class="glyph" aria-hidden="true"><g opacity="${s === 'off' ? 0.35 : 1}"><g${cls}>${ring}</g></g></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" class="glyph" aria-hidden="true">${ring}
+      <g fill="currentColor" opacity="${s === 'muted' ? 0.28 : 1}">${fillPath(f)}</g>
+      ${s === 'muted' ? slash() : ''}</svg>`;
+  }
+
+  const GLYPH = { A:dial, D:level };
+
+  function fmt(v){ return (v < 0 ? '−' : '') + Math.abs(Math.round(v)); }
+  const RESERVE = `calc(${Math.max(fmt(FLOOR).length, fmt(CEIL).length) + 1.4}ch + 1px)`;
+
+  function widget(variant, s, orient){
+    const glyph = `<span class="p-icon">${GLYPH[variant](s, frac())}</span>`;
+    if (orient === 'v' || !showNum) return `<span class="dv" tabindex="0">${glyph}</span>`;
+    const known = s === 'normal' || s === 'muted';
+    // v8: no known volume (off, booting, no amp) → glyph only, widget collapses
+    if (!known) return `<span class="dv" tabindex="0">${glyph}</span>`;
+    const text = `${fmt(vol)}<span class="u">dB</span>`;
+    return `<span class="dv" tabindex="0">${glyph}<span class="dv-num${s === 'muted' ? ' faded' : ''}" style="width:${RESERVE}">${text}</span></span>`;
+  }
+
+  const ICONS = {
+    weather:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9 2.5v1.6M3.6 7.6h1.6M5.2 3.8l1.1 1.1M12.8 3.8l-1.1 1.1"/><path d="M5.6 10.6a3.6 3.6 0 0 1 6.6-2.6"/><path d="M7.5 20h9.3a3.6 3.6 0 0 0 .3-7.2 5 5 0 0 0-9.5 1.2A3 3 0 0 0 7.5 20z" fill="currentColor" stroke="none"/></svg>`,
+    bluetooth:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>`,
+    network:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="7" y="4" width="14" height="11" rx="1.4"/><path d="M11 19h6M14 15v4"/><path d="M3 3v7M3 10h2.5v3H3z"/></svg>`,
+    battery:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10.5v3" stroke-linecap="round"/><rect x="4.2" y="9.2" width="13.6" height="5.6" rx="0.8" fill="currentColor" stroke="none"/></svg>`,
+    arrow:`<svg viewBox="0 0 24 24"><path d="M5 9h14l-7 8z" fill="currentColor"/></svg>`,
+    arrowLeft:`<svg viewBox="0 0 24 24"><path d="M15 5v14l-8-7z" fill="currentColor"/></svg>`
+  };
+
+  const STATES = ['normal','muted','off','booting','none'];
+  const ROWS = [['A','dark','Dial'],['D','dark','Level'],['A','light','Dial'],['D','light','Level']];
+
+  function render(){
+    document.querySelectorAll('[data-h]').forEach(p => {
+      p.innerHTML = `<span class="p-icon">${ICONS.weather}</span><span class="p-temp">17°</span>
+        ${widget(p.dataset.h, state, 'h')}
+        <span class="p-icon">${ICONS.bluetooth}</span><span class="p-icon">${ICONS.network}</span>
+        <span class="p-icon">${ICONS.battery}</span><span class="p-icon small">${ICONS.arrow}</span>`;
+    });
+    document.querySelectorAll('[data-v]').forEach(p => {
+      if (!p.classList.contains('v-panel')) return;
+      p.innerHTML = `<span class="p-icon">${ICONS.weather}</span>${widget(p.dataset.v, state, 'v')}
+        <span class="p-icon">${ICONS.bluetooth}</span><span class="p-icon">${ICONS.network}</span>
+        <span class="p-icon">${ICONS.battery}</span><span class="p-icon small">${ICONS.arrowLeft}</span>`;
+    });
+
+    const grid = document.getElementById('grid');
+    grid.querySelectorAll('.dyn').forEach(n => n.remove());
+    ROWS.forEach(([v, theme, name]) => {
+      const label = document.createElement('div');
+      label.className = 'grid-rowlabel dyn';
+      label.innerHTML = `<b>${name}</b><br>${theme === 'dark' ? 'Breeze Dark' : 'Breeze Light'}`;
+      grid.appendChild(label);
+      STATES.forEach(s => {
+        const c = document.createElement('div');
+        c.className = `cell ${theme} dyn`;
+        c.innerHTML = widget(v, s, 'h').replace('tabindex="0"', '');
+        grid.appendChild(c);
+      });
+    });
+
+    document.getElementById('specA').innerHTML = dial('normal', frac());
+    document.getElementById('specD').innerHTML = level('normal', frac());
+
+    const slider = document.getElementById('volSlider');
+    slider.value = vol;
+    slider.style.setProperty('--fill', (frac() * 100) + '%');
+    document.getElementById('volReadout').textContent = fmt(vol) + ' dB';
+  }
+
+  function setActive(id, val){ document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('active', b.dataset.v === String(val))); }
+  function setVol(v){ vol = Math.max(FLOOR, Math.min(CEIL, v)); render(); }
+  function setState(s){ state = s; setActive('stateSeg', s); render(); }
+  function toggleMute(){ if (state === 'normal') setState('muted'); else if (state === 'muted') setState('normal'); }
+
+  const LIVE = '.panel .dv, .v-panel .dv';
+  document.addEventListener('wheel', e => {
+    if (!e.target.closest(LIVE)) return;
+    e.preventDefault(); setVol(vol + (e.deltaY < 0 ? 1 : -1));
+  }, { passive:false });
+  document.addEventListener('mousedown', e => {
+    if (e.button !== 1 || !e.target.closest(LIVE)) return;
+    e.preventDefault(); toggleMute();
+  });
+  document.addEventListener('keydown', e => {
+    if (!document.activeElement?.closest?.('.panel, .v-panel')) return;
+    if (e.key === 'ArrowUp'){ e.preventDefault(); setVol(vol + 1); }
+    if (e.key === 'ArrowDown'){ e.preventDefault(); setVol(vol - 1); }
+    if (e.key === 'm') toggleMute();
+  });
+
+  document.querySelectorAll('#stateSeg button').forEach(b => b.addEventListener('click', () => setState(b.dataset.v)));
+  document.querySelectorAll('#numSeg button').forEach(b => b.addEventListener('click', () => {
+    showNum = b.dataset.v === 'on'; setActive('numSeg', b.dataset.v); render();
+  }));
+  document.querySelectorAll('#zoomSeg button').forEach(b => b.addEventListener('click', () => {
+    setActive('zoomSeg', b.dataset.v);
+    document.getElementById('hStage').style.zoom = b.dataset.v;
+    document.getElementById('vStage').style.zoom = b.dataset.v;
+  }));
+  document.getElementById('volSlider').addEventListener('input', e => setVol(Number(e.target.value)));
+
+  render();
+</script>
+
+</body>
+</html>

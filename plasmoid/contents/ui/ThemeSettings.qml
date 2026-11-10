@@ -3,8 +3,8 @@
 //
 // Root-anchored in main.qml and forwarded like TransparencySettings.qml
 // (main.qml -> CompactRepresentation -> FlyoutPopup -> FlyoutContent, and
-// CompactRepresentation -> VolumeToast / VolumeHoverTooltip), because the
-// flyout, OSD and tooltip must never disagree about the theme
+// CompactRepresentation -> VolumeToast), because the flyout and the OSD
+// must never disagree about the theme
 // (docs/DESIGN.md §3). The settings page cannot reach main.qml's root and
 // resolves its own palette from the desktop's scheme (§6).
 //
@@ -40,13 +40,12 @@ QtObject {
         return m === "system" ? ts.systemDark : m !== "light";
     }
 
-    // The OSD toast + hover tooltip's own resolution. They follow the
-    // widget's theme; an option to follow the desktop's appearance instead
+    // The OSD toast's own resolution. It follows the widget's theme; an option to follow the desktop's appearance instead
     // would be one kcfg key plus this binding, e.g.
     //     osdResolvedDark: osdFollowsSystem ? systemDark : resolvedDark
-    // - no change in VolumeToast/VolumeHoverTooltip, which read osdPalette.
-    // The harness override applies through resolvedDark, so it still pins
-    // all three surfaces.
+    // - no change in VolumeToast, which reads osdPalette. The harness
+    // override applies through resolvedDark, so it still pins both
+    // surfaces.
     readonly property bool osdResolvedDark: ts.resolvedDark
 
     readonly property ColorPalette dark: DarkPalette {}
@@ -68,8 +67,8 @@ QtObject {
                     "systemDark", ts.systemDark, "resolvedDark", ts.resolvedDark);
     }
 
-    // The flyout follows the resolved theme; the OSD toast and tooltip do
-    // too, through their own seam above.
+    // The flyout follows the resolved theme; the OSD toast does too,
+    // through its own seam above.
     readonly property ColorPalette flyoutPalette: ts.resolvedDark ? ts.dark : ts.light
     readonly property ColorPalette osdPalette: ts.osdResolvedDark ? ts.dark : ts.light
 }

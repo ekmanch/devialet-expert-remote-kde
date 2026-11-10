@@ -1,8 +1,8 @@
 // The one shared consumer of the daemon's resolved VolumeDb/Muted
 // (pending-or-confirmed; the daemon owns pending state, docs/DESIGN.md
 // §3). Instantiated once at main.qml's root and forwarded as a
-// `required property`, so every surface (panel icon, flyout, OSD,
-// tooltip) reads the same value.
+// `required property`, so every surface (panel icon, flyout, OSD)
+// reads the same value.
 //
 // Scope: the D-Bus subscription is interface-level, but only AmpIp,
 // VolumeDb, Muted and VolumeRaw are processed here. VolumeRaw is the

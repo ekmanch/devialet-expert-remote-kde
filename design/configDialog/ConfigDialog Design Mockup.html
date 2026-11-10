@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Devialet ConfigDialog — Mockup v30 (light theme)</title>
+<title>ConfigDialog Design Mockup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -299,6 +299,9 @@
   input[type="range"].kcm-slider::-moz-range-thumb{
     width:15px; height:15px; border-radius:50%; border:0; background:var(--thumb-bg); box-shadow:var(--thumb-shadow);
   }
+  /* v31: names what the slider controls — the toggle turns the effect on,
+     the slider is opacity (higher = more solid; alpha = setting / 100) */
+  .kcm-slider-label{ font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); flex-shrink:0; }
   .kcm-slider-value{
     font-family:var(--font-mono); font-size:11px; color:var(--copper-bright);
     width:34px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums;
@@ -314,6 +317,22 @@
   }
   .kcm-seg-btn.active{ background:var(--seg-active-bg); box-shadow:var(--seg-active-shadow); color:var(--copper-bright); }
   .kcm-seg-btn:not(.active):hover{ color:var(--copper-bright); }
+
+  /* v31: segment with a leading glyph (Icon Style). Drawn in currentColor,
+     so it follows the label's dim / active colour in both schemes. */
+  .kcm-seg-btn.with-glyph{ display:flex; align-items:center; gap:6px; padding-left:9px; }
+  .kcm-seg-btn .seg-glyph{ width:14px; height:14px; flex-shrink:0; }
+  .kcm-seg-btn .seg-glyph svg{ width:100%; height:100%; display:block; }
+
+  /* v31: Preview line — frameless and right-aligned like the controls
+     above it; the number is removed when off, so the glyph sits flush right */
+  .icon-preview-row{ display:flex; align-items:center; justify-content:space-between; gap:20px; padding:2px 0 16px; border-bottom:1px solid var(--divider); }
+  .icon-preview{ display:flex; align-items:center; justify-content:flex-end; gap:6px; height:28px; color:var(--text); }
+  .icon-preview .ip-glyph{ width:20px; height:20px; }
+  .icon-preview .ip-glyph svg{ width:100%; height:100%; display:block; }
+  .icon-preview .ip-num{ font-family:var(--font-mono); font-size:14px; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .icon-preview .ip-num .u{ font-size:0.7em; opacity:0.6; margin-left:1px; }
+  .icon-preview .ip-num[hidden]{ display:none; }
 
   .kcm-sub-row{ padding:8px 2px 4px; transition:opacity .15s ease; }
   .kcm-sub-row.disabled{ opacity:0.35; pointer-events:none; }
@@ -495,13 +514,21 @@
   }
   .legend b{ color:var(--desk-accent); font-weight:600; }
 
+  .window-col{ display:flex; flex-direction:column; align-items:center; min-width:0; max-width:100%; }
+  .window-scroll{ max-width:100%; overflow-x:auto; }
+  @media (max-width:1180px){
+    body{ padding-left:16px; padding-right:16px; }
+    .stage{ flex-direction:column; align-items:center; max-width:100%; }
+    .preview-switcher{ position:static; width:100%; max-width:840px; }
+  }
+
   @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
 </style>
 
 </head>
 <body data-scheme="dark" data-mode="dark" data-theme="dark">
 
-<div class="mockup-tag">MOCKUP · CONFIGDIALOG v30 · LIGHT THEME</div>
+<div class="mockup-tag">MOCKUP · CONFIGDIALOG v31 · PANEL ICON</div>
 
 <div class="stage">
   <div class="preview-switcher">
@@ -517,7 +544,8 @@
     <p class="ps-note" id="schemeNote"></p>
   </div>
 
-<div style="display:flex; flex-direction:column; align-items:center;">
+<div class="window-col">
+  <div class="window-scroll">
   <div class="kcm-window">
     <div class="kcm-titlebar">
       <div class="tb-left">
@@ -574,7 +602,7 @@
           <div class="kcm-row">
             <div class="kcm-row-text">
               <span class="kcm-row-name">Theme</span>
-              <span class="kcm-row-desc">Colors for the popup, hover tooltip and volume overlay</span>
+              <span class="kcm-row-desc">Colors for the widget when it's open and the volume overlay</span>
             </div>
             <div class="kcm-segmented" id="themeSeg">
               <div class="kcm-seg-btn" data-v="dark" onclick="setWidgetTheme('dark')">Dark</div>
@@ -591,15 +619,39 @@
           <div class="kcm-row">
             <div class="kcm-row-text">
               <span class="kcm-row-name">Transparency</span>
-              <span class="kcm-row-desc">Let the desktop show through the panel</span>
+              <span class="kcm-row-desc">Let the desktop show through the widget when it's open</span>
             </div>
             <div class="kcm-switch on" id="transSwitch" onclick="toggleSwitch(this); toggleTransSub();"></div>
           </div>
           <div class="kcm-sub-row" id="transSub">
             <div class="kcm-slider-row">
+              <span class="kcm-slider-label">Opacity</span>
               <input type="range" class="kcm-slider" min="0" max="100" value="50" style="--fill:50%" oninput="onTransInput(this.value)">
               <span class="kcm-slider-value" id="transValue">50%</span>
             </div>
+          </div>
+
+          <p class="kcm-section-label"><span class="sl-text">Panel Icon</span></p>
+          <div class="kcm-row">
+            <div class="kcm-row-text">
+              <span class="kcm-row-name">Icon Style</span>
+              <span class="kcm-row-desc">How the icon on your panel shows the amp's volume</span>
+            </div>
+            <div class="kcm-segmented" id="iconStyleSeg">
+              <div class="kcm-seg-btn with-glyph active" data-style="dial" onclick="setIconStyle('dial')"><span class="seg-glyph" data-glyph="dial"></span>Dial</div>
+              <div class="kcm-seg-btn with-glyph" data-style="level" onclick="setIconStyle('level')"><span class="seg-glyph" data-glyph="level"></span>Level</div>
+            </div>
+          </div>
+          <div class="kcm-row" style="border-bottom:none;">
+            <div class="kcm-row-text">
+              <span class="kcm-row-name">Show Volume Next to Icon</span>
+              <span class="kcm-row-desc">Adds the current dB value beside the icon. Always hidden on vertical panels.</span>
+            </div>
+            <div class="kcm-switch on" id="numSwitch" onclick="toggleSwitch(this); renderIconPreview();"></div>
+          </div>
+          <div class="icon-preview-row">
+            <span class="kcm-row-desc">Preview</span>
+            <div class="icon-preview" id="iconPreview"></div>
           </div>
 
           <p class="kcm-section-label"><span class="sl-text">Volume</span></p>
@@ -789,10 +841,17 @@
     </div>
 
   </div>
+  </div>
 
   <div class="legend">
     <b>v28: window matched to your live dialog.</b> Colours sampled from the screenshot, sizes measured at its ~1.93× scale. Titlebar, sidebar, page and button bar are all the same #151515, separated only by #414141 hairlines. The page title row ("General") sits above the scroll area, and the OK / Apply / Cancel bar is under the page column only, with the sidebar running to the bottom. Row copy for everything visible in the screenshot is taken from it; rows below the fold (chime, login, defaults) keep the mockup copy, title-cased to match.<br>
     <b>Light:</b> the same window in pure #ffffff. Every surface is white, including titlebar, sidebar, button bar and the disabled Apply button; only hairline dividers and card shadows separate things.<br>
+    <b>v31: Panel Icon section</b>, between Appearance and Volume, matching the Tray Icon Design Mockup. <b>Icon Style</b> (Dial / Level, each
+    led by its glyph) and <b>Show Volume Next to Icon</b> (always hidden on vertical panels), defaults Dial and on. <b>Preview</b> is frameless and
+    right-aligned like the controls above; turning the number off removes it, so the glyph sits flush right. It follows the floor and ceiling,
+    and in the real page it should reuse the panel's own glyph component.<br>
+    <b>v31: Transparency</b>: the slider is labelled <b>Opacity</b>, since higher means more solid (stored value unchanged, alpha = setting / 100).
+    Theme and Transparency descriptions say "the widget when it's open" instead of "popup" (reads as ads) or "panel" (means the taskbar in Plasma).<br>
     New since the live build: the <b>Theme</b> row (Dark / Light / Follow system, default Follow system) at the top of Appearance. It recolours the widget's popup, tooltip and OSD, not this page, which follows the window it lives in.
   </div>
 
@@ -879,6 +938,38 @@
     document.getElementById('transValue').textContent = v + '%';
     document.querySelector('#transSub .kcm-slider').style.setProperty('--fill', v + '%');
   }
+  // ================= v31: Panel Icon =================
+  // Same geometry as the tray icon mockup (24×24 box).
+  const ARC = 'M5.99 18.01 A8.5 8.5 0 1 1 18.01 18.01';
+  function dialSvg(f){
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="${ARC}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity="0.28"/>
+      <path d="${ARC}" pathLength="100" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="${f*100} 100"/>
+      <circle cx="12" cy="12" r="1.7" fill="currentColor"/></svg>`;
+  }
+  function levelSvg(f){
+    const r = 6.6, y = 12 + r - 2*r*f, w = Math.sqrt(Math.max(0, r*r - (y-12)**2));
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M${12-w} ${y} A${r} ${r} 0 ${f>0.5?1:0} 0 ${12+w} ${y} Z" fill="currentColor"/></svg>`;
+  }
+  const ICON_DEFAULTS = { style:'dial', showNumber:true };
+  const PREVIEW_DB = -22;
+  let iconStyle = ICON_DEFAULTS.style;
+  function previewFrac(){ return Math.max(0, Math.min(1, (PREVIEW_DB - limits.min) / (limits.hard - limits.min))); }
+  function setIconStyle(v){
+    iconStyle = v;
+    document.querySelectorAll('#iconStyleSeg .kcm-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.style === v));
+    renderIconPreview();
+  }
+  function renderIconPreview(){
+    const showNum = document.getElementById('numSwitch').classList.contains('on');
+    const f = previewFrac();
+    document.getElementById('iconPreview').innerHTML =
+      `<span class="ip-glyph">${iconStyle === 'dial' ? dialSvg(f) : levelSvg(f)}</span>` +
+      `<span class="ip-num"${showNum ? '' : ' hidden'}>−${Math.abs(PREVIEW_DB)}<span class="u">dB</span></span>`;
+  }
+
   function setStep(el){
     el.parentElement.querySelectorAll('.kcm-seg-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
@@ -921,7 +1012,10 @@
     document.getElementById('startupVolValue').textContent = '−' + Math.abs(limits.startup) + ' dB';
     const ordered = limits.min < limits.hard;
     document.getElementById('limitWarning').classList.toggle('show', !ordered);
+    if (document.getElementById('iconPreview')) renderIconPreview();
   }
+  document.querySelector('[data-glyph="dial"]').innerHTML = dialSvg(0.6);
+  document.querySelector('[data-glyph="level"]').innerHTML = levelSvg(0.6);
   renderLimits();
   applyScheme();
 
@@ -933,6 +1027,8 @@
     slider.value = 50;
     onTransInput(50);
     setWidgetTheme('follow');
+    document.getElementById('numSwitch').classList.toggle('on', ICON_DEFAULTS.showNumber);
+    setIconStyle(ICON_DEFAULTS.style);
     document.querySelectorAll('#stepSeg .kcm-seg-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('#stepSeg .kcm-seg-btn')[1].classList.add('active'); // 1 dB
     document.getElementById('loginSwitch').classList.remove('on');

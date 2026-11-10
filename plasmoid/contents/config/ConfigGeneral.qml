@@ -59,8 +59,8 @@ KCM.SimpleKCM {
     readonly property real cfg_volumeStepDbDefault: root.shippedDefaults.volumeStepDb
     readonly property var stepValues: [0.5, 1, 2]
 
-    // main.xml `theme`: the widget's colour theme for the flyout, OSD and
-    // tooltip (read by ThemeSettings.qml). Order matches the segments:
+    // main.xml `theme`: the widget's colour theme for the flyout and the
+    // OSD (read by ThemeSettings.qml). Order matches the segments:
     // Dark, Light, Follow system.
     readonly property var themeModes: ["dark", "light", "system"]
     property string cfg_theme: "system"
@@ -71,6 +71,20 @@ KCM.SimpleKCM {
     property int cfg_transparencyPercent: 90
     readonly property bool cfg_transparencyEnabledDefault: root.shippedDefaults.transparencyEnabled
     readonly property int cfg_transparencyPercentDefault: root.shippedDefaults.transparencyPercent
+
+    // Panel Icon: main.xml panelIconStyle / panelIconShowVolume, read by
+    // CompactRepresentation.qml (docs/DESIGN.md §8). Order matches the
+    // segments: Dial, Level.
+    readonly property var panelIconStyles: ["dial", "level"]
+    property string cfg_panelIconStyle: "dial"
+    property bool cfg_panelIconShowVolume: true
+    readonly property string cfg_panelIconStyleDefault: root.shippedDefaults.panelIconStyle
+    readonly property bool cfg_panelIconShowVolumeDefault: root.shippedDefaults.panelIconShowVolume
+    // The Preview's illustrative volume: -22 dB in a -45..-10 range
+    // (configDialog mockup v31 :753-754). Fixed, not the amp's: this page
+    // makes no D-Bus calls.
+    readonly property real previewVolumeDb: -22
+    readonly property real previewFraction: (-22 - -45) / (-10 - -45)
 
     // Volume limits (main.xml volumeFloorDb/hardLimitDb/startupVolumeDb).
     // -96..0 dB is the Expert Pro range, used by every DbStepper below.
@@ -117,6 +131,8 @@ KCM.SimpleKCM {
         theme: "system",
         transparencyEnabled: true,
         transparencyPercent: 90,
+        panelIconStyle: "dial",
+        panelIconShowVolume: true,
         volumeStepDb: 1.0,
         startupVolumeDb: -40.0,
         volumeFloorDb: -50.0,
@@ -353,12 +369,12 @@ KCM.SimpleKCM {
         // ---- Appearance ----
         SectionLabel { colors: root.colors; text: "Appearance"; first: true }
 
-        // Theme (configDialog mockup v2 :574-584). Recolours the flyout,
-        // hover tooltip and OSD, not this page.
+        // Theme (configDialog mockup v2 :574-584). Recolours the flyout
+        // and the OSD, not this page.
         SettingsRow {
             colors: root.colors
             name: "Theme"
-            desc: "Colors for the popup, hover tooltip and volume overlay"
+            desc: "Colors for the widget when it's open and the volume overlay"
 
             SegmentedControl {
                 id: themeSegmented
@@ -412,7 +428,7 @@ KCM.SimpleKCM {
         SettingsRow {
             colors: root.colors
             name: "Transparency"
-            desc: "Let the desktop show through the panel"
+            desc: "Let the desktop show through the widget when it's open"
 
             SettingsSwitch {
                 id: transparencySwitch
@@ -432,6 +448,17 @@ KCM.SimpleKCM {
             // whenever Transparency is off, matching toggleTransSub().
             opacity: transparencySwitch.checked ? 1.0 : 0.35
             enabled: transparencySwitch.checked
+
+            // Names what the slider sets: the toggle turns the effect on,
+            // the slider is opacity, higher = more solid (configDialog
+            // mockup v31 `.kcm-slider-label` :186-190). The stored value
+            // is unchanged (TransparencySettings.qml).
+            Label {
+                objectName: "opacityLabel"
+                text: "Opacity"
+                font.pixelSize: 12
+                color: root.colors.textDim
+            }
 
             // Full 0..100 range, step 1, as mocked. Below ~50% the panel
             // tint all but disappears while the opaque chrome stays solid.
@@ -532,6 +559,96 @@ KCM.SimpleKCM {
                 color: root.colors.controlValueText
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        // ---- Panel Icon ----
+        // configDialog mockup v31 :454-480. The segment glyphs and the
+        // Preview are the panel's own PanelGlyph / PanelVolumeNumber, so
+        // they cannot drift from it (docs/DESIGN.md §8).
+        SectionLabel { colors: root.colors; text: "Panel Icon" }
+
+        SettingsRow {
+            colors: root.colors
+            name: "Icon Style"
+            desc: "How the icon on your panel shows the amp's volume"
+
+            SegmentedControl {
+                id: iconStyleSegmented
+                objectName: "iconStyleSegmented"
+                colors: root.colors
+                labels: ["Dial", "Level"]
+                glyphStyles: root.panelIconStyles
+                activeIndex: root.panelIconStyles.indexOf(root.cfg_panelIconStyle)
+                onPicked: index => root.cfg_panelIconStyle = root.panelIconStyles[index]
+            }
+        }
+
+        SettingsRow {
+            colors: root.colors
+            name: "Show Volume Next to Icon"
+            desc: "Adds the current dB value beside the icon. Always hidden on vertical panels."
+            showDivider: false
+
+            SettingsSwitch {
+                id: showVolumeSwitch
+                objectName: "showVolumeSwitch"
+                colors: root.colors
+                checked: root.cfg_panelIconShowVolume
+                onToggled: (checked) => root.cfg_panelIconShowVolume = checked
+            }
+        }
+
+        // Preview (`.icon-preview-row`, mockup :217-229, :477-480): the
+        // result at real panel size (glyph 20, gap 6, number 14) in the
+        // page's text colour, no frame, right-aligned like the controls
+        // above. The number is removed from the layout when off, so the
+        // glyph is always flush with the right edge. Bottom padding is the
+        // page's row padding (16), where the mockup's rows have 14.
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                Layout.bottomMargin: 16
+                Layout.preferredHeight: 32
+                spacing: 6
+
+                Label {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "Preview"
+                    font.pixelSize: 11
+                    color: root.colors.textFaint
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Ui.PanelGlyph {
+                    objectName: "previewGlyph"
+                    Layout.alignment: Qt.AlignVCenter
+                    size: 20
+                    style: root.cfg_panelIconStyle
+                    glyphState: "normal"
+                    fraction: root.previewFraction
+                    color: root.colors.text
+                }
+
+                Ui.PanelVolumeNumber {
+                    objectName: "previewNumber"
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.cfg_panelIconShowVolume
+                    volumeDb: root.previewVolumeDb
+                    fontPixelSize: 14
+                    color: root.colors.text
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: root.colors.divider
             }
         }
 
@@ -903,6 +1020,8 @@ KCM.SimpleKCM {
                         root.cfg_theme = root.shippedDefaults.theme;
                         root.cfg_transparencyEnabled = root.shippedDefaults.transparencyEnabled;
                         root.cfg_transparencyPercent = root.shippedDefaults.transparencyPercent;
+                        root.cfg_panelIconStyle = root.shippedDefaults.panelIconStyle;
+                        root.cfg_panelIconShowVolume = root.shippedDefaults.panelIconShowVolume;
                         root.cfg_volumeStepDb = root.shippedDefaults.volumeStepDb;
                         root.cfg_startupVolumeDb = root.shippedDefaults.startupVolumeDb;
                         // Widen the hard limit to dbRangeMax first, so
