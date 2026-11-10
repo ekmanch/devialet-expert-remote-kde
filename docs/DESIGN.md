@@ -69,7 +69,7 @@ Bus name `com.ekmanch.DevialetRemote`, object `/com/ekmanch/DevialetRemote/Amp`,
 
 **One About page icon for every theme.** Plasma renders `metadata.json`'s icon name through the icon theme, once per shell process, and our page never coexists with the About page, so nothing of ours can change it. Do not plan a light/dark About icon without a new Plasma API.
 
-**The Add Widgets picker icon is a theme icon, not a bundled file.** `KPlugin.Icon` is resolved by name through `QIcon::fromTheme`, so the icon is installed into hicolor (`~/.local/share/icons/` by `install-plasmoid.sh`, `/usr/share/icons/` by the PKGBUILD). The panel icon is a separate mechanism (`Plasmoid.icon` set to the bundled SVG in `main.qml`).
+**The Add Widgets picker icon is a theme icon, not a bundled file.** `KPlugin.Icon` is resolved by name through `QIcon::fromTheme`, so the icon is installed into hicolor (`~/.local/share/icons/` by `install-plasmoid.sh`, `/usr/share/icons/` by the PKGBUILD). The panel icon is a separate mechanism again: drawn in QML, not an icon file (section 8).
 
 ## 5. QML rules
 
@@ -115,3 +115,19 @@ A Dark / Light / Follow system setting (kcfg `theme`, default `system`). Design 
 **No boot coordination with the companion phone apps.** Considered on 2026-10-29 for the phone-initiated boot that showed the misreported -42 dB: a side channel telling the widget that a boot is coming and which startup volume the phone will set. Dropped for observing the amp's own off → on edge instead, which covers every controller (IR remote and front panel included), needs no new transport (phone-side broadcast or mDNS from a backgrounded app is unreliable, and the observed-edge path would have to exist as the fallback anyway) and leaves the Kotlin and Flutter apps untouched. Users who want the two startup volumes to agree set the same value in both apps.
 
 **Not planned:** "Forget remembered amps" (known amps are never persisted, and the active one could never be forgotten); SAM, Night Mode, Bass and Treble (no known wire commands).
+
+## 8. Panel icon
+
+Spec: `design/tray-icon/Tray Icon Design Mockup.html`.
+
+**The panel icon is drawn in QML, in one colour.** `PanelGlyph.qml` paints with `Shape` on a 24-unit grid, every stroke and fill in the `color` it is handed: `Kirigami.Theme.textColor` on the panel, so it follows any Plasma theme the way a symbolic icon does. No colour is hardcoded and no palette is involved; the widget's Theme setting does not reach the panel. The glyph is sized like its neighbours' icons (`Kirigami.Units.iconSizes.roundedIconSize` of the applet's cell), and the number and gap scale with it (the mockup's 20 px glyph, 14 px number, 6 px gap). `Plasmoid.icon` is left at its default, the `metadata.json` icon.
+
+**Two styles, five states.** Dial is a 270° arc with a hub, Level a ring that fills from the bottom. `PanelIcon.qml` derives the state: no amp (`AmpIp` empty) is the same dashed ring for both styles; Off is the empty outline at 35 %; Booting is the empty outline pulsing, the only animation, steady at 60 % when the desktop's animations are off (`Kirigami.Units.longDuration` is 0); On shows the level, faded to 28 % with a slash when muted.
+
+**The level and the number show only while the volume is known** (the amp is On). Off, booting and no amp show the empty outline and a dash, so the glyph and the number never disagree.
+
+**The mute slash is cut out of the glyph, not haloed in the panel's colour.** The mockup draws a panel-coloured halo under the slash; the real panel's colour cannot be known from QML (translucent, blurred or recoloured panels), so the halo stroke is an inverted `MultiEffect` mask instead: the same picture on an opaque panel, and correct on every other. Built by the section 6 effect rules (in a `Loader`, layers on from creation, mask threshold 0.5 / spread 1.0).
+
+**The number has a fixed reserved width:** the wider of the floor and the ceiling as whole dB, plus the unit, so the panel's other items never move when the volume changes. Whole dB (`Math.round`) with a small "dB", left-aligned, faded to 40 % when muted. On a vertical panel it is always hidden, whatever the setting.
+
+**Settings:** `panelIconStyle` (`dial` / `level`, default `dial`) and `panelIconShowVolume` (default on), read directly by `CompactRepresentation.qml`, their only consumer. The settings page's segment glyphs and Preview instantiate the same `PanelGlyph` and `PanelVolumeNumber` the panel uses, so the two cannot drift; the Preview shows a fixed −22 dB, since the page makes no D-Bus calls.

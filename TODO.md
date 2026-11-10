@@ -199,6 +199,12 @@ The post-boot volume hold and startup-volume send for boots the widget did not s
 - [x] 18.0.0 Daemon `BootObserved(ip)` signal on the off → on edge, emitted before the packet's `PropertiesChanged`
 - [x] 18.1.0 Widget arms the startup volume and the post-boot hold on `BootObserved`; verified on the real amp with a CLI power cycle
 
+## Phase 19: Panel icon redesign
+
+The copper dot replaced by a monochrome glyph in the panel's text colour, in two styles (Dial, Level) and five states, with an optional volume number beside it and a Panel Icon section on the settings page. Spec: `design/tray-icon/Tray Icon Design Mockup.html` and `design/configDialog/ConfigDialog Design Mockup.html`; rules in `docs/DESIGN.md` §8.
+
+- [x] 19.0.0 `PanelGlyph.qml`: the Dial and Level glyphs in all five states
+
 ## Later
 
 - [ ] The verification harness can leave the real daemon down: restart it from its enabled state and assert it owns the bus name after every run
