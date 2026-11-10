@@ -1,6 +1,6 @@
 // Gradient-filled text with an optional soft glow, for the light theme's
 // volume readout and "DEVIALET" wordmark (flyout mockup v22 :109-120) and
-// the OSD toast's and tooltip's values.
+// the OSD toast's value.
 //
 // A hidden Label is the alpha mask; GradientMask.qml paints a horizontal
 // gradient through it. Size this item like the text it replaces (the

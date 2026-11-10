@@ -1,7 +1,7 @@
 // The one owner of volume-range and chime settings, forwarded to every
 // surface that shows or adjusts volume: the flyout's VolumeBlock, the
 // panel icon's scroll, and (via CompactRepresentation's volumeFraction)
-// the OSD toast and hover tooltip. It also holds the clamp/step/fraction
+// the OSD toast. It also holds the clamp/step/fraction
 // math, so no surface computes its own.
 //
 // Root-anchored like PendingAmpState.qml (docs/DESIGN.md §3):
@@ -93,8 +93,8 @@ QtObject {
         return root.clamp(base + direction * root.stepDb);
     }
 
-    // Normalized 0..1 position for progress-bar-style displays (OSD/
-    // tooltip fill). undefined db (no amp yet) reads as 0.
+    // Normalized 0..1 position for progress-bar-style displays (the OSD
+    // fill). undefined db (no amp yet) reads as 0.
     function fractionFor(db) {
         if (db === undefined) return 0;
         return Math.min(1, Math.max(0, (db - root.floorDb) / (root.hardLimitDb - root.floorDb)));

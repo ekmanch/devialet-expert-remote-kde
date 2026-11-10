@@ -4,11 +4,11 @@
 // unless noted. Pure white surfaces, near-black text, gold accents; see
 // ColorPalette.qml for each token.
 //
-// The flyout (ThemeSettings.flyoutPalette), the OSD toast and hover tooltip
-// (osdPalette) and the settings page on a light desktop (ConfigGeneral.qml)
-// paint this palette. The OSD, tooltip and configDialog mockups still list
+// The flyout (ThemeSettings.flyoutPalette), the OSD toast (osdPalette)
+// and the settings page on a light desktop (ConfigGeneral.qml) paint
+// this palette. The OSD and configDialog mockups still list
 // the older dim/faint text (#6e6a64 / #a29d95); they get the flyout's
-// darker pair below, one palette for all four surfaces.
+// darker pair below, one palette for all three surfaces.
 
 import QtQuick
 
@@ -45,7 +45,7 @@ ColorPalette {
     panelTintTop: "#ffffff"
     panelTintBottom: "#ffffff"
 
-    // ---- OSD toast + hover tooltip (opaque white in light) ----
+    // ---- OSD toast (opaque white in light) ----
     osdGradientTop: "#ffffff"
     osdGradientBottom: "#ffffff"
 
@@ -70,7 +70,7 @@ ColorPalette {
     eyebrowGradientStart: "#97691f"                              // --eyebrow (v22 :104)
     eyebrowGradientEnd: "#cf9c45"
 
-    // ---- OSD toast + tooltip (OSD mockup v4 :104-105) ----
+    // ---- OSD toast (OSD mockup v4 :104-105) ----
     goldTextStart: "#a8710b"                                     // --gold-text, stops 0 / 55 % / 100 %
     goldTextMid: "#d99a1f"
     goldTextEnd: "#efc36a"

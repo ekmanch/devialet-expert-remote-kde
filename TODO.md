@@ -214,8 +214,9 @@ The copper dot replaced by a monochrome glyph in the panel's text colour, in two
 - [x] 19.8.0 `CLAUDE.md`: the `docs/DESIGN.md` description names §8 "Panel icon"
 - [x] 19.9.0 Removed the unused `devialet_icon_glow_dot.svg`
 - [x] 19.10.0 No number while the volume is not known (amp off, booting, no amp): the panel icon collapses to the glyph alone, no dash
+- [x] 19.11.0 Hover tooltip removed (`VolumeHoverTooltip.qml` and its mockup): the icon and the OSD already show everything it did
 
 ## Later
 
 - [ ] The verification harness can leave the real daemon down: restart it from its enabled state and assert it owns the bus name after every run
-- [ ] Option for the OSD and tooltip to follow the desktop's appearance instead of the widget's theme (owner idea, not decided)
+- [ ] Option for the OSD to follow the desktop's appearance instead of the widget's theme (owner idea, not decided)

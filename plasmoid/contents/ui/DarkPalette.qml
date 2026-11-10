@@ -45,8 +45,7 @@ ColorPalette {
     panelTintTop: "#151515"
     panelTintBottom: "#151515"
 
-    // OSD toast (VolumeToast.qml) and hover tooltip (VolumeHoverTooltip.qml)
-    // background: a fixed translucent graphite gradient with alpha 0.94,
+    // OSD toast (VolumeToast.qml) background: a fixed translucent graphite gradient with alpha 0.94,
     // not the flyout's live transparency setting. Dark keeps this pair
     // rather than the v2 mockups' flat #121212 at 0.96 / opaque.
     osdGradientTop: Qt.rgba(23 / 255, 23 / 255, 26 / 255, 0.94)

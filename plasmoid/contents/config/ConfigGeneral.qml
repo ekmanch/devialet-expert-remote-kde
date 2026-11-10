@@ -59,8 +59,8 @@ KCM.SimpleKCM {
     readonly property real cfg_volumeStepDbDefault: root.shippedDefaults.volumeStepDb
     readonly property var stepValues: [0.5, 1, 2]
 
-    // main.xml `theme`: the widget's colour theme for the flyout, OSD and
-    // tooltip (read by ThemeSettings.qml). Order matches the segments:
+    // main.xml `theme`: the widget's colour theme for the flyout and the
+    // OSD (read by ThemeSettings.qml). Order matches the segments:
     // Dark, Light, Follow system.
     readonly property var themeModes: ["dark", "light", "system"]
     property string cfg_theme: "system"
@@ -369,12 +369,12 @@ KCM.SimpleKCM {
         // ---- Appearance ----
         SectionLabel { colors: root.colors; text: "Appearance"; first: true }
 
-        // Theme (configDialog mockup v2 :574-584). Recolours the flyout,
-        // hover tooltip and OSD, not this page.
+        // Theme (configDialog mockup v2 :574-584). Recolours the flyout
+        // and the OSD, not this page.
         SettingsRow {
             colors: root.colors
             name: "Theme"
-            desc: "Colors for the widget when it's open, the hover tooltip and the volume overlay"
+            desc: "Colors for the widget when it's open and the volume overlay"
 
             SegmentedControl {
                 id: themeSegmented

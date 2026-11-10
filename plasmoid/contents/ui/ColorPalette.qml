@@ -1,6 +1,6 @@
 // The colour-token type for the widget's palettes.
 //
-// Every colour the flyout, OSD toast, hover tooltip and settings page
+// Every colour the flyout, OSD toast and settings page
 // paint comes from one of these tokens; DarkPalette.qml and
 // LightPalette.qml are instances that only assign values. Each token is
 // `required`, so a palette that forgets one fails at creation with a
@@ -53,7 +53,7 @@ QtObject {
     required property color panelTintTop
     required property color panelTintBottom
 
-    // ---- OSD toast + hover tooltip background (alpha baked in) ----
+    // ---- OSD toast background (alpha baked in) ----
     required property color osdGradientTop
     required property color osdGradientBottom
 
@@ -93,13 +93,13 @@ QtObject {
     required property color eyebrowGradientStart
     required property color eyebrowGradientEnd
 
-    // ---- Light OSD toast + tooltip ----
+    // ---- Light OSD toast ----
     // The three-stop sweep of the toast's "Muted" word (`--gold-text`; the
     // settings page headings use the same one). Light only.
     required property color goldTextStart
     required property color goldTextMid
     required property color goldTextEnd
-    // Fill of the toast/tooltip bar while muted.
+    // Fill of the toast bar while muted.
     required property color mutedFill
 
     // ---- Settings page (ConfigGeneral.qml) ----

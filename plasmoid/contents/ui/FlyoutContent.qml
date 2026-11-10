@@ -138,8 +138,8 @@ Item {
         // volume-set path, since nothing downstream re-applies the floor;
         // the CLI clamps to the hard limit again itself. Sent in the same
         // invocation as the switch: the amp honoured the zero-delay
-        // source+volume pair 6/6. notifyVolume() makes the flyout, OSD and
-        // tooltip show the post-switch volume at once.
+        // source+volume pair 6/6. notifyVolume() makes the flyout and the OSD
+        // show the post-switch volume at once.
         const target = root.volumeSettings.clamp(root.volumeSettings.startupVolumeDb);
         root.runCtl("source " + index + " --hard-limit-db " + root.volumeSettings.hardLimitDb
                     + " --startup-volume-db " + target);

@@ -1,7 +1,7 @@
 // The flyout window: a PlasmaCore.Dialog with NoBackground, the only
 // popup class that drops the theme frame and so allows real transparency
 // (docs/DESIGN.md §3). No KWin blur: plain alpha over the desktop, like
-// the tooltip and toast.
+// the toast.
 //
 // - `appletInterface` is deliberately not set. With it set,
 //   Dialog::hideEvent() writes popupWidth/popupHeight into the applet's
