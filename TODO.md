@@ -204,6 +204,7 @@ The post-boot volume hold and startup-volume send for boots the widget did not s
 The copper dot replaced by a monochrome glyph in the panel's text colour, in two styles (Dial, Level) and five states, with an optional volume number beside it and a Panel Icon section on the settings page. Spec: `design/tray-icon/Tray Icon Design Mockup.html` and `design/configDialog/ConfigDialog Design Mockup.html`; rules in `docs/DESIGN.md` §8.
 
 - [x] 19.0.0 `PanelGlyph.qml`: the Dial and Level glyphs in all five states
+- [x] 19.1.0 `PanelVolumeNumber.qml` and `PanelIcon.qml`: the volume number with a fixed reserved width, hidden on vertical panels
 
 ## Later
 
