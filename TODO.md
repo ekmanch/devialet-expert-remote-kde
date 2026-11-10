@@ -207,6 +207,7 @@ The copper dot replaced by a monochrome glyph in the panel's text colour, in two
 - [x] 19.1.0 `PanelVolumeNumber.qml` and `PanelIcon.qml`: the volume number with a fixed reserved width, hidden on vertical panels
 - [x] 19.2.0 kcfg keys `panelIconStyle` and `panelIconShowVolume` (defaults Dial, on)
 - [x] 19.3.0 Cutover: the panel shows `PanelIcon` instead of the copper dot; scroll and middle-click unchanged
+- [x] 19.4.0 Settings page: Panel Icon section (Icon style, Show volume next to icon, Preview)
 
 ## Later
 

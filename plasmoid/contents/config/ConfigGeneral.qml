@@ -72,6 +72,20 @@ KCM.SimpleKCM {
     readonly property bool cfg_transparencyEnabledDefault: root.shippedDefaults.transparencyEnabled
     readonly property int cfg_transparencyPercentDefault: root.shippedDefaults.transparencyPercent
 
+    // Panel Icon: main.xml panelIconStyle / panelIconShowVolume, read by
+    // CompactRepresentation.qml (docs/DESIGN.md §8). Order matches the
+    // segments: Dial, Level.
+    readonly property var panelIconStyles: ["dial", "level"]
+    property string cfg_panelIconStyle: "dial"
+    property bool cfg_panelIconShowVolume: true
+    readonly property string cfg_panelIconStyleDefault: root.shippedDefaults.panelIconStyle
+    readonly property bool cfg_panelIconShowVolumeDefault: root.shippedDefaults.panelIconShowVolume
+    // The Preview's illustrative volume: -22 dB in a -45..-10 range
+    // (configDialog mockup v31 :753-754). Fixed, not the amp's: this page
+    // makes no D-Bus calls.
+    readonly property real previewVolumeDb: -22
+    readonly property real previewFraction: (-22 - -45) / (-10 - -45)
+
     // Volume limits (main.xml volumeFloorDb/hardLimitDb/startupVolumeDb).
     // -96..0 dB is the Expert Pro range, used by every DbStepper below.
     property real cfg_volumeFloorDb: -50.0
@@ -117,6 +131,8 @@ KCM.SimpleKCM {
         theme: "system",
         transparencyEnabled: true,
         transparencyPercent: 90,
+        panelIconStyle: "dial",
+        panelIconShowVolume: true,
         volumeStepDb: 1.0,
         startupVolumeDb: -40.0,
         volumeFloorDb: -50.0,
@@ -535,6 +551,97 @@ KCM.SimpleKCM {
             }
         }
 
+        // ---- Panel Icon ----
+        // configDialog mockup v31 :454-480. The segment glyphs and the
+        // Preview are the panel's own PanelGlyph / PanelVolumeNumber, so
+        // they cannot drift from it (docs/DESIGN.md §8).
+        SectionLabel { colors: root.colors; text: "Panel Icon" }
+
+        SettingsRow {
+            colors: root.colors
+            name: "Icon style"
+            desc: "How the icon on your panel shows the amp's volume"
+
+            SegmentedControl {
+                id: iconStyleSegmented
+                objectName: "iconStyleSegmented"
+                colors: root.colors
+                labels: ["Dial", "Level"]
+                glyphStyles: root.panelIconStyles
+                activeIndex: root.panelIconStyles.indexOf(root.cfg_panelIconStyle)
+                onPicked: index => root.cfg_panelIconStyle = root.panelIconStyles[index]
+            }
+        }
+
+        SettingsRow {
+            colors: root.colors
+            name: "Show volume next to icon"
+            desc: "Adds the current dB value beside the icon. Always hidden on vertical panels."
+            showDivider: false
+
+            SettingsSwitch {
+                id: showVolumeSwitch
+                objectName: "showVolumeSwitch"
+                colors: root.colors
+                checked: root.cfg_panelIconShowVolume
+                onToggled: (checked) => root.cfg_panelIconShowVolume = checked
+            }
+        }
+
+        // Preview (`.icon-preview-row`, mockup :217-229, :477-480): the
+        // result at real panel size (glyph 20, gap 6, number 14) in the
+        // page's text colour, no frame, right-aligned like the controls
+        // above. The number is removed from the layout when off, so the
+        // glyph is always flush with the right edge. Bottom padding is the
+        // page's row padding (16), where the mockup's rows have 14.
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                Layout.bottomMargin: 16
+                Layout.preferredHeight: 32
+                spacing: 6
+
+                Label {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "Preview"
+                    font.pixelSize: 11
+                    color: root.colors.textFaint
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Ui.PanelGlyph {
+                    objectName: "previewGlyph"
+                    Layout.alignment: Qt.AlignVCenter
+                    size: 20
+                    style: root.cfg_panelIconStyle
+                    glyphState: "normal"
+                    fraction: root.previewFraction
+                    color: root.colors.text
+                }
+
+                Ui.PanelVolumeNumber {
+                    objectName: "previewNumber"
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.cfg_panelIconShowVolume
+                    known: true
+                    volumeDb: root.previewVolumeDb
+                    fontPixelSize: 14
+                    color: root.colors.text
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: root.colors.divider
+            }
+        }
+
         // ---- Volume ----
         SectionLabel { colors: root.colors; text: "Volume" }
 
@@ -903,6 +1010,8 @@ KCM.SimpleKCM {
                         root.cfg_theme = root.shippedDefaults.theme;
                         root.cfg_transparencyEnabled = root.shippedDefaults.transparencyEnabled;
                         root.cfg_transparencyPercent = root.shippedDefaults.transparencyPercent;
+                        root.cfg_panelIconStyle = root.shippedDefaults.panelIconStyle;
+                        root.cfg_panelIconShowVolume = root.shippedDefaults.panelIconShowVolume;
                         root.cfg_volumeStepDb = root.shippedDefaults.volumeStepDb;
                         root.cfg_startupVolumeDb = root.shippedDefaults.startupVolumeDb;
                         // Widen the hard limit to dbRangeMax first, so
