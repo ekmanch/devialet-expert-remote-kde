@@ -27,9 +27,10 @@ all three.
 
 - `docs/DESIGN.md` — how the widget works and why: architecture, the D-Bus
   surface, state and behaviour rules, the settings dialog, QML house rules,
-  the light theme, and what was decided against. **Settled — read it
-  before changing any of those areas, and don't re-derive or relitigate
-  what it records.** Add a rule there when a new decision is made.
+  the light theme, what was decided against, and the panel icon.
+  **Settled — read it before changing any of those areas, and don't
+  re-derive or relitigate what it records.** Add a rule there when a new
+  decision is made.
 - `docs/protocol.md` — UDP packet structure, transport details, command
   types. Treat as the spec for the networking layer. Anything marked
   "inferred, not confirmed" should be verified against the real device
