@@ -374,7 +374,7 @@ KCM.SimpleKCM {
         SettingsRow {
             colors: root.colors
             name: "Theme"
-            desc: "Colors for the popup, hover tooltip and volume overlay"
+            desc: "Colors for the widget when it's open, the hover tooltip and the volume overlay"
 
             SegmentedControl {
                 id: themeSegmented
