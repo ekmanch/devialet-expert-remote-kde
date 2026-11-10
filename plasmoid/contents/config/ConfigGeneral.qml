@@ -428,7 +428,7 @@ KCM.SimpleKCM {
         SettingsRow {
             colors: root.colors
             name: "Transparency"
-            desc: "Let the desktop show through the panel"
+            desc: "Let the desktop show through the widget when it's open"
 
             SettingsSwitch {
                 id: transparencySwitch
@@ -448,6 +448,17 @@ KCM.SimpleKCM {
             // whenever Transparency is off, matching toggleTransSub().
             opacity: transparencySwitch.checked ? 1.0 : 0.35
             enabled: transparencySwitch.checked
+
+            // Names what the slider sets: the toggle turns the effect on,
+            // the slider is opacity, higher = more solid (configDialog
+            // mockup v31 `.kcm-slider-label` :186-190). The stored value
+            // is unchanged (TransparencySettings.qml).
+            Label {
+                objectName: "opacityLabel"
+                text: "Opacity"
+                font.pixelSize: 12
+                color: root.colors.textDim
+            }
 
             // Full 0..100 range, step 1, as mocked. Below ~50% the panel
             // tint all but disappears while the opaque chrome stays solid.

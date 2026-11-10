@@ -208,6 +208,7 @@ The copper dot replaced by a monochrome glyph in the panel's text colour, in two
 - [x] 19.2.0 kcfg keys `panelIconStyle` and `panelIconShowVolume` (defaults Dial, on)
 - [x] 19.3.0 Cutover: the panel shows `PanelIcon` instead of the copper dot; scroll and middle-click unchanged
 - [x] 19.4.0 Settings page: Panel Icon section (Icon style, Show volume next to icon, Preview)
+- [x] 19.5.0 Settings page: "Opacity" slider label and the new Transparency description
 
 ## Later
 
