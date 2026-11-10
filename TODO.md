@@ -212,6 +212,7 @@ The copper dot replaced by a monochrome glyph in the panel's text colour, in two
 - [x] 19.6.0 Settings page: Title Case for the "Icon Style" and "Show Volume Next to Icon" rows
 - [x] 19.7.0 Settings page: the Theme description says "the widget when it's open" instead of "popup"
 - [x] 19.8.0 `CLAUDE.md`: the `docs/DESIGN.md` description names §8 "Panel icon"
+- [x] 19.9.0 Removed the unused `devialet_icon_glow_dot.svg`
 
 ## Later
 
