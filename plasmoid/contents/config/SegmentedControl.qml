@@ -1,5 +1,5 @@
 // The settings page's segmented control (mockup `.kcm-segmented` /
-// `.kcm-seg-btn`), used by the Theme, Icon style, Volume step and Chime
+// `.kcm-seg-btn`), used by the Theme, Icon Style, Volume step and Chime
 // sound rows.
 //
 // Stateless: `activeIndex` is bound by the page and `picked(index)` fires

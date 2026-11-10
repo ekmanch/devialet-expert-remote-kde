@@ -570,7 +570,7 @@ KCM.SimpleKCM {
 
         SettingsRow {
             colors: root.colors
-            name: "Icon style"
+            name: "Icon Style"
             desc: "How the icon on your panel shows the amp's volume"
 
             SegmentedControl {
@@ -586,7 +586,7 @@ KCM.SimpleKCM {
 
         SettingsRow {
             colors: root.colors
-            name: "Show volume next to icon"
+            name: "Show Volume Next to Icon"
             desc: "Adds the current dB value beside the icon. Always hidden on vertical panels."
             showDivider: false
 
